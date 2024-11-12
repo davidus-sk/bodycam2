@@ -1,0 +1,220 @@
+$sidebarWidth: 100px;
+
+html, body {
+
+}
+body {
+    padding: 0;
+    margin: 0;
+    background-color: #151518;
+    font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: #e9e9e9;
+}
+
+a {
+    color: #ebed94;
+}
+
+#wrapper {    
+    position: relative;
+    left: 0;
+    padding-left: 0;
+    min-height2: 100px;
+}
+
+#sidebar {
+    height: 100vh;
+    margin-left: -$sidebarWidth;
+    width: $sidebarWidth;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1000;
+    background-color: #3f424f;
+    overflow-y: auto;
+}
+.sidebar-menu {
+    margin: 10px 0;
+    padding: 0 10px;
+
+    li + li {
+        margin-top: 8px;
+    }
+}
+.sidebar-menu-item {
+    padding: 12px 10px;
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+    color: #dbe2ff;    
+    font-size: 1rem;
+    border-radius: 4px;
+
+    &:hover, &:focus {
+        background-color: #262937;
+    }
+
+    &.active {
+        color: #fff;
+        background-color: #616881;
+    }
+    svg {
+        width: 42px;
+        height: 42px;
+        margin-bottom: 5px;
+    }
+}
+
+#content {
+    
+}
+
+// VIDEO
+#video-grid {
+    display: grid;
+    column-gap: 5px;
+    row-gap: 5px;
+    padding: 5px;
+    grid-auto-flow: row dense;
+    justify-items: center;
+    align-items: center;
+
+}
+.grid1x1 {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+}
+.grid2x1 {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: 1fr;
+}
+.grid3x1 {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: 1fr;
+}
+.grid1x2 {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(2, 1fr);
+}
+.grid1x3 {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(3, 1fr);
+}
+.grid2x2 {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+}
+.grid2x3 {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+}
+.grid3x2 {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+}
+.grid3x3 {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+}
+.video-wrapper {
+    width: 100%;
+    height: 100%;
+    position: relative;
+
+    video {
+        position: absolute;
+        top:0;
+        left:0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #000;
+    }
+}
+
+@media (min-width: 48em) {
+    #wrapper {
+        padding-left: $sidebarWidth;
+        left: 0;
+    }
+    #sidebar {
+        left: $sidebarWidth;
+    }
+}
+
+// -------------------------------------------------------------------------------------
+// BUTTONS
+// -------------------------------------------------------------------------------------
+.btn-h-100 { height: 100px; }
+.btn-cool {
+    position: relative;
+    border-color: rgb(61, 106, 255);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+
+    color: #fff;
+    overflow: hidden;
+    box-shadow: 0 0 0 0 transparent;
+    -webkit-transition: all 0.2s ease-in;
+    -moz-transition: all 0.2s ease-in;
+    transition: all 0.2s ease-in;
+}
+
+.btn-cool:hover {
+    background-color: rgb(61, 106, 255);
+    box-shadow: 0 0 30px 5px rgba(0, 142, 236, 0.815);
+    -webkit-transition: all 0.2s ease-out;
+    -moz-transition: all 0.2s ease-out;
+    transition: all 0.2s ease-out;
+}
+
+.btn-cool:hover::before {
+    -webkit-animation: sh02 0.5s 0s linear;
+    -moz-animation: sh02 0.5s 0s linear;
+    animation: sh02 0.5s 0s linear;
+}
+.btn-cool::before {
+    content: '';
+    display: block;
+    width: 0px;
+    height: 86%;
+    position: absolute;
+    top: 7%;
+    left: 0%;
+    opacity: 0;
+    background: #fff;
+    box-shadow: 0 0 50px 30px #fff;
+    -webkit-transform: skewX(-20deg);
+    -moz-transform: skewX(-20deg);
+    -ms-transform: skewX(-20deg);
+    -o-transform: skewX(-20deg);
+    transform: skewX(-20deg);
+}
+
+@keyframes sh02 {
+    from {
+        opacity: 0;
+        left: 0%;
+    }
+
+    50% {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 0;
+        left: 100%;
+    }
+}
+
+.btn-cool:active {
+    box-shadow: 0 0 0 0 transparent;
+    -webkit-transition: box-shadow 0.2s ease-in;
+    -moz-transition: box-shadow 0.2s ease-in;
+    transition: box-shadow 0.2s ease-in;
+}
