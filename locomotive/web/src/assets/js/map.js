@@ -1,11 +1,20 @@
-import { worker } from "./functions.js";
+import { generateClientId, worker } from "./functions.js";
 import { EventDispatcher } from "./EventDispatcher.js";
+import { MqttClient } from "./mqtt/client.js";
 
 export class MapView {
-    constructor() {
+    config = {};
+    mqttClient = null;
+
+    constructor(config) {
         // constants
         this.DEFAULT_GPS_POSITION = [41.396879107772705, -91.07739278163716];
         this.DEFAULT_ZOOM = 5;
+
+        // merge config
+        this.config = Object.assign(this.config, config);
+
+        console.log("!: config", config);
 
         this.$element = $("#map");
         this.running = false;
@@ -20,10 +29,13 @@ export class MapView {
         EventDispatcher.attach(this);
 
         // map
-        this.initMap();
+        this.initMap().then(() => {
+            // events
+            this.attachEvents();
 
-        // events
-        this.attachEvents();
+            // mqtt
+            this.mqttLoop();
+        });
 
         // timers
         this.initTimers();
@@ -35,7 +47,7 @@ export class MapView {
         });
     }
 
-    initMap() {
+    async initMap() {
         // leaflet map reference
         this.map = L.map("map", {
             zoomControl: false,
@@ -159,6 +171,21 @@ export class MapView {
 
             this.emit("map_objects_refresh", data);
         });
+    }
+
+    mqttLoop() {
+        // init mqtt client
+        this.mqttClient = new MqttClient(this.config.mqtt);
+
+        // mqtt connected
+        this.mqttClient.onConnect = async (conn) => {
+            console.log("e: mqtt connected", conn);
+        };
+
+        // connect
+        this.mqttClient.connect();
+
+        //this.mqttClient.subscribe();
     }
 }
 

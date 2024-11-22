@@ -1,7 +1,7 @@
 <?php
 
-include 'bootstrap.php';
-#include 'class/Config.php';
+include_once 'bootstrap.php';
+include_once 'class/Config.php';
 
 // views
 define('VIEW', !empty($_GET['r']) ? $_GET['r'] : 'video');

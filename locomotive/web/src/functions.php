@@ -99,7 +99,7 @@ function jsonResponse($data, $responseCode = 200)
         http_response_code($responseCode);
     }
 
-    echo json_encode($data, JSON_PRETTY_PRINT|JSON_NUMERIC_CHECK);
+    echo json_encode($data, JSON_PRETTY_PRINT | JSON_NUMERIC_CHECK);
     die();
 }
 
@@ -111,6 +111,11 @@ function jsonResponse($data, $responseCode = 200)
 function stdout($string): void
 {
     echo $string;
+}
+
+function readConfig(bool $returnJson = false): array|string
+{
+    return Config::read($returnJson);
 }
 
 /**

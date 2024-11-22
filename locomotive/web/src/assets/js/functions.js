@@ -1,3 +1,20 @@
+export function generateClientId(length) {
+    if (length < 1 || length > 23) {
+        throw new Error("Length must be between 1 and 23 characters.");
+    }
+    const timestamp = Date.now().toString(36);
+    const randomLength = length - timestamp.length;
+    const characters =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let result = timestamp;
+    for (let i = 0; i < randomLength; i++) {
+        const randomIndex = Math.floor(Math.random() * characters.length);
+        result += characters[randomIndex];
+    }
+
+    return result;
+}
+
 let _workers = {};
 
 export const worker = function (name, interval, callback) {

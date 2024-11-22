@@ -1,3 +1,4 @@
+
 <div class="w-full h-screen overflow-hidden relative">
     <div id="map" class="w-full h-full z-5"></div>
 
@@ -14,8 +15,10 @@
 <script type="module">
 import {MapView} from "<?= js('map.js'); ?>";
 
+const config = <?= Config::read(true); ?>;
+
 $(function() {
-    const mapView = new MapView();
+    const mapView = new MapView(config);
     
 });
 </script>
