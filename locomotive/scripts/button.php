@@ -2,7 +2,7 @@
 <?php
 
 // run only once
-$lockFile = fopen('/tmp/button.pid', 'c');
+$lockFile = fopen('/tmp/locomotive_button.pid', 'c');
 $gotLock = flock($lockFile, LOCK_EX | LOCK_NB, $wouldBlock);
 if ($lockFile === false || (!$gotLock && !$wouldBlock)) {
         throw new Exception("Can't obtain lock.");
@@ -22,12 +22,11 @@ use \PhpMqtt\Client\ConnectionSettings;
 // MQTT settings
 $server   = '951badeefd764316aa971d7958e80e0c.s1.eu.hivemq.cloud';
 $port     = 8883;
-$clientId = 'camera-' . trim(`/usr/bin/cat /proc/cpuinfo | /usr/bin/grep "Serial" | /usr/bin/xargs | /usr/bin/cut -d ' ' -f 3`);
+$clientId = 'locomotive-' . trim(`/usr/bin/cat /proc/cpuinfo | /usr/bin/grep "Serial" | /usr/bin/xargs | /usr/bin/cut -d ' ' -f 3`);
 $username = 'marek';
 $password = 'Mqtt12345';
 $clean_session = false;
 $mqtt_version = MqttClient::MQTT_3_1;
-$stop_file = '/tmp/ESTOP';
 
 // MQTT connection string
 $connectionSettings = (new ConnectionSettings)

@@ -1,0 +1,2 @@
+* *	* * *	root	/app/bodycam2/camera/scripts/status.php alive >> /tmp/status.log
+* *	* * *	root	/app/bodycam2/camera/scripts/button.php >> /tmp/camera_button.log
