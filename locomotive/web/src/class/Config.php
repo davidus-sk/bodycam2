@@ -53,7 +53,7 @@ class Config
             throw new Exception('Configuration file "'. $filePath .'" does not exist.');
         }
 
-        $cfg = parse_ini_file($filePath, true);
+        $cfg = parse_ini_file($filePath, true, INI_SCANNER_TYPED);
         if (!is_array($cfg)) {
             throw new Exception('Failed to read configuration file "'. $filePath .'".');
         }

@@ -28,6 +28,7 @@ const DEFAULT_TIMEOUT = 5000;
 export class PiCamera {
     options = {};
     mqttOptions = {};
+    cameraId = null;
 
     rtcTimer = null;
     rtcPeer = null;
@@ -36,7 +37,6 @@ export class PiCamera {
     remoteStream = null;
     mediaElement = null;
 
-    sendIceCandindates = false;
     cacheIceList = [];
     receivedLength = 0;
     isFirstPacket = true;
@@ -45,27 +45,66 @@ export class PiCamera {
     mqttClient = null;
     mqttClientId = null;
 
-    constructor(options, mqttOptions) {
+    constructor(cameraId, options, mqttOptions, mqttClient) {
         this.options = this.initializeOptions(options);
         this.mqttOptions = mqttOptions;
-        console.log(mqttOptions);
+
+        this.cameraId = cameraId;
+
+        if (mqttClient) {
+            this.mqttClient = mqttClient;
+        }
+
+        if (this.options.debug === true && typeof console != "undefined") {
+            this.debug = console.log.bind(console);
+        } else {
+            this.debug = function (message) {};
+        }
+    }
+
+    initializeOptions(options) {
+        const defaultOptions = {
+            stunUrls: [],
+            turnUrl: null,
+            turnUsername: "",
+            turnPassword: "",
+            timeout: DEFAULT_TIMEOUT,
+            datachannelOnly: false,
+            isMicOn: false,
+            isSpeakerOn: false,
+            setTimeout: 5000,
+            debug: false,
+        };
+
+        // remove duplicates
+        let cfg = { ...defaultOptions, ...options };
+        cfg.stunUrls = [...new Set(cfg.stunUrls)];
+
+        return cfg;
     }
 
     attach(mediaElement) {
-        console.log("attach()", mediaElement);
+        this.debug("attach()", mediaElement);
         this.mediaElement = mediaElement;
     }
 
     connect() {
-        // unique mqtt client id
-        this.mqttClientId = generateClientId(23);
-
         // init mqtt client
-        this.mqttClient = new MqttClient(this.mqttClientId, this.mqttOptions);
+        if (!this.mqttClient) {
+            // unique mqtt client id
+            if (!this.mqttClientId) {
+                this.mqttClientId = generateClientId(23);
+                this.mqttOptions.clientId = this.mqttClientId;
+            }
+
+            this.mqttClient = new MqttClient(this.mqttOptions);
+        } else {
+            this.mqttClientId = this.mqttClient.client.options.clientId;
+        }
 
         // mqtt connected
         this.mqttClient.onConnect = async (conn) => {
-            //
+            // create webrtc peer connection
             this.rtcPeer = await this.createWebRtcConnection();
 
             const sdpTopic = this.constructTopic(MQTT_SDP_TOPIC);
@@ -82,11 +121,10 @@ export class PiCamera {
 
             // set the generated SDP to be our local session description
             this.rtcPeer?.setLocalDescription(offer, () => {
-                console.log("!: setLocalDescription() - done");
+                this.debug("!: setLocalDescription() - done");
                 const topic = this.constructTopic(MQTT_SDP_TOPIC, "/offer");
 
                 conn.publish(topic, JSON.stringify(offer));
-                this.sendIceCandindates = true;
             });
         };
 
@@ -100,7 +138,7 @@ export class PiCamera {
                 return;
             }
 
-            console.log(
+            this.debug(
                 "!: disconnecting on timeout (" + this.options.timeout + " ms)"
             );
 
@@ -110,27 +148,6 @@ export class PiCamera {
 
             this.terminate();
         }, this.options.timeout);
-    }
-
-    initializeOptions(options) {
-        const defaultOptions = {
-            stunUrls: [],
-            turnUrl: null,
-            turnUsername: "",
-            turnPassword: "",
-            deviceUuid: "",
-            timeout: DEFAULT_TIMEOUT,
-            datachannelOnly: false,
-            isMicOn: false,
-            isSpeakerOn: false,
-            setTimeout: 5000,
-        };
-
-        // remove duplicates
-        let cfg = { ...defaultOptions, ...options };
-        cfg.stunUrls = [...new Set(cfg.stunUrls)];
-
-        return cfg;
     }
 
     getRtcConfig() {
@@ -155,7 +172,7 @@ export class PiCamera {
             });
         }
 
-        console.log(config.iceServers);
+        this.debug(config.iceServers);
         return config;
     }
 
@@ -178,7 +195,6 @@ export class PiCamera {
             peer.addTransceiver("audio", { direction: "sendrecv" });
 
             peer.addEventListener("track", (e) => {
-                console.log("e: track");
                 this.sendIceCandindates = false;
 
                 this.remoteStream = new MediaStream();
@@ -191,6 +207,7 @@ export class PiCamera {
                     }
                 });
 
+                this.debug(this.mediaElement);
                 if (this.mediaElement) {
                     //this.mediaElement.srcObject = this.remoteStream;
                     this.mediaElement.srcObject = addWatermarkToStream(
@@ -202,8 +219,7 @@ export class PiCamera {
         }
 
         peer.addEventListener("icecandidate", (e) => {
-            //if (this.sendIceCandindates) {
-            console.log("e: icecandidate", e);
+            this.debug("e: icecandidate", e);
 
             if (e.candidate && this.mqttClient?.isConnected()) {
                 const topic = this.constructTopic(MQTT_ICE_TOPIC, "/offer");
@@ -214,15 +230,15 @@ export class PiCamera {
         });
 
         peer.addEventListener("addstream ", (e) => {
-            console.log("e: addstream ", e);
+            this.debug("e: addstream ", e);
         });
 
         peer.addEventListener("iceconnectionstatechange ", (e) => {
-            console.log("e: iceconnectionstatechange ", e);
+            this.debug("e: iceconnectionstatechange ", e);
         });
 
         peer.addEventListener("negotiationneeded", (e) => {
-            console.log("e: negotiationneeded", e);
+            this.debug("e: negotiationneeded", e);
         });
 
         this.dataChannel = peer.createDataChannel(generateClientId(10), {
@@ -239,7 +255,7 @@ export class PiCamera {
         });
 
         this.dataChannel.addEventListener("message", (e) => {
-            console.log("e: dataChannel:message");
+            this.debug("e: dataChannel:message");
             const packet = new Uint8Array(e.data);
             const header = packet[0];
             const body = packet.slice(1);
@@ -251,36 +267,45 @@ export class PiCamera {
             }
         });
 
+        // The connectionState read-only property of the RTCPeerConnection interface
+        // indicates the current state of the peer connection by returning one of the
+        // following string values: new, connecting, connected, disconnected, failed,
+        // or closed.
         peer.addEventListener("connectionstatechange", () => {
-            console.log("e: connectionstatechange", peer.connectionState);
+            this.debug("e: connectionstatechange", peer.connectionState);
 
-            if (this.onConnectionState) {
-                this.onConnectionState(peer.connectionState);
-            }
+            // event
+            this.onConnectionState?.(peer.connectionState);
 
-            if (
-                peer.connectionState === "connected" &&
-                this.mqttClient?.isConnected()
-            ) {
-                console.log(
-                    "!: disconnecting after successfully camera connnect"
+            if (peer.connectionState === "connected") {
+                this.debug(
+                    "e: track - %cadding",
+                    "background-color:#540101;color:#dbe2ff;font-weight:500"
                 );
 
-                this.mqttClient.disconnect();
-                this.mqttClient = undefined;
+                // if (this.mqttClient?.isConnected()) {
+                //     this.debug(
+                //         "!: disconnecting after successfully camera connect"
+                //     );
+
+                //     this.mqttClient.disconnect();
+                //     this.mqttClient = undefined;
+                // }
             } else if (peer.connectionState === "failed") {
                 this.terminate();
             }
         });
 
         peer.addEventListener("signalingstatechange", (e) => {
-            console.log("!: signaling status = " + peer.signalingState);
+            this.debug("!: signaling status = " + peer.signalingState);
         });
 
         return peer;
     };
 
     terminate = () => {
+        this.debug("f: terminate()");
+
         clearTimeout(this.rtcTimer);
         this.rtcTimer = null;
 
@@ -297,6 +322,7 @@ export class PiCamera {
             this.localStream.getTracks().forEach((track) => {
                 track.stop();
             });
+
             this.localStream = undefined;
         }
 
@@ -304,6 +330,7 @@ export class PiCamera {
             this.remoteStream.getTracks().forEach((track) => {
                 track.stop();
             });
+
             this.remoteStream = undefined;
         }
 
@@ -316,18 +343,20 @@ export class PiCamera {
             this.rtcPeer = undefined;
         }
 
-        if (this.mqttClient) {
-            this.mqttClient.disconnect();
-            this.mqttClient = undefined;
-        }
+        // if (this.mqttClient) {
+        //     this.mqttClient.disconnect();
+        //     this.mqttClient = undefined;
+        // }
 
-        if (this.onConnectionState) {
-            this.onConnectionState("closed");
-        }
+        // event
+        this.onConnectionState?.("closed");
+        // if (this.onConnectionState) {
+        //     this.onConnectionState("closed");
+        // }
     };
 
     constructTopic(topic, subLevels) {
-        let t = `${this.options.deviceUuid}/${topic}/${this.mqttClientId}`;
+        let t = `${this.cameraId}/${topic}/${this.mqttClientId}`;
         if (typeof subLevels === "string") {
             t += subLevels;
         }
@@ -405,7 +434,7 @@ export class PiCamera {
 
     handleSdpMessage = (message) => {
         const sdp = JSON.parse(message);
-        console.log("e: handleSdpMessage()", sdp);
+        this.debug("e: handleSdpMessage()", sdp);
 
         //if (sdp.type === "answer") {
         this.rtcPeer?.setRemoteDescription(new RTCSessionDescription(sdp));
@@ -414,7 +443,7 @@ export class PiCamera {
 
     handleIceMessage = (message) => {
         const ice = JSON.parse(message);
-        console.log("e: handleIceMessage", ice);
+        this.debug("e: handleIceMessage", ice);
 
         if (this.rtcPeer?.currentRemoteDescription) {
             this.rtcPeer.addIceCandidate(new RTCIceCandidate(ice));
