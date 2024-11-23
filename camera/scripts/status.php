@@ -1,6 +1,18 @@
 #!/usr/bin/php
 <?php
 
+// run only once
+$lockFile = fopen('/tmp/camera_status.pid', 'c');
+$gotLock = flock($lockFile, LOCK_EX | LOCK_NB, $wouldBlock);
+if ($lockFile === false || (!$gotLock && !$wouldBlock)) {
+        throw new Exception("Can't obtain lock.");
+} else if (!$gotLock && $wouldBlock) {
+        exit();
+}//if
+
+ftruncate($lockFile, 0);
+fwrite($lockFile, getmypid() . "\n");
+
 // load libraries
 require(dirname(__FILE__) . '/../../../vendor/autoload.php');
 
@@ -28,17 +40,21 @@ $connectionSettings = (new ConnectionSettings)
   ->setUseTls(true)
   ->setLastWillQualityOfService(0);
 
-// connect to the server
-$mqtt = new MqttClient($server, $port, $clientId, $mqtt_version);
-$mqtt->connect($connectionSettings, $clean_session);
+while (TRUE) {
+	// connect to the server
+	$mqtt = new MqttClient($server, $port, $clientId, $mqtt_version);
+	$mqtt->connect($connectionSettings, $clean_session);
 
-// construct payload
-$payload = [
-	'camera_id' => $clientId,
-	'ts' => time(),
-	'status' => $status
-];
+	// construct payload
+	$payload = [
+		'camera_id' => $clientId,
+		'ts' => time(),
+		'status' => $status
+	];
 
-// publish and disconnect
-$mqtt->publish("camera/{$clientId}/status", json_encode($payload), 0, false);
-$mqtt->disconnect();
+	// publish and disconnect
+	$mqtt->publish("camera/{$clientId}/status", json_encode($payload), 0, false);
+	$mqtt->disconnect();
+
+	sleep(30);
+}//while
