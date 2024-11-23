@@ -2,10 +2,10 @@
 
 - [x] WebRTC video streaming
 - [ ] 4G/LTE modem connectivity
-- [ ] Push button
+- [x] Push button
 - [ ] Accelerometer
 - [ ] UV readings
 - [ ] GPS data
-- [ ] Cam sending API
+- [x] Cam sending API
 - [ ] Locomotive receiving API
 - [ ] Locomotive UI
