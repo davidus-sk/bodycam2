@@ -4,7 +4,7 @@
 - [ ] 4G/LTE modem connectivity
 - [x] Push button
 - [ ] Accelerometer
-- [ ] UV readings
+- [x] UV readings
 - [ ] GPS data
 - [x] Cam sending API
 - [ ] Locomotive receiving API
