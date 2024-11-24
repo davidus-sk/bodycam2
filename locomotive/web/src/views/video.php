@@ -7,6 +7,10 @@
 import {Video} from "<?= js('video.js'); ?>";
 
 const config = <?= Config::read(true); ?>;
-const v = new Video(config);
 
+$(function() {
+
+    const v = new Video(config, app);
+
+});
 </script>

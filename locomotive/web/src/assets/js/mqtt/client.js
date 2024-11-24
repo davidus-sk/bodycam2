@@ -1,4 +1,5 @@
-import mqtt from "./mqtt.min.js";
+import mqtt from './mqtt.min.js';
+import { EventDispatcher } from './../EventDispatcher.js';
 
 export class MqttClient {
     clientId = null;
@@ -8,8 +9,11 @@ export class MqttClient {
         this.options = this.initializeOptions(options);
         this.subscribedFnMap = new Map();
 
+        // event dispatcher
+        EventDispatcher.attach(this);
+
         // debug
-        if (this.options.debug === true && typeof console != "undefined") {
+        if (this.options.debug === true && typeof console != 'undefined') {
             this.debug = console.log.bind(console);
         } else {
             this.debug = function (message) {};
@@ -18,13 +22,13 @@ export class MqttClient {
 
     initializeOptions(userOptions) {
         const defaultOptions = {
-            host: "127.0.0.1",
+            host: '127.0.0.1',
             port: 8000,
-            path: "",
+            path: '',
             clientId: null,
             username: null,
             password: null,
-            protocol: "ws",
+            protocol: 'ws',
             clientId: null,
             keepalive: 60,
             protocolVersion: 4,
@@ -59,13 +63,19 @@ export class MqttClient {
         this.client.reconnect();
     }
 
+    getClientId() {
+        return this.client?.options.clientId;
+    }
+
     disconnect() {
         if (!this.client) return;
         this.debug(`f: mqtt disconnect`);
 
         this.client.removeAllListeners();
         this.client.end(true);
-        this.onDisconnect?.(this.client.options.clientId);
+
+        this.emit('disconnect', this.getClientId());
+        this.onDisconnect?.(this.getClientId());
 
         this.subscribedFnMap.clear();
     }
@@ -91,23 +101,26 @@ export class MqttClient {
         if (!this.client) return;
 
         // emitted on successful (re)connection (i.
-        this.client.on("connect", () => {
-            this.debug(
-                `e: connect - client id: ${this.client.options.clientId}`
-            );
+        this.client.on('connect', () => {
+            this.debug(`e: connect - client id: ${this.getClientId()}`);
+
+            this.emit('connect', this);
             this.onConnect?.(this);
         });
 
         // emitted when the client receives a publish packet
-        this.client.on("message", (topic, message) => {
-            //this.debug("e: mqtt message", topic);
+        this.client.on('message', (topic, message) => {
+            this.debug('e: message:', topic);
+
+            const msg = message?.toString() ?? null;
 
             // global callback
-            this.onMessage?.(topic, message.toString());
+            this.emit('message', ...[topic, message]);
+            this.onMessage?.(topic, msg);
 
             // topic callback
             const callback = this.subscribedFnMap.get(topic);
-            callback?.(message.toString());
+            callback?.(msg);
         });
     }
 
@@ -117,12 +130,12 @@ export class MqttClient {
 
     subscribe(topic, callback) {
         if (!this.client) {
-            console.warn("Subscribe failed: client is undefined.");
+            this.debug('! Subscribe failed: client is undefined.');
             return;
         }
 
         //const t = this.constructTopic(topic);
-        this.debug("f: mqtt subscribe()", topic);
+        this.debug('f: mqtt subscribe()', topic);
 
         this.client.subscribe(topic, { qos: 2 });
         this.subscribedFnMap.set(topic, callback);
@@ -130,12 +143,12 @@ export class MqttClient {
 
     unsubscribe(topic) {
         if (!this.client) {
-            console.warn("Unsubscribe failed: client is undefined.");
+            console.warn('Unsubscribe failed: client is undefined.');
             return;
         }
 
         //const t = this.constructTopic(topic);
-        this.debug("f: mqtt unsubscribe(" + topic + ")");
+        this.debug('f: mqtt unsubscribe(' + topic + ')');
 
         this.client.unsubscribe(topic);
         this.subscribedFnMap.delete(topic);
@@ -143,16 +156,12 @@ export class MqttClient {
 
     publish(topic, message) {
         if (!this.client) {
-            console.warn("Publish failed: client is undefined.");
+            console.warn('Publish failed: client is undefined.');
             return;
         }
 
         //const t = this.constructTopic(topic, "/offer");
-        this.debug(
-            "f: mqtt -> publish() %c%s",
-            "background-color:#151515;color:#d65cb9",
-            topic
-        );
+        this.debug('f: mqtt -> publish() %c%s', 'background-color:#151515;color:#d65cb9', topic);
 
         this.client.publish(topic, message);
         this.onPublish?.(topic, message);

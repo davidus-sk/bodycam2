@@ -1,24 +1,38 @@
 <div class="relative h-full">
     <div class="container h-full d-flex justify-content-center align-items-center">
-        <button
-            id="btn-restart"
-            type="button"
-            class="btn btn-lg btn-cool btn-h-100"
-            style="width: 220px;"
-            data-bs-toggle="modal"
-            data-bs-target="#restart"
-        >
-            RESTART SYSTEM
-        </button>
+
         <button 
             id="btn-air" 
             type="button" 
-            class="btn btn-lg btn-cool btn-h-100 ms-3" 
+            class="btn btn-lg btn-cool btn-h-100 mx-2" 
             style="width: 220px;" 
             data-bs-toggle="modal" 
-            data-bs-target="#blow-air"
+            data-bs-target="#blow-air" 
+            disabled 
         >
             BLOW AIR
+        </button>
+        <button
+            id="btn-restart-camera"
+            type="button"
+            class="btn btn-lg btn-cool btn-h-100 mx-2"
+            style="width: 220px;"
+            data-bs-toggle="modal"
+            data-bs-target="#restart" 
+            disabled 
+        >
+            RESTART CAMERA
+        </button>
+        <button
+            id="btn-restart"
+            type="button"
+            class="btn btn-lg btn-cool btn-h-100 mx-2"
+            style="width: 220px;"
+            data-bs-toggle="modal"
+            data-bs-target="#restart" 
+            disabled 
+        >
+            RESTART SYSTEM
         </button>
     </div>
 
@@ -127,7 +141,7 @@ const config = <?= Config::read(true); ?>;
 
 $(function() {
 
-    const set = new Settings(config);
+    const settings = new Settings(config, app);
 
 });
 </script>
