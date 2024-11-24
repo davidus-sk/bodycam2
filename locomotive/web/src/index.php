@@ -28,9 +28,25 @@ $cssLastModified = '20240801-0930';
 </head>
 <body>
 
+    <script>
+    let app;
+    </script>
+    <script type="module">
+    import {App} from "./assets/js/app.js";
+
+    const config = <?= Config::read(true); ?>;
+
+    $(function() {
+
+        app = new App(config);
+
+    });
+    </script>
+
     <div id="wrapper">
-        <aside id="sidebar" aria-label="Sidebar">
+        <aside id="sidebar" aria-label="Sidebar">            
             <div class="h-full overflow-y-auto">
+                
                 <ul class="sidebar-menu">
                     <li>
                         <a href="<?= url('/'); ?>" class="sidebar-menu-item<?=(VIEW === 'video' ? ' active' : ''); ?>">
@@ -51,6 +67,11 @@ $cssLastModified = '20240801-0930';
                         </a>
                     </li>
                 </ul>
+
+                <span class="separator"></span>
+
+                <div id="mqtt-status" class="mt-4">OFFLINE</div>
+
             </div>
         </aside>
         <div id="content" class="h-screen">
@@ -60,7 +81,8 @@ $cssLastModified = '20240801-0930';
         </div>
     </div>
     
-    <script src="./assets/js/app.js?v=<?= $cssLastModified; ?>"></script>
+
+
 
 </body>
 </html>

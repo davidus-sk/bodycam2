@@ -1,24 +1,22 @@
-import { MqttClient } from "../mqtt/client.js";
-import { generateClientId } from "../functions.js";
-import {
-    arrayBufferToBase64,
-    arrayBufferToString,
-    RtcMessage,
-} from "./rtcUtils.js";
-import { addWatermarkToImage, addWatermarkToStream } from "./watermark.js";
+import { MqttClient } from '../mqtt/client.js';
+import { generateClientId } from '../functions.js';
+import { arrayBufferToBase64, arrayBufferToString, RtcMessage } from './rtcUtils.js';
+import { addWatermarkToImage, addWatermarkToStream } from './watermark.js';
 
-const MetadataCommand_LATEST = "LATEST";
-const MetadataCommand_OLDER = "OLDER";
-const MetadataCommand_SPECIFIC_TIME = "SPECIFIC_TIME";
+// https://www.micahbird.com/p/how-to-fix-webrtc-connection-issues-on-ungoogled-chromium/
 
-const CommandType_CONNECT = "CONNECT";
-const CommandType_SNAPSHOT = "SNAPSHOT";
-const CommandType_METADATA = "METADATA";
-const CommandType_RECORD = "RECORD";
-const CommandType_UNKNOWN = "UNKNOWN";
+// const MetadataCommand_LATEST = 'LATEST'
+// const MetadataCommand_OLDER = 'OLDER'
+// const MetadataCommand_SPECIFIC_TIME = 'SPECIFIC_TIME'
 
-const MQTT_SDP_TOPIC = "sdp";
-const MQTT_ICE_TOPIC = "ice";
+const CommandType_CONNECT = 'CONNECT';
+const CommandType_SNAPSHOT = 'SNAPSHOT';
+// const CommandType_METADATA = 'METADATA'
+// const CommandType_RECORD = 'RECORD'
+// const CommandType_UNKNOWN = 'UNKNOWN'
+
+const MQTT_SDP_TOPIC = 'sdp';
+const MQTT_ICE_TOPIC = 'ice';
 const DEFAULT_TIMEOUT = 5000;
 
 // For answerer: NEVER add ICE candidates until that peer generates/creates answer SDP
@@ -48,14 +46,11 @@ export class PiCamera {
     constructor(cameraId, options, mqttOptions, mqttClient) {
         this.options = this.initializeOptions(options);
         this.mqttOptions = mqttOptions;
+        this.mqttClient = mqttClient;
 
         this.cameraId = cameraId;
 
-        if (mqttClient) {
-            this.mqttClient = mqttClient;
-        }
-
-        if (this.options.debug === true && typeof console != "undefined") {
+        if (this.options.debug === true && typeof console != 'undefined') {
             this.debug = console.log.bind(console);
         } else {
             this.debug = function (message) {};
@@ -66,8 +61,8 @@ export class PiCamera {
         const defaultOptions = {
             stunUrls: [],
             turnUrl: null,
-            turnUsername: "",
-            turnPassword: "",
+            turnUsername: '',
+            turnPassword: '',
             timeout: DEFAULT_TIMEOUT,
             datachannelOnly: false,
             isMicOn: false,
@@ -77,14 +72,20 @@ export class PiCamera {
         };
 
         // remove duplicates
-        let cfg = { ...defaultOptions, ...options };
+        let cfg = {
+            ...defaultOptions,
+            ...options,
+        };
         cfg.stunUrls = [...new Set(cfg.stunUrls)];
+
+        // debug
+        self.debugColor = 'background-color:#540101;color:#dbe2ff;';
 
         return cfg;
     }
 
     attach(mediaElement) {
-        this.debug("attach()", mediaElement);
+        this.debug('attach()', mediaElement);
         this.mediaElement = mediaElement;
     }
 
@@ -102,52 +103,67 @@ export class PiCamera {
             this.mqttClientId = this.mqttClient.client.options.clientId;
         }
 
-        // mqtt connected
-        this.mqttClient.onConnect = async (conn) => {
-            // create webrtc peer connection
-            this.rtcPeer = await this.createWebRtcConnection();
+        if (this.rtcTimer) {
+            clearTimeout(this.rtcTimer);
+            this.rtcTimer = null;
+        }
 
-            const sdpTopic = this.constructTopic(MQTT_SDP_TOPIC);
-            const iceTopic = this.constructTopic(MQTT_ICE_TOPIC);
-
-            conn.subscribe(sdpTopic, this.handleSdpMessage);
-            conn.subscribe(iceTopic, this.handleIceMessage);
-
-            // Create offer generates a blob of description data to
-            // facilitate a PeerConnection to the local machine.
-            // Use this when you've got a remote Peer connection
-            // and you want to set up the local one.
-            const offer = await this.rtcPeer.createOffer({});
-
-            // set the generated SDP to be our local session description
-            this.rtcPeer?.setLocalDescription(offer, () => {
-                this.debug("!: setLocalDescription() - done");
-                const topic = this.constructTopic(MQTT_SDP_TOPIC, "/offer");
-
-                conn.publish(topic, JSON.stringify(offer));
-            });
-        };
-
-        // connect
-        this.mqttClient.connect();
-
-        this.rtcTimer = setTimeout(() => {
-            let state = this.rtcPeer?.connectionState;
-
-            if (state === "connected" || state === "closed") {
-                return;
-            }
-
-            this.debug(
-                "!: disconnecting on timeout (" + this.options.timeout + " ms)"
-            );
-
-            if (this.onTimeout) {
-                this.onTimeout();
-            }
-
+        if (this.getStatus() === 'failed') {
             this.terminate();
-        }, this.options.timeout);
+            setTimeout(() => {
+                this.connect();
+            }, 1000);
+
+            console.log(this.getStatus());
+            //this.rtcPeer.restartIce();
+        } else {
+            // mqtt connected
+            //this.mqttClient.onConnect = async conn => {
+            (async () => {
+                // create webrtc peer connection
+                this.rtcPeer = await this.createWebRtcConnection();
+
+                const sdpTopic = this.constructTopic(MQTT_SDP_TOPIC);
+                const iceTopic = this.constructTopic(MQTT_ICE_TOPIC);
+
+                this.mqttClient.subscribe(sdpTopic, this.handleSdpMessage);
+                this.mqttClient.subscribe(iceTopic, this.handleIceMessage);
+
+                // Create offer generates a blob of description data to
+                // facilitate a PeerConnection to the local machine.
+                // Use this when you've got a remote Peer connection
+                // and you want to set up the local one.
+                const offer = await this.rtcPeer.createOffer({});
+
+                // set the generated SDP to be our local session description
+                this.rtcPeer?.setLocalDescription(offer, () => {
+                    this.debug('!: setLocalDescription() - done');
+                    const topic = this.constructTopic(MQTT_SDP_TOPIC, '/offer');
+
+                    this.mqttClient.publish(topic, JSON.stringify(offer));
+                });
+            })();
+            //};
+
+            // connect
+            //this.mqttClient.connect();
+
+            this.rtcTimer = setTimeout(() => {
+                let state = this.rtcPeer?.connectionState;
+
+                if (state === 'connected' || state === 'closed') {
+                    return;
+                }
+
+                this.debug('!: disconnecting on timeout (' + this.options.timeout + ' ms)');
+
+                if (this.onTimeout) {
+                    this.onTimeout();
+                }
+
+                this.terminate();
+            }, this.options.timeout);
+        }
     }
 
     getRtcConfig() {
@@ -157,14 +173,12 @@ export class PiCamera {
         config.iceCandidatePoolSize = 5;
 
         if (this.options.stunUrls && this.options.stunUrls.length > 0) {
-            config.iceServers.push({ urls: this.options.stunUrls });
+            config.iceServers.push({
+                urls: this.options.stunUrls,
+            });
         }
 
-        if (
-            this.options.turnUrl &&
-            this.options.turnUsername &&
-            this.options.turnPassword
-        ) {
+        if (this.options.turnUrl && this.options.turnUsername && this.options.turnPassword) {
             config.iceServers.push({
                 urls: this.options.turnUrl,
                 username: this.options.turnUsername,
@@ -186,23 +200,37 @@ export class PiCamera {
                 video: false,
             });
 
-            this.localStream.getAudioTracks().forEach((track) => {
+            this.localStream.getAudioTracks().forEach(track => {
                 peer.addTrack(track, this.localStream);
                 track.enabled = this.options.isMicOn ?? false;
             });
 
-            peer.addTransceiver("video", { direction: "recvonly" });
-            peer.addTransceiver("audio", { direction: "sendrecv" });
+            peer.addTransceiver('video', {
+                direction: 'recvonly',
+            });
+            peer.addTransceiver('audio', {
+                direction: 'sendrecv',
+            });
 
-            peer.addEventListener("track", (e) => {
-                this.sendIceCandindates = false;
+            //self.video.onplaying = onPlaying;
+            // self.$video.on("ended", onEnded);
+            // self.$video.on("loadeddata", onLoadedData);
+            // self.$video.on("loadedmetadata", onLoadedMetadata);
+            // self.$video.on("loadstart", loadstart);
+            // self.$video.on("playing", onPlaying);
+            // self.$video.on("suspend", onSuspend);
+            // self.$video.on("error", onError);
+            // self.$video.on("abort", onAbort);
+            // self.$video.on("volumechange", onVolumeChange);
+            // self.$video.on("muted", onMuted);
 
+            peer.addEventListener('track', e => {
                 this.remoteStream = new MediaStream();
-                e.streams[0].getTracks().forEach((track) => {
+                e.streams[0].getTracks().forEach(track => {
                     this.remoteStream?.addTrack(track);
 
                     // audio
-                    if (track.kind === "audio") {
+                    if (track.kind === 'audio') {
                         track.enabled = this.options.isSpeakerOn ?? false;
                     }
                 });
@@ -210,35 +238,32 @@ export class PiCamera {
                 this.debug(this.mediaElement);
                 if (this.mediaElement) {
                     //this.mediaElement.srcObject = this.remoteStream;
-                    this.mediaElement.srcObject = addWatermarkToStream(
-                        this.remoteStream,
-                        ":)"
-                    );
+                    this.mediaElement.srcObject = addWatermarkToStream(this.remoteStream, ':)');
                 }
             });
         }
 
-        peer.addEventListener("icecandidate", (e) => {
-            this.debug("e: icecandidate", e);
+        peer.addEventListener('icecandidate', e => {
+            this.debug('e: icecandidate', e);
 
             if (e.candidate && this.mqttClient?.isConnected()) {
-                const topic = this.constructTopic(MQTT_ICE_TOPIC, "/offer");
+                const topic = this.constructTopic(MQTT_ICE_TOPIC, '/offer');
 
                 this.mqttClient.publish(topic, JSON.stringify(e.candidate));
             }
             //}
         });
 
-        peer.addEventListener("addstream ", (e) => {
-            this.debug("e: addstream ", e);
+        peer.addEventListener('addstream ', e => {
+            this.debug('e: addstream ', e);
         });
 
-        peer.addEventListener("iceconnectionstatechange ", (e) => {
-            this.debug("e: iceconnectionstatechange ", e);
+        peer.addEventListener('iceconnectionstatechange ', e => {
+            this.debug('e: iceconnectionstatechange ', e);
         });
 
-        peer.addEventListener("negotiationneeded", (e) => {
-            this.debug("e: negotiationneeded", e);
+        peer.addEventListener('negotiationneeded', e => {
+            this.debug('e: negotiationneeded', e);
         });
 
         this.dataChannel = peer.createDataChannel(generateClientId(10), {
@@ -247,15 +272,15 @@ export class PiCamera {
             id: 0,
         });
 
-        this.dataChannel.binaryType = "arraybuffer";
-        this.dataChannel.addEventListener("open", () => {
+        this.dataChannel.binaryType = 'arraybuffer';
+        this.dataChannel.addEventListener('open', () => {
             if (this.onDatachannel && this.dataChannel) {
                 this.onDatachannel(this.dataChannel);
             }
         });
 
-        this.dataChannel.addEventListener("message", (e) => {
-            this.debug("e: dataChannel:message");
+        this.dataChannel.addEventListener('message', e => {
+            this.debug('e: dataChannel:message');
             const packet = new Uint8Array(e.data);
             const header = packet[0];
             const body = packet.slice(1);
@@ -271,16 +296,16 @@ export class PiCamera {
         // indicates the current state of the peer connection by returning one of the
         // following string values: new, connecting, connected, disconnected, failed,
         // or closed.
-        peer.addEventListener("connectionstatechange", () => {
-            this.debug("e: connectionstatechange", peer.connectionState);
+        peer.addEventListener('connectionstatechange', () => {
+            this.debug('e: connectionstatechange', peer.connectionState);
 
             // event
             this.onConnectionState?.(peer.connectionState);
 
-            if (peer.connectionState === "connected") {
+            if (peer.connectionState === 'connected') {
                 this.debug(
-                    "e: track - %cadding",
-                    "background-color:#540101;color:#dbe2ff;font-weight:500"
+                    'e: track - %cadding',
+                    'background-color:#540101;color:#dbe2ff;font-weight:500'
                 );
 
                 // if (this.mqttClient?.isConnected()) {
@@ -291,35 +316,49 @@ export class PiCamera {
                 //     this.mqttClient.disconnect();
                 //     this.mqttClient = undefined;
                 // }
-            } else if (peer.connectionState === "failed") {
-                this.terminate();
+            } else if (peer.connectionState === 'failed') {
+                //this.terminate();
             }
         });
 
-        peer.addEventListener("signalingstatechange", (e) => {
-            this.debug("!: signaling status = " + peer.signalingState);
+        peer.addEventListener('signalingstatechange', e => {
+            this.debug('!: signaling status = ' + peer.signalingState);
         });
 
         return peer;
     };
 
-    terminate = () => {
-        this.debug("f: terminate()");
+    restart() {
+        if (this.mqttClient?.isConnected()) {
+            const now = Math.floor(Date.now() / 1000);
+            this.mqttClient.publish(
+                `camera/${this.cameraId}/restart`,
+                JSON.stringify({
+                    ts: now,
+                    camera_id: cameraId,
+                })
+            );
+        }
+    }
+
+    terminate() {
+        this.debug('f: terminate()');
 
         clearTimeout(this.rtcTimer);
         this.rtcTimer = null;
 
         if (this.dataChannel) {
-            if (this.dataChannel.readyState === "open") {
-                const command = new RtcMessage(CommandType_CONNECT, "false");
+            if (this.dataChannel.readyState === 'open') {
+                const command = new RtcMessage(CommandType_CONNECT, 'false');
                 this.dataChannel.send(JSON.stringify(command));
             }
+
             this.dataChannel.close();
             this.dataChannel = undefined;
         }
 
         if (this.localStream) {
-            this.localStream.getTracks().forEach((track) => {
+            this.localStream.getTracks().forEach(track => {
                 track.stop();
             });
 
@@ -327,7 +366,7 @@ export class PiCamera {
         }
 
         if (this.remoteStream) {
-            this.remoteStream.getTracks().forEach((track) => {
+            this.remoteStream.getTracks().forEach(track => {
                 track.stop();
             });
 
@@ -349,37 +388,39 @@ export class PiCamera {
         // }
 
         // event
-        this.onConnectionState?.("closed");
+        this.onConnectionState?.('closed');
         // if (this.onConnectionState) {
         //     this.onConnectionState("closed");
         // }
-    };
+    }
 
     constructTopic(topic, subLevels) {
         let t = `${this.cameraId}/${topic}/${this.mqttClientId}`;
-        if (typeof subLevels === "string") {
+        if (typeof subLevels === 'string') {
             t += subLevels;
         }
 
-        t = t.replace("/{1,}/", "/");
+        t = t.replace('/{1,}/', '/');
 
         return t;
     }
 
-    getStatus = () => {
+    getStatus() {
         if (!this.rtcPeer) {
-            return "new";
+            return 'new';
         }
+
         return this.rtcPeer.connectionState;
-    };
+    }
+
+    isConnected() {
+        return this.getStatus() === 'connected';
+    }
 
     snapshot = (quality = 30) => {
-        if (this.dataChannel?.readyState === "open") {
+        if (this.dataChannel?.readyState === 'open') {
             quality = Math.max(0, Math.min(quality, 100));
-            const command = new RtcMessage(
-                CommandType_SNAPSHOT,
-                String(quality)
-            );
+            const command = new RtcMessage(CommandType_SNAPSHOT, String(quality));
             this.dataChannel.send(JSON.stringify(command));
         }
     };
@@ -399,20 +440,18 @@ export class PiCamera {
     };
 
     toggleTrack = (isOn, stream) => {
-        stream?.getAudioTracks().forEach((track) => {
+        stream?.getAudioTracks().forEach(track => {
             track.enabled = isOn;
         });
     };
 
-    receiveSnapshot = (body) => {
+    receiveSnapshot = body => {
         if (!this.onSnapshot) {
             return;
         }
 
         if (this.isFirstPacket) {
-            this.completeFile = new Uint8Array(
-                Number(arrayBufferToString(body))
-            );
+            this.completeFile = new Uint8Array(Number(arrayBufferToString(body)));
             this.isFirstPacket = false;
         } else if (body.byteLength > 0) {
             this.completeFile.set(body, this.receivedLength);
@@ -432,18 +471,18 @@ export class PiCamera {
         }
     };
 
-    handleSdpMessage = (message) => {
+    handleSdpMessage = message => {
         const sdp = JSON.parse(message);
-        this.debug("e: handleSdpMessage()", sdp);
+        this.debug('e: handleSdpMessage()', sdp);
 
         //if (sdp.type === "answer") {
         this.rtcPeer?.setRemoteDescription(new RTCSessionDescription(sdp));
         //}
     };
 
-    handleIceMessage = (message) => {
+    handleIceMessage = message => {
         const ice = JSON.parse(message);
-        this.debug("e: handleIceMessage", ice);
+        this.debug('e: handleIceMessage', ice);
 
         if (this.rtcPeer?.currentRemoteDescription) {
             this.rtcPeer.addIceCandidate(new RTCIceCandidate(ice));
