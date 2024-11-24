@@ -5,6 +5,6 @@
   "password":"",
   "client_id":"/usr/bin/cat /proc/cpuinfo | /usr/bin/grep 'Serial' | /usr/bin/xargs | /usr/bin/cut -d ' ' -f 3",
   "fps":10,
-  "height":1280,
-  "width":960
+  "height":960,
+  "width":1280
 }
