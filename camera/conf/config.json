@@ -1,7 +1,0 @@
-{
-  "server":"951badeefd764316aa971d7958e80e0c.s1.eu.hivemq.cloud",
-  "port":"8883",
-  "username":"marek",
-  "password":"",
-  "client_id":"/usr/bin/cat /proc/cpuinfo | /usr/bin/grep 'Serial' | /usr/bin/xargs | /usr/bin/cut -d ' ' -f 3"
-}
