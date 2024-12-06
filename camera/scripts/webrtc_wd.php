@@ -36,7 +36,7 @@ while (TRUE) {
 
 	// if not running, start new instance
 	if (empty($pid)) {
-		$clientId = 'camera-' . trim(`{$data['client_id']}`);
+		$clientId = 'device-' . trim(`{$data['client_id']}`);
 
 		echo date('r') . "> Starting pi_webrtc for {$clientId}.\n";
 

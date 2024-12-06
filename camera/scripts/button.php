@@ -22,7 +22,7 @@ use \PhpMqtt\Client\ConnectionSettings;
 // MQTT settings
 $server   = '951badeefd764316aa971d7958e80e0c.s1.eu.hivemq.cloud';
 $port     = 8883;
-$clientId = 'camera-' . trim(`/usr/bin/cat /proc/cpuinfo | /usr/bin/grep "Serial" | /usr/bin/xargs | /usr/bin/cut -d ' ' -f 3`);
+$clientId = 'device-' . trim(`/usr/bin/cat /proc/cpuinfo | /usr/bin/grep "Serial" | /usr/bin/xargs | /usr/bin/cut -d ' ' -f 3`);
 $username = 'marek';
 $password = 'Mqtt12345';
 $clean_session = false;

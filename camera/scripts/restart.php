@@ -25,7 +25,7 @@ openlog("camera_restart", LOG_PID | LOG_PERROR, LOG_LOCAL0);
 // MQTT settings
 $server   = '951badeefd764316aa971d7958e80e0c.s1.eu.hivemq.cloud';
 $port     = 8883;
-$clientId = 'camera-' . trim(`/usr/bin/cat /proc/cpuinfo | /usr/bin/grep "Serial" | /usr/bin/xargs | /usr/bin/cut -d ' ' -f 3`);
+$clientId = 'device-' . trim(`/usr/bin/cat /proc/cpuinfo | /usr/bin/grep "Serial" | /usr/bin/xargs | /usr/bin/cut -d ' ' -f 3`);
 $username = 'marek';
 $password = 'Mqtt12345';
 $clean_session = false;
@@ -59,6 +59,8 @@ $mqtt->subscribe("device/{$clientId}/restart", function ($topic, $message) {
 	syslog(LOG_INFO, "Restarting camera streamer.");
 
 	`/usr/bin/pkill -9 -f "pi_webrtc"`;
+
+	// no need to start here, WD will restart dead streamer
 }, 0);
 
 $mqtt->loop(true);
