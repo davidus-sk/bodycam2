@@ -35,25 +35,26 @@ $connectionSettings = (new ConnectionSettings)
   ->setPassword($password)
   ->setKeepAliveInterval(60)
   ->setConnectTimeout(3)
-  ->setLastWillTopic("camera/{$clientId}/last-will")
-  ->setLastWillMessage('client disconnect')
+  ->setLastWillTopic("device/{$clientId}/last-will")
+  ->setLastWillMessage('Camera status service disconnected.')
   ->setUseTls(true)
   ->setLastWillQualityOfService(0);
 
 while (TRUE) {
 	// connect to the server
-	$mqtt = new MqttClient($server, $port, $clientId, $mqtt_version);
+	$mqtt = new MqttClient($server, $port, $clientId . '-' . mt_rand(10, 99), $mqtt_version);
 	$mqtt->connect($connectionSettings, $clean_session);
 
 	// construct payload
 	$payload = [
-		'camera_id' => $clientId,
+		'device_id' => $clientId,
+		'device_type' => 'camera',
 		'ts' => time(),
 		'status' => $status
 	];
 
 	// publish and disconnect
-	$mqtt->publish("camera/{$clientId}/status", json_encode($payload), 0, false);
+	$mqtt->publish("device/{$clientId}/status", json_encode($payload), 0, false);
 	$mqtt->disconnect();
 
 	sleep(30);

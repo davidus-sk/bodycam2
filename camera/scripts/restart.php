@@ -19,6 +19,9 @@ require(dirname(__FILE__) . '/../../../vendor/autoload.php');
 use \PhpMqtt\Client\MqttClient;
 use \PhpMqtt\Client\ConnectionSettings;
 
+// log
+openlog("camera_restart", LOG_PID | LOG_PERROR, LOG_LOCAL0);
+
 // MQTT settings
 $server   = '951badeefd764316aa971d7958e80e0c.s1.eu.hivemq.cloud';
 $port     = 8883;
@@ -28,26 +31,34 @@ $password = 'Mqtt12345';
 $clean_session = false;
 $mqtt_version = MqttClient::MQTT_3_1;
 
+// log
+syslog(LOG_INFO, "Starting camera restart service for {$clientId}.");
+
 // MQTT connection string
 $connectionSettings = (new ConnectionSettings)
   ->setUsername($username)
   ->setPassword($password)
   ->setKeepAliveInterval(60)
   ->setConnectTimeout(3)
-  ->setLastWillTopic("camera/{$clientId}/last-will")
-  ->setLastWillMessage('client disconnect')
+  ->setLastWillTopic("device/{$clientId}/last-will")
+  ->setLastWillMessage('Camera restart service disconnected.')
   ->setUseTls(true)
   ->setLastWillQualityOfService(0);
 
 // connect to the server
-$mqtt = new MqttClient($server, $port, $clientId, $mqtt_version);
+$mqtt = new MqttClient($server, $port, $clientId . '-' . mt_rand(10, 99), $mqtt_version);
 $mqtt->connect($connectionSettings, $clean_session);
 
-$mqtt->subscribe("camera/{$clientId}/restart", function ($topic, $message) {
-	echo date('r') . "> Restarting camera streamer.\n";
+// log
+if ($mqtt->isConnected()) {
+	syslog(LOG_INFO, "Connected to MQTT server at {$server}.");
+}//if
+
+$mqtt->subscribe("device/{$clientId}/restart", function ($topic, $message) {
+	// log
+	syslog(LOG_INFO, "Restarting camera streamer.");
 
 	`/usr/bin/pkill -9 -f "pi_webrtc"`;
-	`/app/bodycam2/camera/stream/pi_webrtc --use_libcamera --fps=10 --width=1280 --height=960 --hw_accel --no_audio --mqtt_host={$server} --mqtt_port={$port} --mqtt_username={$username} --mqtt_password={$password} --uid={$clientId} >> /tmp/pi_webrtc.log 2>&1 &`;
 }, 0);
 
 $mqtt->loop(true);

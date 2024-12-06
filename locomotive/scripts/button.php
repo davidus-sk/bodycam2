@@ -34,7 +34,7 @@ $connectionSettings = (new ConnectionSettings)
   ->setPassword($password)
   ->setKeepAliveInterval(60)
   ->setConnectTimeout(3)
-  ->setLastWillTopic("camera/{$clientId}/last-will")
+  ->setLastWillTopic("device/{$clientId}/last-will")
   ->setLastWillMessage('client disconnect')
   ->setUseTls(true)
   ->setLastWillQualityOfService(0);
@@ -43,7 +43,7 @@ $connectionSettings = (new ConnectionSettings)
 $mqtt = new MqttClient($server, $port, $clientId, $mqtt_version);
 $mqtt->connect($connectionSettings, $clean_session);
 
-$mqtt->subscribe('camera/+/button', function ($topic, $message) {
+$mqtt->subscribe('device/+/button', function ($topic, $message) {
     printf("Received message on topic [%s]: %s\n", $topic, $message);
 }, 0);
 
