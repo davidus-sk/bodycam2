@@ -119,14 +119,13 @@ export class Video {
         // camera is already in reference list, check time
         if (this.isCameraInGrid(cameraId)) {
             this.debug('! camera already in grid');
-            //this.getCamera(cameraId)?.picamera?.restart();
+            //this.getCameraData(cameraId)?.picamera?.restart();
             //return;
-
             //const cameraStatus = this.getCameraStatus();
 
             if (!this.isCameraConnected(cameraId)) {
                 this.debug('! camera is not connected - reconnect');
-                //this.getCamera(cameraId)?.picamera?.connect();
+                //this.getCameraData(cameraId)?.picamera?.connect();
             } else {
                 this.debug('! camera connected - all ok');
             }
@@ -134,31 +133,40 @@ export class Video {
             //const now = Math.round(new Date() / 1000);
             //if (now - this.cameras[cameraId].ts )
         } else {
+            this.debug('! new camera');
+
             // save reference
-            this.cameras[cameraId] = payload;
-            this.updateGrid(this.cameras[cameraId]);
+            //this.cameras[cameraId] = payload;
+            this.updateCameraData(cameraId, payload);
+
+            this.updateGrid(payload);
             this.initPiCamera(cameraId, true);
         }
     }
 
-    getCamera(cameraId) {
+    getCameraData(cameraId) {
         return this.cameras[cameraId] || null;
     }
 
+    updateCameraData(cameraId, data) {
+        this.cameras[cameraId] = data;
+    }
+
     isCameraInGrid(cameraId) {
-        return this.getCamera(cameraId) !== null;
+        return this.getCameraData(cameraId) !== null;
     }
 
     isCameraConnected(cameraId) {
-        return this.getCamera(cameraId)?.picamera?.isConnected();
+        return this.getCameraData(cameraId)?.picamera?.isConnected();
     }
 
     getCameraStatus(cameraId) {
-        return this.getCamera(cameraId)?.picamera?.getStatus() || 'unknown';
+        return this.getCameraData(cameraId)?.picamera?.getStatus() || 'unknown';
     }
 
     initPiCamera(cameraId, connect) {
-        let camera = this.getCamera(cameraId);
+        let camera = this.getCameraData(cameraId);
+
         if (camera) {
             // pi camera
             camera.picamera = new PiCamera(cameraId, this.options.camera, null, this.mqttClient);
@@ -172,7 +180,7 @@ export class Video {
             }
 
             // update reference
-            this.cameras[cameraId] = camera;
+            this.updateCameraData(cameraId, camera);
         }
     }
 

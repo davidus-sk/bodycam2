@@ -1,6 +1,11 @@
 import { MqttClient } from '../mqtt/client.js';
 import { generateClientId } from '../functions.js';
-import { arrayBufferToBase64, arrayBufferToString, RtcMessage } from './rtcUtils.js';
+import {
+    sortByMimeTypes,
+    arrayBufferToBase64,
+    arrayBufferToString,
+    RtcMessage,
+} from './rtcUtils.js';
 import { addWatermarkToImage, addWatermarkToStream } from './watermark.js';
 
 // https://www.micahbird.com/p/how-to-fix-webrtc-connection-issues-on-ungoogled-chromium/
@@ -173,9 +178,7 @@ export class PiCamera {
         config.iceCandidatePoolSize = 5;
 
         if (this.options.stunUrls && this.options.stunUrls.length > 0) {
-            config.iceServers.push({
-                urls: this.options.stunUrls,
-            });
+            config.iceServers.push({ urls: this.options.stunUrls });
         }
 
         if (this.options.turnUrl && this.options.turnUsername && this.options.turnPassword) {
@@ -205,12 +208,8 @@ export class PiCamera {
                 track.enabled = this.options.isMicOn ?? false;
             });
 
-            peer.addTransceiver('video', {
-                direction: 'recvonly',
-            });
-            peer.addTransceiver('audio', {
-                direction: 'sendrecv',
-            });
+            peer.addTransceiver('video', { direction: 'recvonly' });
+            peer.addTransceiver('audio', { direction: 'sendrecv' });
 
             //self.video.onplaying = onPlaying;
             // self.$video.on("ended", onEnded);

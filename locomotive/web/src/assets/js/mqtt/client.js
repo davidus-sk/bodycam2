@@ -34,7 +34,7 @@ export class MqttClient {
             protocolVersion: 4,
             clean: true,
             manualConnect: true,
-            reconnectPeriod: 0,
+            reconnectPeriod: 1000,
             debug: false,
         };
 
