@@ -14,6 +14,9 @@ run_once('/tmp/camera_button.pid');
 // load settings
 $config = read_config();
 
+// log
+openlog("camera_restart", LOG_PID | LOG_PERROR, LOG_LOCAL0);
+
 // MQTT settings
 $clientId = 'device-' . trim(`{$config['client_id']}`);
 $clean_session = true;
@@ -34,7 +37,7 @@ $connection_settings = (new ConnectionSettings)
 while (TRUE) {
 	if (file_exists($stop_file)) {
 		// debug
-		echo date('r') . "> ESTOP ({$stop_file}) detected.\n";
+		syslog(LOG_INFO, "ESTOP file ({$stop_file}) detected.");
 
 		// connect to the server
 		$mqtt = new MqttClient($config['server'], $config['port'], $clientId . '-' . mt_rand(10, 99), $mqtt_version);
@@ -52,7 +55,7 @@ while (TRUE) {
 		$mqtt->publish("device/{$clientId}/button", json_encode($payload), 0, false);
 
 		// debug
-		echo date('r') . "> Message sent to server.\n";
+		syslog(LOG_INFO, "ESTOP message sent to server.");
 
 		$mqtt->disconnect();
 
@@ -60,7 +63,7 @@ while (TRUE) {
 		clearstatcache();
 
 		// debug
-		echo date('r') . "> ESTOP ({$stop_file}) deleted.\n";
+		syslog(LOG_INFO, "ESTOP file ({$stop_file}) deleted.");
 	}//if
 
 	// rest
