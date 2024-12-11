@@ -28,10 +28,9 @@ export class MapView {
         // local variables
         this.templates = {};
         this.running = false;
-        this.modalVideo = undefined;
-        this.camera = undefined;
-        this.modal = undefined;
-        this.activeIcon = undefined;
+        this.deviceRefs = {};
+        this.modalRefs = {};
+        this.activeMarker = undefined;
 
         // dom  elements
         this.$element = $('#map');
@@ -217,8 +216,8 @@ export class MapView {
                 // remove old map object
                 if (delta > this.MARKER_TIMEOUT) {
                     console.log('remove marker...');
-                    this._markersRef[obj.camera_id].removeFrom(this._markersGroup[objectType]);
-                    this._markersRef[obj.camera_id].removeFrom(this.map);
+                    this._markersRef[obj.device_id].removeFrom(this._markersGroup[objectType]);
+                    this._markersRef[obj.device_id].removeFrom(this.map);
                 }
             }
         });
@@ -248,98 +247,117 @@ export class MapView {
         this.on('map_marker_click', (marker, data) => {
             console.log('e: map_marker_click', marker, data);
 
+            let deviceId = data.device_id;
+
             //$( "#draggable" ).draggable();
-            this.activeIcon = marker;
+            this.activeMarker = marker;
             $(marker._icon).addClass('active');
 
-            this.modal = new Modal({
-                parent: '#content',
-                width: 400,
-                height: 360,
-                x: 'RIGHT',
-                y: 'TOP',
-                offsetX: 20,
-                offsetY: 20,
-                title: data.camera_id,
-                body: this.templates['camera'](),
-                onHide: () => {
-                    this.debug('e: modal hide');
-                    this.modalVideo = null;
-                    this.camera = null;
+            // new modal window
+            if (this.modalRefs[deviceId] === undefined) {
+                const modalBody = this.templates['camera']({
+                    deviceId: deviceId,
+                });
 
-                    $(this.activeIcon._icon).removeClass('active');
-                    this.activeIcon = undefined;
+                this.modalRefs[deviceId] = new Modal({
+                    parent: '#content',
+                    width: 400,
+                    height: 360,
+                    x: 'RIGHT',
+                    y: 'TOP',
+                    offsetX: 20,
+                    offsetY: 20,
+                    body: modalBody,
+                    onHide: data => {
+                        this.debug('e: modal hide2', data);
 
-                    this.fitBounds();
-                },
-            }).show();
+                        if (this.activeMarker) {
+                            $(this.activeMarker._icon).removeClass('active');
+                            //this.activeMarker = undefined;
+                        }
 
-            this.fitBounds([-420, 0]);
+                        this.fitBounds();
+                    },
+                    onShow: () => {
+                        this.fitBounds([-420, 0]);
+                        this.initPiCamera(deviceId, true);
+                    },
+                }).show();
+
+                interact('#' + this.modalRefs[deviceId].getId())
+                    .on('tap', event => {
+                        event.stopPropagation();
+                        for (var key in this.modalRefs) {
+                            if (this.modalRefs.hasOwnProperty(key)) {
+                                this.modalRefs[key].zIndex(1000);
+                            }
+                        }
+
+                        this.modalRefs[deviceId].zIndex(2000);
+                    })
+                    .draggable({
+                        inertia: false,
+                        modifiers: [
+                            interact.modifiers.restrictRect({
+                                restriction: '#content',
+                            }),
+                        ],
+                        listeners: {
+                            move(event) {
+                                var target = event.target,
+                                    // keep the dragged position in the data-x/data-y attributes
+                                    x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx,
+                                    y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+
+                                // translate the element
+                                target.style.transform = 'translate(' + x + 'px, ' + y + 'px)';
+
+                                // update the posiion attributes
+                                target.setAttribute('data-x', x);
+                                target.setAttribute('data-y', y);
+                            },
+                        },
+                    })
+                    .resizable({
+                        inertia: false,
+                        edges: { left: true, right: true, bottom: true, top: false },
+                        modifiers: [
+                            interact.modifiers.restrictEdges({
+                                outer: '#content',
+                            }),
+                            interact.modifiers.restrictSize({
+                                min: { width: 400, height: 400 },
+                            }),
+                        ],
+                        listeners: {
+                            move(event) {
+                                var target = event.target,
+                                    x = parseFloat(target.getAttribute('data-x')) || 0,
+                                    y = parseFloat(target.getAttribute('data-y')) || 0;
+
+                                // update the element's style
+                                target.style.width = event.rect.width + 'px';
+                                target.style.height = event.rect.height + 'px';
+
+                                // translate when resizing from top or left edges
+                                x += event.deltaRect.left;
+                                y += event.deltaRect.top;
+
+                                target.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+
+                                target.setAttribute('data-x', x);
+                                target.setAttribute('data-y', y);
+                            },
+                        },
+                    });
+            } else {
+                this.modalRefs[deviceId].show();
+            }
 
             // $appModal.draggable({
             //     helper: 'modal-win-header',
             //     containment: $appModal.parent(),
             // });
-
-            interact('#' + this.modal.getId())
-                .draggable({
-                    inertia: false,
-                    modifiers: [
-                        interact.modifiers.restrictRect({
-                            restriction: '#content',
-                        }),
-                    ],
-                    listeners: {
-                        move(event) {
-                            var target = event.target,
-                                // keep the dragged position in the data-x/data-y attributes
-                                x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx,
-                                y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
-
-                            // translate the element
-                            target.style.transform = 'translate(' + x + 'px, ' + y + 'px)';
-
-                            // update the posiion attributes
-                            target.setAttribute('data-x', x);
-                            target.setAttribute('data-y', y);
-                        },
-                    },
-                })
-                .resizable({
-                    inertia: false,
-                    edges: { left: true, right: true, bottom: true, top: false },
-                    modifiers: [
-                        interact.modifiers.restrictEdges({
-                            outer: '#content',
-                        }),
-                        interact.modifiers.restrictSize({
-                            min: { width: 400, height: 400 },
-                        }),
-                    ],
-                    listeners: {
-                        move(event) {
-                            var target = event.target,
-                                x = parseFloat(target.getAttribute('data-x')) || 0,
-                                y = parseFloat(target.getAttribute('data-y')) || 0;
-
-                            // update the element's style
-                            target.style.width = event.rect.width + 'px';
-                            target.style.height = event.rect.height + 'px';
-
-                            // translate when resizing from top or left edges
-                            x += event.deltaRect.left;
-                            y += event.deltaRect.top;
-
-                            target.style.transform = 'translate(' + x + 'px,' + y + 'px)';
-
-                            target.setAttribute('data-x', x);
-                            target.setAttribute('data-y', y);
-                        },
-                    },
-                });
-
-            // init pi camera
-            this.initPiCamera(data.camera_id, true);
         });
     }
 
@@ -372,10 +390,9 @@ export class MapView {
     // refresh map objects
     newMapObject(data) {
         var self = this;
-        var fitBounds = true;
 
         if (data && typeof data === 'object') {
-            const cameraId = data.camera_id;
+            const deviceId = data.device_id;
             const objectType = data.type ?? 'camera';
             let icon = objectType;
 
@@ -384,7 +401,7 @@ export class MapView {
             }
 
             // new map object
-            if (this.mapObjects[cameraId] === undefined) {
+            if (this.mapObjects[deviceId] === undefined) {
                 // map
                 var marker = new L.Marker(data.gps, {
                     camera: data,
@@ -398,7 +415,7 @@ export class MapView {
                 marker.addTo(this._markersGroup[objectType]);
 
                 // marker reference
-                this._markersRef[cameraId] = marker;
+                this._markersRef[deviceId] = marker;
 
                 console.log('f: newMapObject() - new object', data, marker);
                 marker.getElement().classList.add('css-icon');
@@ -406,8 +423,8 @@ export class MapView {
                 // update position
             } else {
                 console.log('f: newMapObject() - update gps', data);
-                this._markersRef[cameraId].setIcon(this._icons[icon]);
-                this._markersRef[cameraId].setLatLng(data.gps);
+                this._markersRef[deviceId].setIcon(this._icons[icon]);
+                this._markersRef[deviceId].setLatLng(data.gps);
             }
 
             if (this.mapFitBounds === true) {
@@ -415,22 +432,29 @@ export class MapView {
             }
 
             // store object reference
-            this.mapObjects[cameraId] = data;
+            this.mapObjects[deviceId] = data;
         }
 
         this.emit('map_objects_refresh', data);
     }
 
-    initPiCamera(cameraId, connect) {
-        // pi camera
-        this.camera = new PiCamera(cameraId, this.options.camera, null, this.mqttClient);
+    initPiCamera(deviceId, connect) {
+        if (this.deviceRefs[deviceId] === undefined) {
+            // pi camera
+            this.deviceRefs[deviceId] = new PiCamera(
+                deviceId,
+                this.options.camera,
+                null,
+                this.mqttClient
+            );
 
-        // attach video reference to the camera
-        this.camera.attach(document.getElementById('map-video'));
+            // attach video reference to the camera
+            this.deviceRefs[deviceId].attach(document.getElementById('video-' + deviceId));
+        }
 
         // connect
         if (connect === true) {
-            this.camera.connect();
+            this.deviceRefs[deviceId].connect();
         }
     }
 }

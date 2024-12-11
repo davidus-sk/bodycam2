@@ -4,24 +4,24 @@ export class Debug {
     constructor() {
         // dom elements
         this.$debug = $('#debug');
-        this.$selCameras = $('#sel-cameras');
+        this.$selDevices = $('#sel-cameras');
         this.$localVideo = $('#local-video');
 
-        const $btnCameraStatus = $('#btn-cam-status');
+        const $btnDeviceStatus = $('#btn-cam-status');
         const $btnPanic = $('#btn-panic');
 
         // regex map
-        const cameraIdPattern = 'device-[0-9a-fA-F]{16}';
+        const deviceIdPattern = 'device-[0-9a-fA-F]{16}';
 
         this.topicRegex = {};
-        this.topicRegex['camera_status'] = new RegExp(`^device\/${cameraIdPattern}\/status$`);
-        this.topicRegex['camera_gps'] = new RegExp(`^device\/${cameraIdPattern}\/gps$`);
+        this.topicRegex['camera_status'] = new RegExp(`^device\/${deviceIdPattern}\/status$`);
+        this.topicRegex['camera_gps'] = new RegExp(`^device\/${deviceIdPattern}\/gps$`);
 
         this.topicRegex['web_rtc_sdp_offer'] = new RegExp(
-            `^${cameraIdPattern}\/sdp\/[^\/]+\/offer$`
+            `^${deviceIdPattern}\/sdp\/[^\/]+\/offer$`
         );
         this.topicRegex['web_rtc_ice_offer'] = new RegExp(
-            `^${cameraIdPattern}\/ice\/[^\/]+\/offer$`
+            `^${deviceIdPattern}\/ice\/[^\/]+\/offer$`
         );
 
         // mqtt
@@ -32,7 +32,7 @@ export class Debug {
         }
 
         // buttons
-        $btnCameraStatus.on('click', () => this.sendCameraStatus());
+        $btnDeviceStatus.on('click', () => this.sendDeviceStatus());
         $btnPanic.on('click', () => this.panicButton());
 
         //
@@ -64,8 +64,8 @@ export class Debug {
         $('[data-btn-mqtt=1]').attr('disabled', 'disabled');
     }
 
-    getSelectedCameraId() {
-        return this.$selCameras.find(':selected').val();
+    getSelectedDeviceId() {
+        return this.$selDevices.find(':selected').val();
     }
 
     checkMqttConnection() {
@@ -78,7 +78,7 @@ export class Debug {
     }
 
     constructTopic(topic, subLevels) {
-        let t = `${this.cameraId}/${topic}/${this.mqttClientId}`;
+        let t = `${this.deviceId}/${topic}/${this.mqttClientId}`;
         if (typeof subLevels === 'string') {
             t += subLevels;
         }
@@ -88,19 +88,19 @@ export class Debug {
         return t;
     }
 
-    sendCameraStatus() {
+    sendDeviceStatus() {
         if (this.mqttClient && this.mqttClient.isConnected()) {
             console.log('f: cameraStatus()');
 
-            const cameraId = this.getSelectedCameraId();
-            const topic = `device/${cameraId}/status`;
+            const deviceId = this.getSelectedDeviceId();
+            const topic = `device/${deviceId}/status`;
 
             this.mqttClient.publish(
                 topic,
                 JSON.stringify({
                     ts: getTimestamp(),
-                    clientId: this.mqttClientId,
-                    camera_id: cameraId,
+                    client_id: this.mqttClientId,
+                    camera_id: deviceId,
                     status: 'alive',
                 })
             );
@@ -111,15 +111,15 @@ export class Debug {
         if (this.mqttClient && this.mqttClient.isConnected()) {
             console.log('f: cameraStatus()');
 
-            const cameraId = this.getSelectedCameraId();
-            const topic = `device/${cameraId}/button`;
+            const deviceId = this.getSelectedDeviceId();
+            const topic = `device/${deviceId}/button`;
 
             this.mqttClient.publish(
                 topic,
                 JSON.stringify({
                     ts: getTimestamp(),
-                    clientId: this.mqttClientId,
-                    camera_id: cameraId,
+                    client_id: this.mqttClientId,
+                    camera_id: deviceId,
                 })
             );
 
@@ -128,10 +128,10 @@ export class Debug {
     }
 
     cameraRestart() {
-        let $btnCameraRestart = $('#btn-cam-restart');
+        let $btnDeviceRestart = $('#btn-cam-restart');
 
         // start stream
-        $btnCameraRestart.on('click', e => {
+        $btnDeviceRestart.on('click', e => {
             e.preventDefault();
 
             console.log('!: camera restart');
@@ -141,8 +141,8 @@ export class Debug {
                 return;
             }
 
-            const cameraId = this.getSelectedCameraId();
-            const topic = `device/${cameraId}/restart`;
+            const deviceId = this.getSelectedDeviceId();
+            const topic = `device/${deviceId}/restart`;
 
             console.log('!: camera restart', topic);
 
@@ -150,9 +150,8 @@ export class Debug {
                 topic,
                 JSON.stringify({
                     ts: getTimestamp(),
-                    clientId: this.mqttClientId,
-                    camera_id: cameraId,
-                    clientId: 'js',
+                    client_id: this.mqttClientId,
+                    camera_id: deviceId,
                 })
             );
         });
@@ -163,7 +162,7 @@ export class Debug {
         let localStream;
         let localVideo = this.$localVideo.get(0);
         let localOffer;
-        let cameraId;
+        let deviceId;
         let cacheIceList = [];
         let remoteDescriptionSet = false;
 
@@ -194,7 +193,7 @@ export class Debug {
             console.log('e: handleICECandidateEvent !!!!!!!!!!!!!!!!!!!!!!');
             if (e.candidate) {
                 console.log('---> Sending local ICE candidate back to other peer');
-                const topic = `${cameraId}/ice/${this.mqttClientId}`;
+                const topic = `${deviceId}/ice/${this.mqttClientId}`;
                 this.mqttClient.publish(topic, JSON.stringify(e.candidate));
             }
         };
@@ -253,7 +252,7 @@ export class Debug {
                     pc.setLocalDescription(offer, () => {
                         console.log('---> Sending offer to remote peer');
 
-                        const topic = `${cameraId}/sdp/${this.mqttClientId}`;
+                        const topic = `${deviceId}/sdp/${this.mqttClientId}`;
                         console.log('!: mqtt publish: ', topic);
                         this.mqttClient.publish(topic, JSON.stringify(offer));
                     });
@@ -292,7 +291,7 @@ export class Debug {
 
                     console.log('------> Sending answer packet back to other peer', pc);
 
-                    const topic = `${cameraId}/sdp/${this.mqttClientId}`;
+                    const topic = `${deviceId}/sdp/${this.mqttClientId}`;
                     this.mqttClient.publish(topic, JSON.stringify(pc.localDescription));
 
                     localVideo.srcObject = localStream;
@@ -439,7 +438,7 @@ export class Debug {
                 return;
             }
 
-            cameraId = this.getSelectedCameraId();
+            deviceId = this.getSelectedDeviceId();
             cacheIceList = [];
 
             navigator.mediaDevices
@@ -452,7 +451,7 @@ export class Debug {
                     localStream = stream;
                 });
 
-            this.mqttClient.subscribe(`${cameraId}/#`);
+            this.mqttClient.subscribe(`${deviceId}/#`);
             this.mqttClient.on('message', (topic, message) => {
                 const msg = message ? message.toString() : null;
 
@@ -535,16 +534,16 @@ export class Debug {
         };
 
         const fakeGps = (gps, panic) => {
-            const cameraId = this.getSelectedCameraId();
-            console.log(cameraId, panic);
-            const topic = `device/${cameraId}/gps`;
+            const deviceId = this.getSelectedDeviceId();
+            console.log(deviceId, panic);
+            const topic = `device/${deviceId}/gps`;
 
             this.mqttClient.publish(
                 topic,
                 JSON.stringify({
                     ts: getTimestamp(),
-                    clientId: this.mqttClientId,
-                    camera_id: cameraId,
+                    client_id: this.mqttClientId,
+                    device_id: deviceId,
                     gps: gps,
                     panic: panic ? 1 : 0,
                 })

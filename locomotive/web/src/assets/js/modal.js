@@ -91,8 +91,10 @@ export class Modal {
         }
 
         // close button
-        this._$element.on('click', '[data-modal-close]', e => {
-            this.hide();
+        this._$element.on('click', '.modal-close', e => {
+            const data = $(e.target).data();
+
+            this.hide(data);
         });
 
         // already initialized
@@ -105,13 +107,13 @@ export class Modal {
         return this;
     }
 
-    hide() {
+    hide(data) {
         if (this._initialized === true) {
             this._$element.hide();
         }
 
         // trigger event
-        this.onHide?.();
+        this.onHide?.(data);
 
         // return instance
         return this;
@@ -203,6 +205,10 @@ export class Modal {
 
         // return instance
         return this;
+    }
+
+    zIndex(value) {
+        this._$element.css('z-index', value);
     }
 
     _generateHtml() {

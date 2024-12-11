@@ -14,10 +14,10 @@
 <script id="entry-template" type="text/x-handlebars-template">
     <div class="map-video-wrapper">
         <div class="video-header">
-            <button type="button" class="close" data-modal-close="1"></button>
+            <button type="button" class="close modal-close" data-device-id="{{deviceId}}"></button>
         </div>
         <div class="video-wrapper">
-            <video id="map-video" autoplay playsinline muted></video>
+            <video id="video-{{deviceId}}" autoplay playsinline muted></video>
         </div>
     </div>
 </script>
