@@ -46,8 +46,7 @@ export class Modal {
             y: 'CENTER',
             offsetX: 0,
             offsetY: 0,
-            title: undefined,
-            body: undefined,
+            body: '',
 
             // events
             onShow: undefined,
@@ -62,8 +61,6 @@ export class Modal {
         return this._id;
     }
 
-    setTitle(title) {}
-
     setBody(body) {}
 
     show() {
@@ -71,10 +68,13 @@ export class Modal {
         if (this._initialized === false) {
             this._initialized = true;
 
+            // generate html code
             const html = this._generateHtml();
 
-            $('body').css({ position: 'relative' }).append(html);
+            // append html
+            this._$parent.css({ position: 'relative' }).append(html);
 
+            // get reference
             this._$element = $('#' + this._id);
 
             // dimensions
@@ -90,10 +90,15 @@ export class Modal {
             );
         }
 
+        // close button
+        this._$element.on('click', '[data-modal-close]', e => {
+            this.hide();
+        });
+
         // already initialized
         this._$element.show();
 
-        // event
+        // trigger event
         this.onShow?.();
 
         // return instance
@@ -105,7 +110,7 @@ export class Modal {
             this._$element.hide();
         }
 
-        // event
+        // trigger event
         this.onHide?.();
 
         // return instance
@@ -132,7 +137,7 @@ export class Modal {
             this._height = this.options.height;
         }
 
-        // event
+        // trigger event
         this.onDestroy?.();
     }
 
@@ -149,15 +154,11 @@ export class Modal {
             _offsetY = 0;
         }
 
-        let css = {
-            left: 'auto',
-            right: 'auto',
-            top: 'auto',
-            bottom: 'auto',
-        };
+        let position = { x: 0, y: 0 };
 
         // center of parent element
         let center = this._getCenterCoordinates();
+        let parentD = this._getParentDimensions();
 
         // X
         if (typeof _x === 'string') {
@@ -165,13 +166,13 @@ export class Modal {
             if (['LEFT', 'RIGHT', 'CENTER'].indexOf(_x) !== -1) {
                 switch (_x) {
                     case 'LEFT':
-                        css.left = 0 + _offsetX + 'px';
+                        position.x = _offsetX;
                         break;
                     case 'RIGHT':
-                        css.right = 0 + _offsetX + 'px';
+                        position.x = parentD.width - _offsetX - this._width;
                         break;
                     case 'CENTER':
-                        css.left = center.x + _offsetX - this._width / 2 + 'px';
+                        position.x = center.x + _offsetX - this._width / 2;
                         break;
                 }
             }
@@ -183,19 +184,22 @@ export class Modal {
             if (['TOP', 'BOTTOM', 'CENTER'].indexOf(_y) !== -1) {
                 switch (_y) {
                     case 'TOP':
-                        css.top = 0 + _offsetY + 'px';
+                        position.y = _offsetX;
                         break;
                     case 'BOTTOM':
-                        css.top = 0 + _offsetY + 'px';
+                        position.y = parentD.height - _offsetX - this._height;
                         break;
                     case 'CENTER':
-                        css.top = center.y + _offsetY - this._height / 2 + 'px';
+                        position.y = center.y + _offsetY - this._height / 2;
                         break;
                 }
             }
         }
 
-        this._$element.css(css);
+        this._$element.css({
+            left: position.x + 'px',
+            top: position.y + 'px',
+        });
 
         // return instance
         return this;
@@ -207,14 +211,9 @@ export class Modal {
         const height = this.options.height;
 
         return `
-        <div id="${this._id}" class="modal-win" tabindex="-1" style="display: none2; width:${width}px; height:${height}px;">
+        <div id="${this._id}" class="modal-win" tabindex="-1" style="display: none; width:${width}px; height:${height}px;">
             <div class="modal-win-dialog">
-                <div class="modal-win-header">
-                    <button type="button" class="btn-close"></button>
-                </div>
-                <div class="modal-win-body">
                 ${body}
-                </div>
             </div>
         </div>
         `;
@@ -224,13 +223,19 @@ export class Modal {
         return 'modal-' + Math.random().toString(36).substring(2, 8);
     }
 
+    _getParentDimensions() {
+        return {
+            width: this._$parent.outerWidth(),
+            height: this._$parent.outerHeight(),
+        };
+    }
+
     _getCenterCoordinates() {
         var offset = this._$parent.offset();
-        var width = this._$parent.outerWidth();
-        var height = this._$parent.outerHeight();
+        const d = this._getParentDimensions();
 
-        var centerX = offset.left + width / 2;
-        var centerY = offset.top + height / 2;
+        var centerX = offset.left + d.width / 2;
+        var centerY = offset.top + d.height / 2;
 
         return { x: centerX, y: centerY };
     }

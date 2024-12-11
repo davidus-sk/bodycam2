@@ -12,8 +12,13 @@
 
 <!-- TEMPLATES -->
 <script id="entry-template" type="text/x-handlebars-template">
-    <div class="video-wrapper">
-        <video id="map-video" autoplay playsinline muted></video>
+    <div class="map-video-wrapper">
+        <div class="video-header">
+            <button type="button" class="close" data-modal-close="1"></button>
+        </div>
+        <div class="video-wrapper">
+            <video id="map-video" autoplay playsinline muted></video>
+        </div>
     </div>
 </script>
 

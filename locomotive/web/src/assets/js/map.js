@@ -255,16 +255,13 @@ export class MapView {
             this.modal = new Modal({
                 parent: '#content',
                 width: 400,
-                height: 200,
+                height: 360,
                 x: 'RIGHT',
                 y: 'TOP',
                 offsetX: 20,
                 offsetY: 20,
                 title: data.camera_id,
-                body: this.templates['camera']({
-                    title: 'xxxx',
-                    body: 'yyyy',
-                }),
+                body: this.templates['camera'](),
                 onHide: () => {
                     this.debug('e: modal hide');
                     this.modalVideo = null;
@@ -280,21 +277,20 @@ export class MapView {
             //     containment: $appModal.parent(),
             // });
 
-            console.log(this.modal.getId());
             interact('#' + this.modal.getId())
                 .draggable({
+                    inertia: false,
                     modifiers: [
-                        // keep the edges inside the parent
-                        interact.modifiers.restrictEdges({
-                            outer: 'parent',
+                        interact.modifiers.restrictRect({
+                            restriction: '#content',
                         }),
                     ],
                     listeners: {
                         move(event) {
-                            var target = event.target;
-                            // keep the dragged position in the data-x/data-y attributes
-                            var x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
-                            var y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+                            var target = event.target,
+                                // keep the dragged position in the data-x/data-y attributes
+                                x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx,
+                                y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
 
                             // translate the element
                             target.style.transform = 'translate(' + x + 'px, ' + y + 'px)';
@@ -304,37 +300,23 @@ export class MapView {
                             target.setAttribute('data-y', y);
                         },
                     },
-                    inertia: false,
-                    modifiers: [
-                        interact.modifiers.restrictRect({
-                            restriction: 'parent',
-                        }),
-                    ],
                 })
                 .resizable({
-                    // resize from all edges and corners
-                    edges: { left: true, right: true, bottom: true, top: false },
                     inertia: false,
+                    edges: { left: true, right: true, bottom: true, top: false },
                     modifiers: [
-                        interact.modifiers.snapEdges({
-                            targets: [interact.snappers.grid({ top: 100, left: 100 })],
-                        }),
-                        // keep the edges inside the parent
                         interact.modifiers.restrictEdges({
-                            outer: 'parent',
+                            outer: '#content',
                         }),
-
-                        // minimum size
                         interact.modifiers.restrictSize({
-                            min: { width: 100, height: 100 },
+                            min: { width: 400, height: 400 },
                         }),
                     ],
-
                     listeners: {
                         move(event) {
-                            var target = event.target;
-                            var x = parseFloat(target.getAttribute('data-x')) || 0;
-                            var y = parseFloat(target.getAttribute('data-y')) || 0;
+                            var target = event.target,
+                                x = parseFloat(target.getAttribute('data-x')) || 0,
+                                y = parseFloat(target.getAttribute('data-y')) || 0;
 
                             // update the element's style
                             target.style.width = event.rect.width + 'px';
@@ -348,16 +330,12 @@ export class MapView {
 
                             target.setAttribute('data-x', x);
                             target.setAttribute('data-y', y);
-                            // target.textContent =
-                            //     Math.round(event.rect.width) +
-                            //     '\u00D7' +
-                            //     Math.round(event.rect.height);
                         },
                     },
                 });
 
             // init pi camera
-            //this.initPiCamera(data.camera_id, true);
+            this.initPiCamera(data.camera_id, true);
         });
     }
 
