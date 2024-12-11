@@ -31,6 +31,7 @@ export class MapView {
         this.modalVideo = undefined;
         this.camera = undefined;
         this.modal = undefined;
+        this.activeIcon = undefined;
 
         // dom  elements
         this.$element = $('#map');
@@ -126,6 +127,7 @@ export class MapView {
         // Icons
         // -----------------------------------------------------------
         this._icons['locomotive'] = L.divIcon({
+            className: 'map-icon',
             iconUrl: 'assets/img/map_icon_locomotive.png',
             iconSize: [48, 48],
             iconAnchor: [24, 24],
@@ -135,20 +137,16 @@ export class MapView {
             shadowAnchor: [0, 0],
         });
 
-        this._icons['camera'] = L.icon({
+        this._icons['camera'] = L.divIcon({
+            className: 'map-icon',
             iconUrl: 'assets/img/map_icon_person.png',
             iconSize: [48, 48],
         });
 
         this._icons['camera_panic'] = L.divIcon({
+            className: 'map-icon map-icon-panic',
             iconUrl: 'assets/img/map_icon_person.png',
             iconSize: [48, 48],
-            // iconAnchor: [24, 24],
-            // popupAnchor: [0, -75],
-            className: 'css-icon',
-            // shadowUrl: 'assets/img/map_icon_person.png',
-            // shadowSize: [2, 2],
-            // shadowAnchor: [0, 0],
             html: '<div class="pulsating-circle"></div>',
         });
 
@@ -247,10 +245,12 @@ export class MapView {
         });
 
         // map marker click
-        this.on('map_marker_click', data => {
-            console.log('e: map_marker_click', data);
+        this.on('map_marker_click', (marker, data) => {
+            console.log('e: map_marker_click', marker, data);
 
             //$( "#draggable" ).draggable();
+            this.activeIcon = marker;
+            $(marker._icon).addClass('active');
 
             this.modal = new Modal({
                 parent: '#content',
@@ -266,6 +266,10 @@ export class MapView {
                     this.debug('e: modal hide');
                     this.modalVideo = null;
                     this.camera = null;
+
+                    $(this.activeIcon._icon).removeClass('active');
+                    this.activeIcon = undefined;
+
                     this.fitBounds();
                 },
             }).show();
@@ -386,7 +390,7 @@ export class MapView {
                     camera: data,
                     icon: this._icons[icon],
                 }).on('click', function () {
-                    self.emit('map_marker_click', data);
+                    self.emit('map_marker_click', this, data);
                 });
 
                 // markers - feature group (markers are added to separate groups)
