@@ -1,14 +1,8 @@
-import { generateClientId } from './functions.js';
 import { EventDispatcher } from './EventDispatcher.js';
-import { MqttClient } from './mqtt/client.js';
 
 export class Settings {
     options = {};
     mqttClient = null;
-
-    $btnBlowAir = null;
-    $btnRestart = null;
-    $btnRestartCamera = null;
 
     constructor(options, app) {
         this.options = this.initializeOptions(options);
@@ -36,6 +30,7 @@ export class Settings {
         this.$btnBlowAir = $('#btn-air');
         this.$btnRestart = $('#btn-restart');
         this.$btnRestartCamera = $('#btn-restart-camera');
+        this.$btnStream = $('#btn-stream');
 
         this.blowAir();
         this.restartCamera();
@@ -75,12 +70,16 @@ export class Settings {
 
     mqttConnected() {
         this.debug('e: mqtt connected');
+
         this.$btnBlowAir.attr('disabled', false);
+        this.$btnRestartCamera.attr('disabled', false);
     }
 
     mqttDisconnect() {
         this.debug('e: mqtt disconnected');
+
         this.$btnBlowAir.attr('disabled', 'disabled');
+        this.$btnRestartCamera.attr('disabled', 'disabled');
     }
 
     blowAir() {
@@ -131,7 +130,7 @@ export class Settings {
 
                     // publish
                     conn.publish(
-                        'camera/locomotive/button',
+                        'device/locomotive/button',
                         JSON.stringify({ ts: now, status: 'emergency' })
                     );
 
@@ -188,53 +187,55 @@ export class Settings {
             e.preventDefault();
 
             // mqtt connected
-            this.on('mqtt_connected', conn => {
-                const now = Math.round(new Date() / 1000);
+            if (!this.mqttClient.isConnected()) {
+                console.log('! mqtt is not connected');
+                return;
+            }
 
-                // publish
-                conn.publish(
-                    'camera/locomotive/restart',
-                    JSON.stringify({ ts: now, status: 'reboot' })
-                );
+            const now = Math.round(new Date() / 1000);
 
-                // disconnect mqtt
-                this.mqttClient.disconnect();
+            // publish
+            this.mqttClient.publish(
+                'device/locomotive/restart',
+                JSON.stringify({ ts: now, status: 'reboot' })
+            );
 
-                $restartContent.hide();
-                $restartProgress.show();
+            return;
 
-                var $bar = $restartProgress.find('.progress-bar');
-                var timeTotal = 5,
-                    time = timeTotal,
-                    p = (time / timeTotal) * 100;
+            // disconnect mqtt
+            this.mqttClient.disconnect();
+
+            $restartContent.hide();
+            $restartProgress.show();
+
+            var $bar = $restartProgress.find('.progress-bar');
+            var timeTotal = 5,
+                time = timeTotal,
+                p = (time / timeTotal) * 100;
+
+            $restartTime.html(time);
+            $btnRestartConfirm.attr('disabled', 'disabled');
+            $btnRestartCancel.attr('disabled', 'disabled');
+
+            restartTimer = setInterval(function () {
+                time = time - 1;
+                p = (time / timeTotal) * 100;
+                $bar.css('width', p + '%');
 
                 $restartTime.html(time);
-                $btnRestartConfirm.attr('disabled', 'disabled');
-                $btnRestartCancel.attr('disabled', 'disabled');
 
-                restartTimer = setInterval(function () {
-                    time = time - 1;
-                    p = (time / timeTotal) * 100;
-                    $bar.css('width', p + '%');
+                if (time <= 0) {
+                    clearInterval(restartTimer);
+                    restartTimer = null;
 
-                    $restartTime.html(time);
-
-                    if (time <= 0) {
-                        clearInterval(restartTimer);
-                        restartTimer = null;
-
-                        $restartContent.html('Reloading ...');
-                        $restartProgress.hide();
-                        $restartContent.show();
-                        setTimeout(() => {
-                            window.location = 'index.php';
-                        }, 3000);
-                    }
-                }, 1000);
-            });
-
-            this.initMqtt();
-            this.mqttClient.connect();
+                    $restartContent.html('Reloading ...');
+                    $restartProgress.hide();
+                    $restartContent.show();
+                    setTimeout(() => {
+                        window.location = 'index.php';
+                    }, 3000);
+                }
+            }, 1000);
         });
     }
 
@@ -286,7 +287,7 @@ export class Settings {
 
                     // publish
                     conn.publish(
-                        'camera/locomotive/button',
+                        'device/locomotive/button',
                         JSON.stringify({ ts: now, status: 'reboot' })
                     );
 

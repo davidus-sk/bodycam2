@@ -35,6 +35,7 @@ export class MqttClient {
             clean: true,
             manualConnect: true,
             reconnectPeriod: 1000,
+            resubscribe: true,
             debug: false,
         };
 
@@ -54,10 +55,12 @@ export class MqttClient {
             keepalive: this.optionsKeepalive,
             clean: this.options.clean,
             manualConnect: this.options.manualConnect,
+            resubscribe: this.options.resubscribe,
             reconnectPeriod: this.options.reconnectPeriod,
         };
 
         this.client = mqtt.connect(connectionOptions);
+        console.log(connectionOptions);
 
         this.attachClientListeners();
         this.client.reconnect();
@@ -110,7 +113,7 @@ export class MqttClient {
 
         // emitted when the client receives a publish packet
         this.client.on('message', (topic, message) => {
-            this.debug('e: message:', topic);
+            //this.debug('e: message:', topic);
 
             const msg = message?.toString() ?? null;
 
@@ -134,11 +137,9 @@ export class MqttClient {
             return;
         }
 
-        //const t = this.constructTopic(topic);
-        this.debug('f: mqtt subscribe()', topic);
-
         this.client.subscribe(topic, { qos: 2 });
         this.subscribedFnMap.set(topic, callback);
+        this.emit('subscribe', ...[topic]);
     }
 
     unsubscribe(topic) {
@@ -164,6 +165,8 @@ export class MqttClient {
         this.debug('f: mqtt -> publish() %c%s', 'background-color:#151515;color:#d65cb9', topic);
 
         this.client.publish(topic, message);
+
+        this.emit('publish', ...[topic, message]);
         this.onPublish?.(topic, message);
     }
 }

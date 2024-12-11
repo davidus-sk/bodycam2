@@ -40,9 +40,9 @@ export class Video {
         this.colorReceived = 'background-color:#540101;color:#dbe2ff;font-weight:500';
 
         // regex map
-        const uuidRegex = 'camera-[0-9a-fA-F]{16}';
-        this.topicRegex['camera_status'] = new RegExp(`camera/${uuidRegex}/status`);
-        this.topicRegex['camera_gps'] = new RegExp(`camera/${uuidRegex}/gps`);
+        const cameraIdPattern = 'device-[0-9a-fA-F]{16}';
+        this.topicRegex['device_status'] = new RegExp(`^device\/${cameraIdPattern}\/status$`);
+        this.topicRegex['device_gps'] = new RegExp(`^device\/${cameraIdPattern}\/gps$`);
 
         // mqtt
         this.initMqtt();
@@ -57,18 +57,6 @@ export class Video {
     }
 
     initMqtt() {
-        // client id (required by picamera)
-        //const mqttClientId = generateClientId(23);
-        //this.options.mqtt.clientId = mqttClientId;
-
-        // init mqtt client
-        // this.mqttClient = new MqttClient({
-        //     ...this.options.mqtt,
-        //     ...{
-        //         debug: this.options.debug,
-        //     },
-        // });
-
         // mqtt
         this.mqttClient = this.app?.getMqttClient();
         if (this.mqttClient) {
@@ -78,43 +66,44 @@ export class Video {
     }
 
     mqttConnected() {
-        this.debug('e: mqtt connected');
+        this.mqttClientId = this.mqttClient.clientId;
 
         // received camera status
-        this.mqttClient.subscribe('camera/+/status');
+        this.mqttClient.subscribe('device/+/status');
 
         // got the message
         this.mqttClient.on('message', (topic, message) => {
-            const payload = message?.toString() ?? null;
+            let payload = message?.toString() ?? null;
+            //this.debug('e: message', topic, payload.substring(0, 50) + '...');
+            payload = JSON.parse(payload);
 
-            if (topic && payload) {
-                this.handleMessage(topic, payload);
+            if (payload) {
+                // camera status
+                if (topic.match(this.topicRegex['device_status'])) {
+                    this.receivedCameraStatus(payload);
+                }
             }
+        });
+
+        this.mqttClient.on('publish', (topic, message) => {
+            //console.log('!: mqtt publish: -->', topic, message);
         });
     }
 
     mqttDisconnected() {
         console.log('e: mqtt disconnected');
+
+        this.mqttClientId = undefined;
     }
 
     attach(videoElement, uuid) {
         this.videoRefs[uuid] = videoElement;
     }
 
-    handleMessage(topic, message) {
-        this.debug('e: message', topic, message);
-
-        // camera status
-        if (topic.match(this.topicRegex['camera_status'])) {
-            this.receivedCameraStatus(message);
-        }
-    }
-
-    receivedCameraStatus(message) {
-        const payload = JSON.parse(message);
+    receivedCameraStatus(payload) {
         const cameraId = payload.camera_id;
 
-        this.debug('m: <-- %ccamera/status:', this.colorReceived, payload);
+        this.debug('m: <-- %cdevice/status:', this.colorReceived, payload);
 
         // camera is already in reference list, check time
         if (this.isCameraInGrid(cameraId)) {
@@ -141,6 +130,7 @@ export class Video {
 
             this.updateGrid(payload);
             this.initPiCamera(cameraId, true);
+            //this.demoMp4(cameraId, true);
         }
     }
 
@@ -166,6 +156,10 @@ export class Video {
 
     initPiCamera(cameraId, connect) {
         let camera = this.getCameraData(cameraId);
+
+        if (cameraId === 'device-00000000b203ade4') {
+            return;
+        }
 
         if (camera) {
             // pi camera
@@ -201,10 +195,14 @@ export class Video {
                 className = 'grid-2x1';
                 break;
             case 3:
+                className = 'grid-2x2 grid-2x2-1';
+                break;
             case 4:
                 className = 'grid-2x2';
                 break;
             case 5:
+                className = 'grid-2x3 grid-2x3-1';
+                break;
             case 6:
                 className = 'grid-2x3';
                 break;
@@ -216,11 +214,12 @@ export class Video {
         }
 
         // set grid class
-        this.$element
-            .removeClass(function (index, className) {
-                return (className.match(/\bgrid-[\d]x[\d]\b/g) || []).join(' ');
-            })
-            .addClass(className);
+        // this.$element
+        //     .removeClass(function (index, className) {
+        //         return (className.match(/\bgrid-[\d]x[\d]\b/g) || []).join(' ');
+        //     })
+        //     .addClass(className);
+        this.$element.attr('class', className);
 
         // dom id
         camera.dom_id = 'camera_' + cameraId;
@@ -238,6 +237,29 @@ export class Video {
 
         // update reference
         this.cameras[cameraId] = camera;
+    }
+
+    demoMp4(cameraId, autoplay) {
+        const mp4 = {
+            'device-0000000000000001': 'http://localhost/static/video2.mp4',
+            'device-100000003a0a2f6e': 'http://localhost/static/video3.mp4',
+            'device-00000000b203ade4': 'http://localhost/static/video1.mp4',
+            'device-0000000000000002': 'http://localhost/static/video4.mp4',
+        };
+
+        const elementId = '#video_' + cameraId;
+        const $video = $(elementId);
+        const video = $video.get(0);
+
+        video.pause();
+        $video.attr('loop', 1).html('<source src="' + mp4[cameraId] + '" />');
+        video.load();
+        video
+            .play()
+            .then(() => {})
+            .catch(error => {
+                console.log(error);
+            });
     }
 }
 

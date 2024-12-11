@@ -1,6 +1,6 @@
 
 <div id="video-grid" 
-    class="h-full overflow-hidden flex-row justify-content-center align-items-center grid-1x1">
+    class="grid-1x1">
 </div>
 
 <script type="module">

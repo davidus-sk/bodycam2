@@ -1,11 +1,10 @@
 export function generateClientId(length) {
     if (length < 1 || length > 23) {
-        throw new Error("Length must be between 1 and 23 characters.");
+        throw new Error('Length must be between 1 and 23 characters.');
     }
     const timestamp = Date.now().toString(36);
     const randomLength = length - timestamp.length;
-    const characters =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let result = timestamp;
     for (let i = 0; i < randomLength; i++) {
         const randomIndex = Math.floor(Math.random() * characters.length);
@@ -15,9 +14,23 @@ export function generateClientId(length) {
     return result;
 }
 
+export function getTimestamp() {
+    return Math.floor(Date.now() / 1000);
+}
+
+export function isObjectEmpty(obj) {
+    for (const prop in obj) {
+        if (Object.hasOwn(obj, prop)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 let _workers = {};
 
-export const worker = function (name, interval, callback) {
+export function worker(name, interval, callback) {
     if (interval !== false) {
         interval = interval && interval > 0 ? parseInt(interval) : 5000;
     }
@@ -37,7 +50,7 @@ export const worker = function (name, interval, callback) {
     _workers[name] = {
         timer: null,
         interval: interval,
-        callback: typeof callback === "function" ? callback : function () {},
+        callback: typeof callback === 'function' ? callback : function () {},
     };
 
     // return a Promise
@@ -48,4 +61,4 @@ export const worker = function (name, interval, callback) {
             worker(name, interval, callback);
         }
     }, interval);
-};
+}

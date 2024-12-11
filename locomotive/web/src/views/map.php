@@ -10,15 +10,31 @@
     </button>
 </div>
 
+<!-- TEMPLATES -->
+<script id="entry-template" type="text/x-handlebars-template">
+    <div class="video-wrapper">
+        <video id="map-video" autoplay playsinline muted></video>
+    </div>
+</script>
+
+
+<link href="./assets/vendor/jquery-ui-1.14.1.custom/jquery-ui.min.css" rel="stylesheet">
+<link href="./assets/vendor/leaflet/plugins/L.Icon.Pulse.css" rel="stylesheet">
 <link href="./assets/vendor/leaflet/leaflet.css" rel="stylesheet">
+
+<script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+<script src="./assets/vendor/handlebars.min-v4.7.8.js"></script>
 <script src="./assets/vendor/leaflet/leaflet.js"></script>
+<script src="./assets/vendor/leaflet/plugins/L.Icon.Pulse.js"></script>
+<script src="./assets/vendor/jquery-ui-1.14.1.custom/jquery-ui.min.js"></script>
+
 <script type="module">
 import {MapView} from "<?= js('map.js'); ?>";
 
 const config = <?= Config::read(true); ?>;
 
 $(function() {
-    const mapView = new MapView(config);
+    const mapView = new MapView(config, app);
     
 });
 </script>

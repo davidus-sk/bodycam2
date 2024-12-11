@@ -34,7 +34,12 @@ $cssLastModified = '20240801-0930';
     <script type="module">
     import {App} from "./assets/js/app.js";
 
-    const config = <?= Config::read(true); ?>;
+    // app config
+    const config = <?= Config::read(true, [
+        'mqtt' => [
+            'clientId' => VIEW !== 'debug' ? MQTT_CLIENT_ID : 'mqttjs_debug',
+        ],
+    ]); ?>;
 
     $(function() {
 

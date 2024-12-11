@@ -17,8 +17,8 @@
             type="button"
             class="btn btn-lg btn-cool btn-h-100 mx-2"
             style="width: 220px;"
-            data-bs-toggle="modal"
-            data-bs-target="#restart" 
+            data2-bs-toggle="modal"
+            data2-bs-target="#restart" 
             disabled 
         >
             RESTART CAMERA

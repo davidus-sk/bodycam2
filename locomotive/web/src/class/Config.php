@@ -18,7 +18,7 @@ class Config
      * @param bool $returnJson
      * @return array
      */
-    public static function read(bool $returnJson = false): array|string
+    public static function read(bool $returnJson = false, array $overrideOptions = null): array|string
     {
 
         // init
@@ -31,7 +31,13 @@ class Config
             $cfg = self::readFile($configPath);
             $cfgDefault = self::readFile($defaultConfigPath);
 
-            self::$data = self::merge($cfgDefault, $cfg);
+            $cfg = self::merge($cfgDefault, $cfg);
+
+            if ($overrideOptions) {
+                $cfg = self::merge($cfg, $overrideOptions);
+            }
+
+            self::$data = $cfg;
         }
 
         return $returnJson === true ?
