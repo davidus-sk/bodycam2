@@ -28,6 +28,14 @@ export class Video {
         // attach events
         window.onbeforeunload = function () {
             console.log('e: window reload');
+
+            for (const cameraId in cameras) {
+                const val = cameras[cameraId];
+
+                if (val) {
+                    val.terminate();
+                }
+            }
         };
 
         // debug
@@ -71,6 +79,8 @@ export class Video {
         // received camera status
         this.mqttClient.subscribe('device/+/status');
 
+        this.debug('[mqtt_service] subscribe: device/+/status');
+
         // got the message
         this.mqttClient.on('message', (topic, message) => {
             let payload = message?.toString() ?? null;
@@ -101,28 +111,28 @@ export class Video {
     }
 
     receivedCameraStatus(payload) {
-        const cameraId = payload.camera_id;
+        const cameraId = payload.device_id;
 
-        this.debug('m: <-- %cdevice/status:', this.colorReceived, payload);
+        this.debug('[mqtt_service] message: %cdevice/+/status', this.colorReceived, payload);
 
         // camera is already in reference list, check time
         if (this.isCameraInGrid(cameraId)) {
-            this.debug('! camera already in grid');
+            this.debug('[video] camera already in the grid');
             //this.getCameraData(cameraId)?.picamera?.restart();
             //return;
             //const cameraStatus = this.getCameraStatus();
 
             if (!this.isCameraConnected(cameraId)) {
-                this.debug('! camera is not connected - reconnect');
+                this.debug('[video] camera is not connected - reconnect');
                 //this.getCameraData(cameraId)?.picamera?.connect();
             } else {
-                this.debug('! camera connected - all ok');
+                this.debug('[video] camera connected - all ok');
             }
 
             //const now = Math.round(new Date() / 1000);
             //if (now - this.cameras[cameraId].ts )
         } else {
-            this.debug('! new camera');
+            this.debug('[video] new camera');
 
             // save reference
             //this.cameras[cameraId] = payload;
@@ -157,10 +167,6 @@ export class Video {
     initPiCamera(cameraId, connect) {
         let camera = this.getCameraData(cameraId);
 
-        if (cameraId === 'device-00000000b203ade4') {
-            return;
-        }
-
         if (camera) {
             // pi camera
             camera.picamera = new PiCamera(cameraId, this.options.camera, null, this.mqttClient);
@@ -181,9 +187,7 @@ export class Video {
     updateGrid(camera) {
         const cameras = Object.values(this.cameras);
         const cameraCount = cameras.length;
-        const cameraId = camera.camera_id ?? null;
-
-        this.debug('cameraCount', cameraCount);
+        const cameraId = camera.device_id ?? null;
 
         let className = 'grid-1x1';
 

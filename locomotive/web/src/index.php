@@ -37,7 +37,7 @@ $cssLastModified = '20240801-0930';
     // app config
     const config = <?= Config::read(true, [
         'mqtt' => [
-            'clientId' => VIEW !== 'debug' ? MQTT_CLIENT_ID : 'mqttjs_debug',
+            'clientId' => VIEW === 'debug' ? 'mqttjs_debug' : MQTT_CLIENT_ID,
         ],
     ]); ?>;
 

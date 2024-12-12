@@ -8,7 +8,7 @@ let deb;
             <strong>Live cameras:</strong>
             <select id="sel-cameras" class="form-control">            
                 <option value="device-100000003a0a2f6e">Marek PI</option>
-                <option value="device-0000000000000001">Marek PC</option>                
+                <option value="device-0000000000000001" selected>Marek PC</option>                
                 <option value="device-00000000b203ade4">AL</option>
                 <option value="device-0000000000000002">Fake</option>
             </select>
@@ -32,9 +32,11 @@ let deb;
             <button id="btn-gps-fake-panic" type="button" class="btn btn-lg btn-secondary mt-3 ms-3" data-btn-mqtt="1" disabled>Fake GPS Panic</button>
             <button id="btn-gps-auto" type="button" class="btn btn-lg btn-secondary mt-3 ms-3" data-btn-mqtt="1" disabled>Fake GPS Start</button>
         </div>
+
+        <video id="local-video" class="mt-3" style="display: none;width:250px;height: 250px;" playsinline autoplay muted></video>
     </div>
 
-    <video id="local-video" style="display: none2;width:200px;height: 200px;" playsinline autoplay muted></video>
+
 </div>
 
 <script type="module">
