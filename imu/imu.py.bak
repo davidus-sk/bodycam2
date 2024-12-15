@@ -1,0 +1,96 @@
+import smbus
+import time
+import math
+
+# I2C configuration
+I2C_BUS = 1
+IMU_ADDRESS = 0x68  # Default I2C address for ICM-42670-P
+WHO_AM_I_REGISTER = 0x75  # WHO_AM_I register address
+PWR_MGMT_REGISTER = 0x06  # Power management register
+ACCEL_CONFIG_REGISTER = 0x1D  # Accelerometer configuration register
+ACCEL_DATA_REGISTER = 0x1F  # Accelerometer data start register
+
+# Initialize I2C bus
+bus = smbus.SMBus(I2C_BUS)
+
+# Helper function to write a single byte to I2C
+def write_register(addr, reg, value):
+    try:
+        bus.write_byte_data(addr, reg, value)
+    except OSError as e:
+        print(f"I2C Write Error at address {addr:#04x}, register {reg:#04x}: {e}")
+
+# Helper function to read a single byte from I2C
+def read_register(addr, reg):
+    try:
+        return bus.read_byte_data(addr, reg)
+    except OSError as e:
+        print(f"I2C Read Error at address {addr:#04x}, register {reg:#04x}: {e}")
+        return None
+
+# Function to initialize the IMU
+def initialize_imu():
+    # Verify WHO_AM_I
+    who_am_i = read_register(IMU_ADDRESS, WHO_AM_I_REGISTER)
+    if who_am_i != 0x67:  # Replace with the actual WHO_AM_I value for ICM-42670-P
+        print(f"IMU not detected or invalid WHO_AM_I response: {who_am_i:#04x}")
+        return False
+    print(f"IMU detected. WHO_AM_I: {who_am_i:#04x}")
+
+    # Wake up the IMU (exit sleep mode)
+    print("Exiting sleep mode...")
+    write_register(IMU_ADDRESS, PWR_MGMT_REGISTER, 0x00)  # Clear sleep bit
+
+    # Configure accelerometer (set range to ±2g)
+    print("Configuring accelerometer...")
+    write_register(IMU_ADDRESS, ACCEL_CONFIG_REGISTER, 0x00)  # Set range to ±2g
+
+    # Wait for the configuration to take effect
+    time.sleep(0.1)
+    return True
+
+# Function to read accelerometer data
+def read_accelerometer():
+    accel_data = bus.read_i2c_block_data(IMU_ADDRESS, ACCEL_DATA_REGISTER, 6)
+    accel_x_raw = (accel_data[0] << 8) | accel_data[1]
+    accel_y_raw = (accel_data[2] << 8) | accel_data[3]
+    accel_z_raw = (accel_data[4] << 8) | accel_data[5]
+
+    # Convert to signed 16-bit values
+    accel_x_raw = accel_x_raw if accel_x_raw < 32768 else accel_x_raw - 65536
+    accel_y_raw = accel_y_raw if accel_y_raw < 32768 else accel_y_raw - 65536
+    accel_z_raw = accel_z_raw if accel_z_raw < 32768 else accel_z_raw - 65536
+
+    # Scale to g (±2g range assumed)
+    scale_factor = 32768 / 2  # For ±2g
+    accel_x = accel_x_raw / scale_factor
+    accel_y = accel_y_raw / scale_factor
+    accel_z = accel_z_raw / scale_factor
+
+    return accel_x_raw, accel_y_raw, accel_z_raw, accel_x, accel_y, accel_z
+
+# Main function to read and display accelerometer data
+def main():
+    if not initialize_imu():
+        print("Failed to initialize IMU.")
+        return
+
+    print("Reading accelerometer data...")
+    while True:
+        try:
+            # Get raw and scaled data
+            accel_x_raw, accel_y_raw, accel_z_raw, accel_x, accel_y, accel_z = read_accelerometer()
+
+            # Calculate magnitude
+            accel_mag = math.sqrt(accel_x**2 + accel_y**2 + accel_z**2)
+
+            # Display raw and scaled data
+            print(f"Raw Data - X: {accel_x_raw}, Y: {accel_y_raw}, Z: {accel_z_raw}")
+            print(f"Accel Mag: {accel_mag:.2f}g, Ax: {accel_x:.2f}, Ay: {accel_y:.2f}, Az: {accel_z:.2f}")
+        except Exception as e:
+            print(f"Error reading accelerometer: {e}")
+        time.sleep(0.1)
+
+if __name__ == "__main__":
+    main()
+

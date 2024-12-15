@@ -1,0 +1,80 @@
+import smbus
+import time
+import RPi.GPIO as GPIO
+
+# GPIO configuration
+UV_SHDN_PIN = 25  # GPIO25 (BCM numbering for UV_SHDNn)
+
+# Constants
+ADC_RESOLUTION = 4095
+ADC_VREF = 3.3  # Reference voltage of the ADC
+RF = 40e6  # Total feedback resistor value in ohms (40 MΩ from R64 + R65)
+RESPONSIVITY = 0.11  # Photodiode responsivity in A/W
+
+# Initialize GPIO
+GPIO.setmode(GPIO.BCM)  # Use BCM numbering
+GPIO.setup(UV_SHDN_PIN, GPIO.OUT)  # Set UV_SHDNn pin as output
+
+# Function to enable the UV sensor
+def enable_uv_sensor():
+    GPIO.output(UV_SHDN_PIN, GPIO.HIGH)  # Set UV_SHDNn to HIGH (sensor enabled)
+    time.sleep(0.1)  # Allow time for the sensor to stabilize
+
+# Function to disable the UV sensor (optional)
+def disable_uv_sensor():
+    GPIO.output(UV_SHDN_PIN, GPIO.LOW)  # Set UV_SHDNn to LOW (sensor disabled)
+
+# I2C configuration
+bus = smbus.SMBus(1)
+
+# Function to read from the ADC
+def read_adc():
+    # ADC121C021 address, 0x50(80)
+    # Select configuration register, 0x02(02)
+    # 0x20(32): Automatic conversion mode enabled
+    bus.write_byte_data(0x50, 0x02, 0x20)
+    time.sleep(0.5)
+
+    # ADC121C021 address, 0x50(80)
+    # Read data back from 0x00(00), 2 bytes
+    # raw_adc MSB, raw_adc LSB
+    data = bus.read_i2c_block_data(0x50, 0x00, 2)
+
+    # Convert the data to 12 bits
+    raw_adc = (data[0] & 0x0F) * 256 + data[1]
+    return raw_adc
+
+# Function to calculate UV intensity
+def calculate_uv_intensity(adc_value):
+    # Calculate the output voltage
+    v_out = (adc_value / ADC_RESOLUTION) * ADC_VREF
+
+    # Calculate the photocurrent
+    photocurrent = v_out / RF
+
+    # Calculate the UV intensity
+    uv_intensity = photocurrent / RESPONSIVITY  # In watts
+    return uv_intensity * 1e9  # Convert to nanowatts (nW)
+
+# Main function
+def main():
+    try:
+        print("Enabling UV sensor...")
+        enable_uv_sensor()  # Enable the UV sensor
+
+        print("Reading ADC value...")
+        adc_value = read_adc()  # Read value from the ADC
+
+        uv_intensity = calculate_uv_intensity(adc_value)
+
+        print(f"Digital Value of Analog Input: {adc_value}")
+        print(f"UV Intensity: {uv_intensity:.2f} nW/cm^2")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        print("Disabling UV sensor...")
+        disable_uv_sensor()  # Disable the UV sensor (optional)
+        GPIO.cleanup()  # Clean up GPIO settings
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,12 @@
+[Unit]
+Description=UV Sensor Reading Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /app/bodycam2/uv/read_uv.py
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
