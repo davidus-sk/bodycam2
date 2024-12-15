@@ -80,25 +80,32 @@ export class MapView {
             console.log('[map] mqtt initialized');
 
             // topics
-            const camGpsRegex = new RegExp(`^device\/device-[0-9a-fA-F]{16}\/gps$`);
+            const gpsRegex = new RegExp(`^device\/device-[0-9a-fA-F]{16}\/gps$`);
+            const panicButtonRegex = new RegExp(`^device\/device-[0-9a-fA-F]{16}\/button$`);
 
             // connect callback
             this.mqttClient.on('connect', () => {
                 this.debug('[map] mqtt connected');
 
                 // subscribe to topics
-                this.mqttClient.subscribe('device/+/gps');
+                this.mqttClient.subscribe('device/#');
             });
 
             // message callback
             this.mqttClient.on('message', (topic, msg) => {
-                let payload = msg?.toString() ?? null;
+                const payload = msg ? JSON.parse(msg.toString()) : null;
+                const deviceId = payload ? payload.device_id : null;
 
-                this.debug('[map] mqtt message: ' + topic, payload.substring(0, 50) + '...');
+                this.debug('[map] mqtt message: ' + topic, msg.toString().substring(0, 50) + '...');
 
                 // camera gps
-                if (topic.match(camGpsRegex)) {
-                    this.newMapObject(JSON.parse(payload));
+                if (topic.match(gpsRegex)) {
+                    this.newMapObject(payload);
+                }
+
+                // panic button
+                if (topic.match(panicButtonRegex)) {
+                    this.panicButton(deviceId);
                 }
             });
         }
@@ -406,10 +413,6 @@ export class MapView {
             const objectType = data.type ?? 'camera';
             let icon = objectType;
 
-            if (data.panic && data.panic === 1) {
-                icon = icon + '_panic';
-            }
-
             // new map object
             if (this._mapObjects[deviceId] === undefined) {
                 // map
@@ -420,10 +423,10 @@ export class MapView {
                     self.emit('map_marker_click', this, data);
                 });
 
-                // marker.on('contextmenu', function (e) {
-                //     self.destroyPiCamera(e.target.options.camera.device_id);
-                //     //self.removeMapObject(e.target.options.camera.device_id);
-                // });
+                marker.on('contextmenu', function (e) {
+                    self.destroyPiCamera(e.target.options.camera.device_id);
+                    //self.removeMapObject(e.target.options.camera.device_id);
+                });
 
                 // markers - feature group (markers are added to separate groups)
                 // add marker to the desired group
@@ -438,7 +441,6 @@ export class MapView {
                 // update position
             } else {
                 this.debug('[map] map object update - gps', data);
-                this._markersRef[deviceId].setIcon(this._icons[icon]);
                 this._markersRef[deviceId].setLatLng(data.gps);
             }
 
@@ -500,6 +502,15 @@ export class MapView {
             // modal win
             if (this.modalRefs[deviceId] !== undefined) {
                 this.modalRefs[deviceId].destroy();
+            }
+        }
+    }
+
+    panicButton(deviceId) {
+        this.debug('[map] panic button', deviceId);
+        if (deviceId && deviceId.length) {
+            if (this._markersRef[deviceId] !== undefined) {
+                this._markersRef[deviceId].setIcon(this._icons['camera_panic']);
             }
         }
     }

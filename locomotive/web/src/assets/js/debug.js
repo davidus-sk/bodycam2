@@ -106,7 +106,14 @@ export class Debug {
 
     panicButton() {
         if (this.mqttClient && this.mqttClient.isConnected()) {
-            console.log('f: cameraStatus()');
+            console.log('[debug] panic button pressed', this);
+
+            const $btnPanic = $('#btn-panic');
+            if ($btnPanic.attr('data-panic') == '1') {
+                $btnPanic.attr('data-panic', 0).html('Panic OFF');
+            } else {
+                $btnPanic.attr('data-panic', 1).html('Panic ON');
+            }
 
             const deviceId = this.getSelectedDeviceId();
             const topic = `device/${deviceId}/button`;
@@ -559,7 +566,6 @@ export class Debug {
         const $btnGps = $('#btn-gps-auto');
         const $btnAddLoco = $('#btn-add-loco');
         const $btnGpsFake = $('#btn-gps-fake');
-        const $btnGpsFakePanic = $('#btn-gps-fake-panic');
 
         let fakeGpsStart = false;
         let gpsTimer;
@@ -599,11 +605,6 @@ export class Debug {
         $btnGpsFake.on('click', () => {
             let gps = this.getRandomCoordinate(lastGps, 200);
             fakeGps(gps);
-        });
-
-        $btnGpsFakePanic.on('click', () => {
-            let gps = this.getRandomCoordinate(lastGps, 200);
-            fakeGps(gps, true);
         });
 
         $btnAddLoco.on('click', () => {

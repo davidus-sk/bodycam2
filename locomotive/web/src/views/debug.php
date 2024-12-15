@@ -17,7 +17,7 @@ let deb;
         <div class="mb-3">
             <button id="btn-cam-status" type="button" class="btn btn-lg btn-secondary mt-3" data-btn-mqtt="1" disabled>Camera status</button>
 
-            <button id="btn-panic" type="button" class="btn btn-lg btn-secondary mt-3 ms-3" data-btn-mqtt="1" disabled>Panic button</button>
+            <button id="btn-panic" type="button" class="btn btn-lg btn-secondary mt-3 ms-3" style="width: 134px;" data-btn-mqtt="1" disabled>Panic OFF</button>
 
             <button id="btn-cam-restart" type="button" class="btn btn-lg btn-secondary mt-3 ms-3" data-btn-mqtt="1" disabled>Camera restart</button>
         </div>
@@ -29,7 +29,6 @@ let deb;
         <div class="mb-0">
             <button id="btn-add-loco" type="button" class="btn btn-lg btn-secondary mt-3" data-btn-mqtt="1" disabled>Add Loco</button>
             <button id="btn-gps-fake" type="button" class="btn btn-lg btn-secondary mt-3 ms-3" data-btn-mqtt="1" disabled>Fake GPS</button>
-            <button id="btn-gps-fake-panic" type="button" class="btn btn-lg btn-secondary mt-3 ms-3" data-btn-mqtt="1" disabled>Fake GPS Panic</button>
             <button id="btn-gps-auto" type="button" class="btn btn-lg btn-secondary mt-3 ms-3" data-btn-mqtt="1" disabled>Fake GPS Start</button>
         </div>
 
