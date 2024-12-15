@@ -73,6 +73,7 @@ export class PiCamera {
             datachannelOnly: false,
             isMicOn: false,
             isSpeakerOn: false,
+            showClock: false,
             setTimeout: 5000,
             stunUrls: [],
             turnUrls: [],
@@ -248,7 +249,11 @@ export class PiCamera {
 
             if (this.mediaElement) {
                 //this.mediaElement.srcObject = this.remoteStream;
-                this.mediaElement.srcObject = addWatermarkToStream(this.remoteStream, ':)');
+                if (this.options.showClock) {
+                    this.mediaElement.srcObject = addWatermarkToStream(this.remoteStream, ':)');
+                } else {
+                    this.mediaElement.srcObject = this.remoteStream;
+                }
             }
         };
 
