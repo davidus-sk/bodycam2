@@ -16,6 +16,7 @@ let deb;
         </div>
         <div class="mb-3">
             <button id="btn-cam-status" type="button" class="btn btn-lg btn-secondary mt-3" data-btn-mqtt="1" disabled>Camera status</button>
+            <button id="btn-cam-status-auto" type="button" class="btn btn-lg btn-secondary mt-3 ms-3" data-btn-mqtt="1" disabled>Camera status Start</button>
 
             <button id="btn-panic" type="button" class="btn btn-lg btn-secondary mt-3 ms-3" style="width: 134px;" data-btn-mqtt="1" disabled>Panic OFF</button>
 

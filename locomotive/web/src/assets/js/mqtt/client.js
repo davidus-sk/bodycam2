@@ -60,7 +60,7 @@ export class MqttClient {
         };
 
         this.client = mqtt.connect(connectionOptions);
-        console.log(connectionOptions);
+        this.debug('[mqtt_service] connection options', connectionOptions);
 
         this.attachClientListeners();
         this.client.reconnect();

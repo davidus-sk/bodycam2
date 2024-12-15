@@ -62,6 +62,8 @@ export class PiCamera {
         } else {
             this.debug = function (message) {};
         }
+
+        this.debug('[picamera] initializing...', this.options);
     }
 
     initializeOptions(options) {
@@ -83,6 +85,7 @@ export class PiCamera {
             ...defaultOptions,
             ...options,
         };
+
         cfg.stunUrls = [...new Set(cfg.stunUrls)];
 
         // debug
@@ -92,7 +95,6 @@ export class PiCamera {
     }
 
     attach(mediaElement) {
-        this.debug('[picamera] video element attached');
         this.mediaElement = mediaElement;
     }
 
@@ -206,6 +208,8 @@ export class PiCamera {
                 credential: this.options.turnPassword,
             });
         }
+
+        console.log(config);
 
         return config;
     }

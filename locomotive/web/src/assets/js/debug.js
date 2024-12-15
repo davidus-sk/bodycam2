@@ -7,6 +7,7 @@ export class Debug {
         this.$selDevices = $('#sel-cameras');
 
         const $btnDeviceStatus = $('#btn-cam-status');
+        const $btnDeviceStatusAuto = $('#btn-cam-status-auto');
         const $btnPanic = $('#btn-panic');
 
         // regex map
@@ -33,6 +34,28 @@ export class Debug {
         // buttons
         $btnDeviceStatus.on('click', () => this.sendDeviceStatus());
         $btnPanic.on('click', () => this.panicButton());
+
+        let deviceStatusTimer;
+        $btnDeviceStatusAuto.on('click', () => {
+            let active = parseInt($btnDeviceStatusAuto.attr('data-active')) === 1;
+            if (active) {
+                active = false;
+                $btnDeviceStatusAuto.attr('data-active', 0).html('Device Status Start');
+            } else {
+                active = true;
+                $btnDeviceStatusAuto.attr('data-active', 1).html('Device Status Stop');
+            }
+
+            if (active) {
+                this.sendDeviceStatus();
+                deviceStatusTimer = setInterval(() => {
+                    this.sendDeviceStatus();
+                }, 4000);
+            } else {
+                clearInterval(timer);
+                deviceStatusTimer = null;
+            }
+        });
 
         //
         this.stream();
@@ -563,9 +586,9 @@ export class Debug {
     }
 
     gps() {
-        const $btnGps = $('#btn-gps-auto');
         const $btnAddLoco = $('#btn-add-loco');
-        const $btnGpsFake = $('#btn-gps-fake');
+        const $btnGps = $('#btn-gps');
+        const $btnGpsAuto = $('#btn-gps-auto');
 
         let fakeGpsStart = false;
         let gpsTimer;
@@ -585,9 +608,8 @@ export class Debug {
             );
         };
 
-        const fakeGps = (gps, panic) => {
+        const fakeGps = gps => {
             const deviceId = this.getSelectedDeviceId();
-            console.log(deviceId, panic);
             const topic = `device/${deviceId}/gps`;
 
             this.mqttClient.publish(
@@ -597,12 +619,11 @@ export class Debug {
                     client_id: this.mqttClientId,
                     device_id: deviceId,
                     gps: gps,
-                    panic: panic ? 1 : 0,
                 })
             );
         };
 
-        $btnGpsFake.on('click', () => {
+        $btnGps.on('click', () => {
             let gps = this.getRandomCoordinate(lastGps, 200);
             fakeGps(gps);
         });
@@ -612,14 +633,14 @@ export class Debug {
             addLoco(gps);
         });
 
-        $btnGps.on('click', () => {
-            let gpsActive = parseInt($btnGps.attr('data-active')) === 1;
+        $btnGpsAuto.on('click', () => {
+            let gpsActive = parseInt($btnGpsAuto.attr('data-active')) === 1;
             if (gpsActive) {
                 fakeGpsStart = false;
-                $btnGps.attr('data-active', 0).html('Fake Gps Start');
+                $btnGpsAuto.attr('data-active', 0).html('Fake Gps Start');
             } else {
                 fakeGpsStart = true;
-                $btnGps.attr('data-active', 1).html('Fake Gps Stop');
+                $btnGpsAuto.attr('data-active', 1).html('Fake Gps Stop');
             }
 
             if (fakeGpsStart) {
@@ -627,9 +648,9 @@ export class Debug {
                 fakeGps(gps);
 
                 gpsTimer = setInterval(() => {
-                    lastGps = this.getRandomCoordinate(lastGps, 200);
-                    fakeGps(gps);
-                }, 2000);
+                    lastGps = this.getRandomCoordinate(lastGps, 15);
+                    fakeGps(lastGps);
+                }, 4000);
             } else {
                 clearInterval(gpsTimer);
                 gpsTimer = null;
