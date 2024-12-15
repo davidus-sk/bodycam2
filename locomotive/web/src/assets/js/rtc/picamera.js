@@ -68,16 +68,16 @@ export class PiCamera {
 
     initializeOptions(options) {
         const defaultOptions = {
-            stunUrls: [],
-            turnUrl: null,
-            turnUsername: '',
-            turnPassword: '',
+            debug: false,
             timeout: DEFAULT_TIMEOUT,
             datachannelOnly: false,
             isMicOn: false,
             isSpeakerOn: false,
             setTimeout: 5000,
-            debug: false,
+            stunUrls: [],
+            turnUrls: [],
+            turnUsername: '',
+            turnPassword: '',
         };
 
         // remove duplicates
@@ -197,13 +197,15 @@ export class PiCamera {
         config.iceServers = [];
         config.iceCandidatePoolSize = 10;
 
+        // STUN servers
         if (this.options.stunUrls && this.options.stunUrls.length > 0) {
             config.iceServers.push({ urls: this.options.stunUrls });
         }
 
-        if (this.options.turnUrl && this.options.turnUsername && this.options.turnPassword) {
+        // TURN servers
+        if (this.options.turnUrls && typeof this.options.turnUrls === 'object') {
             config.iceServers.push({
-                urls: this.options.turnUrl,
+                urls: this.options.turnUrls,
                 username: this.options.turnUsername,
                 credential: this.options.turnPassword,
             });
