@@ -1,6 +1,6 @@
 <?php
 
-function run_once($lock_file) {
+function run_once($lock_file, &$fh) {
 	$fh = fopen($lock_file, 'c');
 	$got_lock = flock($fh, LOCK_EX | LOCK_NB, $would_block);
 

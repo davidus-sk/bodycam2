@@ -9,7 +9,7 @@ use \PhpMqtt\Client\MqttClient;
 use \PhpMqtt\Client\ConnectionSettings;
 
 // run once
-run_once('/tmp/camera_status.pid');
+run_once('/tmp/camera_status.pid', $fh);
 
 // load settings
 $config = read_config();
@@ -51,7 +51,13 @@ while (TRUE) {
 	$mqtt->publish("device/{$clientId}/status", json_encode($payload), 0, false);
 	$mqtt->disconnect();
 
-	syslog(LOG_INFO, "Camera status message sent.");
+	syslog(LOG_INFO, "Camera status '{$status}' message sent.");
 
+	// send this only once
+	if ($status == 'bootup') {
+		exit(0);
+	}//if
+
+	// rest
 	sleep(30);
 }//while

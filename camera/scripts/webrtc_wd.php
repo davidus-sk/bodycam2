@@ -41,6 +41,15 @@ while (TRUE) {
 		echo date('r') . "> Starting pi_webrtc for {$clientId}.\n";
 
 		`/app/bodycam2/camera/stream/pi_webrtc --use_libcamera --fps={$data['fps']} --width={$data['width']} --height={$data['height']} --hw_accel --no_audio --mqtt_host={$data['server']} --mqtt_port={$data['port']} --mqtt_username={$data['username']} --mqtt_password={$data['password']} --uid={$clientId}  >> /tmp/pi_webrtc.log 2>&1 &`;
+	}
+	// it could run but be a zombie
+	else {
+		$status = trim(`/usr/bin/cat /proc/{$pid}/status | /usr/bin/grep "State:"`);
+
+		if (preg_match("/State:\s+Z/", $status)) {
+			echo date('r') . "> Zombie process {$pid}. Killing it.\n";
+			`/usr/bin/kill -9 $pid`;
+		}//if
 	}//if
 
 	// sleep

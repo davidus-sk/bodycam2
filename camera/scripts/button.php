@@ -9,7 +9,7 @@ use \PhpMqtt\Client\MqttClient;
 use \PhpMqtt\Client\ConnectionSettings;
 
 // run once
-run_once('/tmp/camera_button.pid');
+run_once('/tmp/camera_button.pid', $fh);
 
 // load settings
 $config = read_config();
