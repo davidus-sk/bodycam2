@@ -86,7 +86,6 @@ export class Video {
 
         // got the message
         this.mqttClient.on('message', (topic, message) => {
-            console.log(topic);
             let payload = message?.toString() ?? null;
             //this.debug('e: message', topic, payload.substring(0, 50) + '...');
             payload = JSON.parse(payload);

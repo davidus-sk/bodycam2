@@ -517,7 +517,7 @@ export class PiCamera {
         //this.debug('e: handleSdpMessage()', sdp);
 
         const topic = this.constructTopic(MQTT_SDP_TOPIC);
-        this.debug('[mqtt_service] got remote SDP: ' + topic, sdp);
+        this.debug('[picamera] got remote SDP: ' + topic, sdp);
 
         this.rtcPeer?.setRemoteDescription(new RTCSessionDescription(sdp));
     };
@@ -527,7 +527,7 @@ export class PiCamera {
         //this.debug('e: handleIceMessage');
 
         const topic = this.constructTopic(MQTT_ICE_TOPIC);
-        this.debug('[mqtt_service] got remote ICE: ' + topic);
+        this.debug('[picamera] got remote ICE: ' + topic);
 
         if (this.rtcPeer?.currentRemoteDescription) {
             this.rtcPeer.addIceCandidate(new RTCIceCandidate(ice));

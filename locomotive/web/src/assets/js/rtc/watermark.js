@@ -18,8 +18,8 @@ export function addWatermarkToStream(stream, watermarkText) {
             if (!ctx) return;
             ctx.drawImage(videoFrame, 0, 0, canvas.width, canvas.height);
 
-            const fontSize = Math.max(20, canvas.width * 0.04);
-            ctx.font = `bold ${fontSize}px Arial`;
+            //const fontSize = Math.max(20, canvas.width * 0.04);
+            ctx.font = `bold 14px Arial`;
             ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
             ctx.textAlign = 'right';
             ctx.textBaseline = 'bottom';
@@ -63,8 +63,8 @@ export function addWatermarkToImage(base64Image, watermarkText) {
 
             ctx.drawImage(img, 0, 0);
 
-            const fontSize = Math.max(20, canvas.width * 0.04);
-            ctx.font = `bold ${fontSize}px Arial`;
+            //const fontSize = Math.max(20, canvas.width * 0.04);
+            ctx.font = `bold 14px Arial`;
             ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
             ctx.textAlign = 'right';
             ctx.textBaseline = 'bottom';
