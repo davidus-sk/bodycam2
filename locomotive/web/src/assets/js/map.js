@@ -25,11 +25,10 @@ export class MapView {
         EventDispatcher.attach(this);
 
         // local variables
-        this.templates = {};
-        this.running = false;
-        this.piCameraRefs = {};
-        this.modalRefs = {};
-        this.activeMarker = undefined;
+        this._templates = {};
+        this._piCameraRefs = {};
+        this._modalRefs = {};
+        this._activeMarker = undefined;
 
         // dom  elements
         this.$element = $('#map');
@@ -45,7 +44,7 @@ export class MapView {
         this.debug('[map] options', this.options);
 
         // templates
-        this.templates['camera'] = Handlebars.compile($('#entry-template').html());
+        this._templates['camera'] = Handlebars.compile($('#entry-template').html());
 
         // map
         this.initMap().then(() => {
@@ -217,7 +216,7 @@ export class MapView {
                     this.debug('[map] removing map object...');
 
                     this.destroyPiCamera(obj.device_id);
-                    this.removeMapObject(obj.device_id);
+                    //this.removeMapObject(obj.device_id);
                 }
             }
         });
@@ -253,35 +252,32 @@ export class MapView {
             let deviceId = data.device_id;
 
             //$( "#draggable" ).draggable();
-            this.activeMarker = marker;
+            this._activeMarker = marker;
             $(marker._icon).addClass('active');
 
             // new modal window
-            if (this.modalRefs[deviceId] === undefined) {
-                const modalBody = this.templates['camera']({
+            if (this._modalRefs[deviceId] === undefined) {
+                const modalBody = this._templates['camera']({
                     deviceId: deviceId,
                 });
 
                 // model win count
-                const winCount = Object.keys(this.modalRefs).length;
+                const winCount = Object.keys(this._modalRefs).length;
 
-                this.modalRefs[deviceId] = new Modal({
+                this._modalRefs[deviceId] = new Modal({
                     parent: '#content',
                     width: 400,
                     height: 360,
                     x: 'RIGHT',
                     y: 'TOP',
                     offsetX: 20,
-                    offsetY: 20,
+                    offsetY: 20 + winCount * 70,
                     body: modalBody,
                     active: true,
                     onInit: m => {
-                        console.log(this);
-                        m.options.offsetY = 20 + winCount * 10;
-
-                        for (var key in this.modalRefs) {
-                            if (this.modalRefs.hasOwnProperty(key)) {
-                                this.modalRefs[key].setActiveStatus(false);
+                        for (var key in this._modalRefs) {
+                            if (this._modalRefs.hasOwnProperty(key)) {
+                                this._modalRefs[key].setActiveStatus(false);
                             }
                         }
                     },
@@ -292,25 +288,25 @@ export class MapView {
                     onHide: data => {
                         this.debug('[map] event - modal hide', data);
 
-                        if (this.activeMarker) {
-                            $(this.activeMarker._icon).removeClass('active');
-                            //this.activeMarker = undefined;
+                        if (this._activeMarker) {
+                            $(this._activeMarker._icon).removeClass('active');
+                            //this._activeMarker = undefined;
                         }
 
                         this.fitBounds();
                     },
                 }).show();
 
-                interact('#' + this.modalRefs[deviceId].getId())
+                interact('#' + this._modalRefs[deviceId].getId())
                     .on('tap', event => {
                         event.stopPropagation();
-                        for (var key in this.modalRefs) {
-                            if (this.modalRefs.hasOwnProperty(key)) {
-                                this.modalRefs[key].setActiveStatus(false);
+                        for (var key in this._modalRefs) {
+                            if (this._modalRefs.hasOwnProperty(key)) {
+                                this._modalRefs[key].setActiveStatus(false);
                             }
                         }
 
-                        this.modalRefs[deviceId].setActiveStatus(true);
+                        this._modalRefs[deviceId].setActiveStatus(true);
                     })
                     .draggable({
                         inertia: false,
@@ -368,7 +364,7 @@ export class MapView {
                         },
                     });
             } else {
-                this.modalRefs[deviceId].show();
+                this._modalRefs[deviceId].show();
             }
 
             // $appModal.draggable({
@@ -472,9 +468,11 @@ export class MapView {
 
     initPiCamera(deviceId, connect) {
         if (deviceId && deviceId.length) {
-            if (this.piCameraRefs[deviceId] === undefined) {
+            if (this._piCameraRefs[deviceId] === undefined) {
+                this.debug('[map] initializing picamera...');
+
                 // initialize new PiCamera object
-                this.piCameraRefs[deviceId] = new PiCamera(
+                this._piCameraRefs[deviceId] = new PiCamera(
                     deviceId,
                     this.options.camera,
                     null,
@@ -482,12 +480,14 @@ export class MapView {
                 );
 
                 // attach video reference to the camera
-                this.piCameraRefs[deviceId].attach(document.getElementById('video-' + deviceId));
+                console.log('video-' + deviceId);
+                console.log(document.getElementById('video-' + deviceId));
+                this._piCameraRefs[deviceId].attach(document.getElementById('video-' + deviceId));
             }
 
             // connect
             if (connect === true) {
-                this.piCameraRefs[deviceId].connect();
+                this._piCameraRefs[deviceId].connect();
             }
         }
     }
@@ -495,13 +495,15 @@ export class MapView {
     destroyPiCamera(deviceId) {
         if (deviceId && deviceId.length) {
             // camera
-            if (this.piCameraRefs[deviceId] !== undefined) {
-                this.piCameraRefs[deviceId].terminate();
+            if (this._piCameraRefs[deviceId] !== undefined) {
+                this._piCameraRefs[deviceId].terminate();
+                delete this._piCameraRefs[deviceId];
             }
 
             // modal win
-            if (this.modalRefs[deviceId] !== undefined) {
-                this.modalRefs[deviceId].destroy();
+            if (this._modalRefs[deviceId] !== undefined) {
+                this._modalRefs[deviceId].destroy();
+                delete this._modalRefs[deviceId];
             }
         }
     }

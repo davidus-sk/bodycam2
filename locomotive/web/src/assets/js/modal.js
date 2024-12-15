@@ -14,7 +14,6 @@ export class Modal {
 
         this._id = null;
         this._initialized = false;
-        this._visible = false;
         this._width = 0;
         this._height = 0;
 
@@ -150,12 +149,10 @@ export class Modal {
         if (this._initialized === true) {
             this.hide();
             this._$element.remove();
-
-            this._initialized = false;
-            this._$element = undefined;
-            this._width = this.options.width;
-            this._height = this.options.height;
         }
+
+        this._initialized = false;
+        this._$element = undefined;
 
         // trigger event
         this.onDestroy?.();
@@ -204,10 +201,10 @@ export class Modal {
             if (['TOP', 'BOTTOM', 'CENTER'].indexOf(_y) !== -1) {
                 switch (_y) {
                     case 'TOP':
-                        position.y = _offsetX;
+                        position.y = _offsetY;
                         break;
                     case 'BOTTOM':
-                        position.y = parentD.height - _offsetX - this._height;
+                        position.y = parentD.height - _offsetY - this._height;
                         break;
                     case 'CENTER':
                         position.y = center.y + _offsetY - this._height / 2;

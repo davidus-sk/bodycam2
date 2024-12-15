@@ -116,13 +116,13 @@ export class PiCamera {
         }
 
         // camera status
+
         if (this.getStatus() === 'failed') {
             this.terminate();
             setTimeout(() => {
                 this.connect();
             }, 1000);
 
-            console.log(this.getStatus());
             //this.rtcPeer.restartIce();
         } else {
             // create webrtc peer connection
@@ -234,7 +234,7 @@ export class PiCamera {
             );
 
             this.remoteStream = new MediaStream();
-            console.log(e);
+
             if (e.streams && e.streams.length) {
                 e.streams[0].getTracks().forEach(track => {
                     this.remoteStream?.addTrack(track);
