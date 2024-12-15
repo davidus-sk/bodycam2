@@ -28,6 +28,10 @@ class Config
             $configPath = __DIR__ . '/../config/config.ini';
             $defaultConfigPath = __DIR__ . '/../config/config.default.ini';
 
+            if (!file_exists($configPath)) {
+                copy($defaultConfigPath, $configPath);
+            }
+
             $cfg = self::readFile($configPath);
             $cfgDefault = self::readFile($defaultConfigPath);
 
