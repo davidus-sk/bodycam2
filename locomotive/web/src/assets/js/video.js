@@ -76,15 +76,17 @@ export class Video {
     }
 
     mqttConnected() {
-        this.mqttClientId = this.mqttClient.clientId;
+        this.mqttClientId = this.mqttClient.getClientId();
+
+        this.debug('[video] mqtt connected');
 
         // received camera status
+        this.debug('[video] subscribe: device/+/status');
         this.mqttClient.subscribe('device/+/status');
-
-        this.debug('[mqtt_service] subscribe: device/+/status');
 
         // got the message
         this.mqttClient.on('message', (topic, message) => {
+            console.log(topic);
             let payload = message?.toString() ?? null;
             //this.debug('e: message', topic, payload.substring(0, 50) + '...');
             payload = JSON.parse(payload);
@@ -96,22 +98,16 @@ export class Video {
                 }
             }
         });
-
-        this.mqttClient.on('publish', (topic, message) => {
-            //console.log('!: mqtt publish: -->', topic, message);
-        });
     }
 
     mqttDisconnected() {
-        console.log('e: mqtt disconnected');
-
-        this.mqttClientId = undefined;
+        this.debug('[video] mqtt disconnected');
     }
 
     receivedDeviceStatus(payload) {
         const deviceId = payload.device_id ?? null;
 
-        this.debug('[mqtt_service] message: %cdevice/+/status', this.colorReceived, payload);
+        this.debug('[video] mqtt message: %cdevice/+/status', this.colorReceived, payload);
 
         if (deviceId && deviceId.length) {
             // camera is already in reference list, check time
@@ -121,7 +117,7 @@ export class Video {
                 // device disconnected
                 if (!this.isDeviceConnected(deviceId)) {
                     this.debug('[video] camera already in the grid - not connected - reconnect');
-                    this.getDeviceData(deviceId)?.picamera?.reconnect();
+                    //this.getDeviceData(deviceId)?.picamera?.reconnect();
 
                     // device connected
                 } else {
@@ -255,7 +251,7 @@ export class Video {
     }
 
     initWorkers() {
-        worker('map_markers', 5000, () => {
+        worker('video_grid', 5000, () => {
             let devices = [...Object.values(this._devices)];
             let now = getTimestamp();
 

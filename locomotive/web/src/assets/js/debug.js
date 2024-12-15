@@ -64,18 +64,7 @@ export class Debug {
     }
 
     mqttConnected() {
-        console.log('e: mqtt connected');
-
-        // client id
-        this.mqttClientId = this.mqttClient.getClientId();
-
-        // this.mqttClient.on('publish', (topic, message) => {
-        //     console.log('!: mqtt publish: -->', topic);
-        // });
-
-        // this.mqttClient.on('subscribe', topic => {
-        //     console.log('!: mqtt subscribe: ' + topic);
-        // });
+        console.log('[debug] mqtt connected');
 
         $('[data-btn-mqtt=1]').attr('disabled', false);
     }

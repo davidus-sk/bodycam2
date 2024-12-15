@@ -112,13 +112,7 @@ export class PiCamera {
             this.mqttClientId = this.mqttClient.client.options.clientId;
         }
 
-        if (this.rtcTimer) {
-            clearTimeout(this.rtcTimer);
-            this.rtcTimer = undefined;
-        }
-
         // camera status
-
         if (this.getStatus() === 'failed') {
             this.terminate();
             setTimeout(() => {

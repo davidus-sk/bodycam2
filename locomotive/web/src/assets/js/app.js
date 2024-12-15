@@ -56,9 +56,6 @@ export class App {
         }
 
         this.mqttClient = new MqttClient(this.options.mqtt);
-        this.mqttClient.onDisconnect = () => {
-            console.log('xxxxxx');
-        };
 
         this.mqttClient.on('connect', () => this.mqttConnected());
         this.mqttClient.on('disconnect', () => this.mqttDisconnected());
@@ -69,13 +66,13 @@ export class App {
     }
 
     mqttConnected() {
-        this.debug('e: mqtt connected');
+        this.debug('[app] mqtt connected');
         this.$mqttStatus.addClass('connected').html('ONLINE');
     }
 
     mqttDisconnected() {
-        this.debug('e: mqtt disconnected');
-        this.$mqttStatus.removeClass('connected').html('XXX');
+        this.debug('[app] mqtt disconnected');
+        this.$mqttStatus.removeClass('connected').html('OFFLINE');
     }
 
     sidebar() {
