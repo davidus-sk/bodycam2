@@ -63,7 +63,7 @@ export class MqttClient {
         this.debug('[mqtt_service] connection options', connectionOptions);
 
         this.attachClientListeners();
-        this.client.reconnect();
+        this.client.connect();
     }
 
     getClientId() {
@@ -103,12 +103,20 @@ export class MqttClient {
     attachClientListeners() {
         if (!this.client) return;
 
-        // emitted on successful (re)connection (i.
+        // emitted on successful (re)connection
         this.client.on('connect', () => {
             this.debug(`e: connect - client id: ${this.getClientId()}`);
 
             this.emit('connect', this);
             this.onConnect?.(this);
+        });
+
+        // emitted on successful (re)connection
+        this.client.on('disconnect', () => {
+            this.debug(`e: disconnect - client id: ${this.getClientId()}`);
+
+            this.emit('disconnect', this);
+            this.onDisconnect?.(this);
         });
 
         // emitted when the client receives a publish packet

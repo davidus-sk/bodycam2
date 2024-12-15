@@ -50,9 +50,9 @@ export class Debug {
                 this.sendDeviceStatus();
                 deviceStatusTimer = setInterval(() => {
                     this.sendDeviceStatus();
-                }, 4000);
+                }, 15000);
             } else {
-                clearInterval(timer);
+                clearInterval(deviceStatusTimer);
                 deviceStatusTimer = null;
             }
         });

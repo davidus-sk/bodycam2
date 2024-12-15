@@ -116,20 +116,16 @@ export class Video {
         if (deviceId && deviceId.length) {
             // camera is already in reference list, check time
             if (this.isDeviceInGrid(deviceId)) {
-                this.debug('[video] camera already in the grid');
-                //this.getDeviceData(deviceId)?.picamera?.restart();
-                //return;
-                //const cameraStatus = this.getDeviceStatus();
+                //this.debug('[video] camera already in the grid');
 
+                // device disconnected
                 if (!this.isDeviceConnected(deviceId)) {
-                    this.debug('[video] camera is not connected - reconnect');
-                    //this.getDeviceData(deviceId)?.picamera?.connect();
-                } else {
-                    this.debug('[video] camera connected - all ok');
-                }
+                    this.debug('[video] camera already in the grid - not connected - reconnect');
+                    this.getDeviceData(deviceId)?.picamera?.reconnect();
 
-                //const now = Math.round(new Date() / 1000);
-                //if (now - this._devices[deviceId].ts )
+                    // device connected
+                } else {
+                }
             } else {
                 this.debug('[video] new device');
 
