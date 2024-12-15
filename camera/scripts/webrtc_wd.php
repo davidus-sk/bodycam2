@@ -23,11 +23,11 @@ while (TRUE) {
 
 	// if not running, start new instance
 	if (empty($pid)) {
-		$clientId = 'device-' . trim(`{$data['client_id']}`);
+		$clientId = 'device-' . trim(`{$config['client_id']}`);
 
 		// launch
 		syslog(LOG_INFO, "Starting pi_webrtc for {$clientId}.");
-		`/app/bodycam2/camera/stream/pi_webrtc --use_libcamera --fps={$data['fps']} --width={$data['width']} --height={$data['height']} --hw_accel --no_audio --mqtt_host={$data['server']} --mqtt_port={$data['port']} --mqtt_username={$data['username']} --mqtt_password={$data['password']} --uid={$clientId}  >> /tmp/pi_webrtc.log 2>&1 &`;
+		`/app/bodycam2/camera/stream/pi_webrtc --use_libcamera --fps={$config['fps']} --width={$config['width']} --height={$config['height']} --hw_accel --no_audio --mqtt_host={$config['server']} --mqtt_port={$config['port']} --mqtt_username={$config['username']} --mqtt_password={$config['password']} --uid={$clientId}  >> /tmp/pi_webrtc.log 2>&1 &`;
 
 		// reset kill counter
 		$k = 0;
