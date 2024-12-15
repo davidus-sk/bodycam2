@@ -1,7 +1,5 @@
 
-<div id="video-grid" 
-    class="grid-1x1">
-</div>
+<div id="video-grid" class="grid-1x1"></div>
 
 <script type="module">
 import {Video} from "<?= js('video.js'); ?>";

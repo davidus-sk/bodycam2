@@ -1,16 +1,14 @@
-import { generateClientId } from './functions.js';
+import { getTimestamp, worker } from './functions.js';
 import { EventDispatcher } from './EventDispatcher.js';
-import { MqttClient } from './mqtt/client.js';
 import { PiCamera } from './rtc/picamera.js';
 
 export class Video {
     options = {};
 
-    cameras = {};
-    cameraRefs = {};
-    videoRefs = {};
-    vidConns = {};
+    _devices = {};
     debugMode = true;
+
+    VIDEO_TIMEOUT = 120;
 
     mqttClient = null;
     topicRegex = {};
@@ -22,18 +20,15 @@ export class Video {
         // events dispatcher
         EventDispatcher.attach(this);
 
-        this.$element = $('#video-grid');
-        this.videoSources = [];
-
         // attach events
         window.onbeforeunload = function () {
             console.log('e: window reload');
 
-            for (const cameraId in cameras) {
-                const val = cameras[cameraId];
+            for (const deviceId in this._devices) {
+                const val = this._devices[deviceId];
 
-                if (val) {
-                    val.terminate();
+                if (val && val.picamera) {
+                    val.picamera.terminate();
                 }
             }
         };
@@ -45,15 +40,22 @@ export class Video {
             this.debug = function (message) {};
         }
 
+        // dom elements
+        this.$grid = $('#video-grid');
+
+        // local variables
         this.colorReceived = 'background-color:#540101;color:#dbe2ff;font-weight:500';
 
         // regex map
-        const cameraIdPattern = 'device-[0-9a-fA-F]{16}';
-        this.topicRegex['device_status'] = new RegExp(`^device\/${cameraIdPattern}\/status$`);
-        this.topicRegex['device_gps'] = new RegExp(`^device\/${cameraIdPattern}\/gps$`);
+        const deviceIdPattern = 'device-[0-9a-fA-F]{16}';
+        this.topicRegex['device_status'] = new RegExp(`^device\/${deviceIdPattern}\/status$`);
+        this.topicRegex['device_gps'] = new RegExp(`^device\/${deviceIdPattern}\/gps$`);
 
         // mqtt
         this.initMqtt();
+
+        // init workers
+        this.initWorkers();
     }
 
     initializeOptions(userOptions) {
@@ -90,7 +92,7 @@ export class Video {
             if (payload) {
                 // camera status
                 if (topic.match(this.topicRegex['device_status'])) {
-                    this.receivedCameraStatus(payload);
+                    this.receivedDeviceStatus(payload);
                 }
             }
         });
@@ -106,70 +108,91 @@ export class Video {
         this.mqttClientId = undefined;
     }
 
-    attach(videoElement, uuid) {
-        this.videoRefs[uuid] = videoElement;
-    }
-
-    receivedCameraStatus(payload) {
-        const cameraId = payload.device_id;
+    receivedDeviceStatus(payload) {
+        const deviceId = payload.device_id ?? null;
 
         this.debug('[mqtt_service] message: %cdevice/+/status', this.colorReceived, payload);
 
-        // camera is already in reference list, check time
-        if (this.isCameraInGrid(cameraId)) {
-            this.debug('[video] camera already in the grid');
-            //this.getCameraData(cameraId)?.picamera?.restart();
-            //return;
-            //const cameraStatus = this.getCameraStatus();
+        if (deviceId && deviceId.length) {
+            // camera is already in reference list, check time
+            if (this.isDeviceInGrid(deviceId)) {
+                this.debug('[video] camera already in the grid');
+                //this.getDeviceData(deviceId)?.picamera?.restart();
+                //return;
+                //const cameraStatus = this.getDeviceStatus();
 
-            if (!this.isCameraConnected(cameraId)) {
-                this.debug('[video] camera is not connected - reconnect');
-                //this.getCameraData(cameraId)?.picamera?.connect();
+                if (!this.isDeviceConnected(deviceId)) {
+                    this.debug('[video] camera is not connected - reconnect');
+                    //this.getDeviceData(deviceId)?.picamera?.connect();
+                } else {
+                    this.debug('[video] camera connected - all ok');
+                }
+
+                //const now = Math.round(new Date() / 1000);
+                //if (now - this._devices[deviceId].ts )
             } else {
-                this.debug('[video] camera connected - all ok');
+                this.debug('[video] new device');
+
+                let device = payload;
+
+                // dom id
+                device.dom_id = 'device_' + deviceId;
+                device.video_id = 'video_' + deviceId;
+
+                // append html to the video matrix
+                this.$grid.append(`<div id="${device.dom_id}" class="video-wrapper">
+                        <video id="${device.video_id}" autoplay playsinline muted></video>
+                    </div>`);
+
+                // video element reference
+                device.video_ref = document.getElementById(device.video_id);
+
+                // test
+                // $(device.video_ref).on('contextmenu', e => {
+                //     this.removeDevice(deviceId);
+                // });
+
+                // update reference
+                this._devices[deviceId] = device;
+
+                // update grid
+                this.updateGrid();
+
+                // init pi camera
+                this.initPiCamera(deviceId, true);
+                //this.demoMp4(deviceId, true);
             }
-
-            //const now = Math.round(new Date() / 1000);
-            //if (now - this.cameras[cameraId].ts )
-        } else {
-            this.debug('[video] new camera');
-
-            // save reference
-            //this.cameras[cameraId] = payload;
-            this.updateCameraData(cameraId, payload);
-
-            this.updateGrid(payload);
-            this.initPiCamera(cameraId, true);
-            //this.demoMp4(cameraId, true);
         }
     }
 
-    getCameraData(cameraId) {
-        return this.cameras[cameraId] || null;
+    getDeviceData(deviceId) {
+        return this._devices[deviceId] || null;
     }
 
-    updateCameraData(cameraId, data) {
-        this.cameras[cameraId] = data;
+    isDeviceInGrid(deviceId) {
+        return this._devices[deviceId] !== undefined;
     }
 
-    isCameraInGrid(cameraId) {
-        return this.getCameraData(cameraId) !== null;
+    isDeviceConnected(deviceId) {
+        return (
+            this._devices[deviceId] !== undefined &&
+            this._devices[deviceId].picamera &&
+            this._devices[deviceId].picamera?.isConnected()
+        );
     }
 
-    isCameraConnected(cameraId) {
-        return this.getCameraData(cameraId)?.picamera?.isConnected();
+    getDeviceStatus(deviceId) {
+        return this._devices[deviceId] !== undefined && this._devices[deviceId].picamera
+            ? this._devices[deviceId].picamera.getStatus()
+            : 'unknown';
     }
 
-    getCameraStatus(cameraId) {
-        return this.getCameraData(cameraId)?.picamera?.getStatus() || 'unknown';
-    }
-
-    initPiCamera(cameraId, connect) {
-        let camera = this.getCameraData(cameraId);
+    initPiCamera(deviceId, connect) {
+        var camera = this.getDeviceData(deviceId);
 
         if (camera) {
             // pi camera
-            camera.picamera = new PiCamera(cameraId, this.options.camera, null, this.mqttClient);
+            camera.picamera = new PiCamera(deviceId, this.options.camera, null, this.mqttClient);
 
             // attach video reference to the camera
             camera.picamera.attach(camera.video_ref);
@@ -180,18 +203,15 @@ export class Video {
             }
 
             // update reference
-            this.updateCameraData(cameraId, camera);
+            this._devices[deviceId] = camera;
         }
     }
 
-    updateGrid(camera) {
-        const cameras = Object.values(this.cameras);
-        const cameraCount = cameras.length;
-        const cameraId = camera.device_id ?? null;
-
+    updateGrid() {
+        const deviceCount = Object.values(this._devices).length;
         let className = 'grid-1x1';
 
-        switch (cameraCount) {
+        switch (deviceCount) {
             case 1:
                 className = 'grid-1x1';
                 break;
@@ -217,33 +237,46 @@ export class Video {
                 break;
         }
 
-        // set grid class
-        // this.$element
-        //     .removeClass(function (index, className) {
-        //         return (className.match(/\bgrid-[\d]x[\d]\b/g) || []).join(' ');
-        //     })
-        //     .addClass(className);
-        this.$element.attr('class', className);
-
-        // dom id
-        camera.dom_id = 'camera_' + cameraId;
-        camera.video_id = 'video_' + cameraId;
-
-        // append html to the video matrix
-        this.$element.append(`
-            <div id="${camera.dom_id}" class="video-wrapper">
-                <video id="${camera.video_id}" autoplay playsinline muted></video>
-            </div>
-        `);
-
-        // video element reference
-        camera.video_ref = document.getElementById(camera.video_id);
-
-        // update reference
-        this.cameras[cameraId] = camera;
+        this.$grid.attr('class', className);
     }
 
-    demoMp4(cameraId, autoplay) {
+    removeDevice(deviceId) {
+        if (this._devices[deviceId] !== undefined) {
+            // picamera
+            if (this._devices[deviceId].picamera) {
+                this._devices[deviceId].picamera.terminate();
+            }
+
+            // dom
+            $('#' + this._devices[deviceId].video_id).remove();
+            $('#' + this._devices[deviceId].dom_id).remove();
+
+            this._devices[deviceId] = null;
+            delete this._devices[deviceId];
+        }
+
+        this.updateGrid();
+    }
+
+    initWorkers() {
+        worker('map_markers', 5000, () => {
+            let devices = [...Object.values(this._devices)];
+            let now = getTimestamp();
+
+            for (const device of devices) {
+                const delta = now - device.ts;
+
+                // remove old map object
+                if (delta > this.VIDEO_TIMEOUT) {
+                    this.debug('[video] removing device from the grid ...');
+
+                    this.removeDevice(device.device_id);
+                }
+            }
+        });
+    }
+
+    demoMp4(deviceId, autoplay) {
         const mp4 = {
             'device-0000000000000001': 'http://localhost/static/video2.mp4',
             'device-100000003a0a2f6e': 'http://localhost/static/video3.mp4',
@@ -251,12 +284,12 @@ export class Video {
             'device-0000000000000002': 'http://localhost/static/video4.mp4',
         };
 
-        const elementId = '#video_' + cameraId;
+        const elementId = '#video_' + deviceId;
         const $video = $(elementId);
         const video = $video.get(0);
 
         video.pause();
-        $video.attr('loop', 1).html('<source src="' + mp4[cameraId] + '" />');
+        $video.attr('loop', 1).html('<source src="' + mp4[deviceId] + '" />');
         video.load();
         video
             .play()

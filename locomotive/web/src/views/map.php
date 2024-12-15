@@ -2,7 +2,7 @@
 <div class="w-full h-screen overflow-hidden relative">
     <div id="map" class="w-full h-full z-5"></div>
 
-    <button id="btn-reset" class="absolute z-10 btn btn-sm btn-dark" style="top: 15px; left: 15px;">
+    <button id="btn-reset" class="absolute z-10 btn btn-dark" style="display: none; top: 15px; right: 85px;">
         Reset
         <span class="filter-active d-none position-absolute top-0 start-100 translate-middle p-2 bg-danger border border-light rounded-circle">
             <span class="visually-hidden">New alerts</span>
@@ -37,6 +37,7 @@
 import {MapView} from "<?= js('map.js'); ?>";
 
 const config = <?= Config::read(true); ?>;
+config.debug = true;
 
 $(function() {
     const mapView = new MapView(config, app);

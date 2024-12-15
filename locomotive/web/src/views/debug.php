@@ -7,8 +7,8 @@ let deb;
         <div class="mb-5">
             <strong>Live cameras:</strong>
             <select id="sel-cameras" class="form-control">            
-                <option value="device-100000003a0a2f6e">Marek PI</option>
-                <option value="device-0000000000000001" selected>Marek PC</option>                
+                <option value="device-100000003a0a2f6e" selected>Marek PI</option>
+                <option value="device-0000000000000001">Marek PC</option>                
                 <option value="device-00000000b203ade4">AL</option>
                 <option value="device-0000000000000002">Fake</option>
             </select>

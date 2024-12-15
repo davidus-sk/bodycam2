@@ -49,9 +49,9 @@ $cssLastModified = '20240801-0930';
     </script>
 
     <div id="wrapper">
+        <div id="sidebar-toggle"><span></span></div>
         <aside id="sidebar" aria-label="Sidebar">            
-            <div class="h-full overflow-y-auto">
-                
+            <div class="h-full overflow-y-auto">                            
                 <ul class="sidebar-menu">
                     <li>
                         <a href="<?= url('/'); ?>" class="sidebar-menu-item<?=(VIEW === 'video' ? ' active' : ''); ?>">

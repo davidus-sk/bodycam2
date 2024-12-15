@@ -32,23 +32,23 @@ const DEFAULT_TIMEOUT = 5000;
 export class PiCamera {
     options = {};
     mqttOptions = {};
-    cameraId = null;
+    cameraId = undefined;
 
-    rtcTimer = null;
-    rtcPeer = null;
+    rtcTimer = undefined;
+    rtcPeer = undefined;
     makingOffer = false;
-    dataChannel = null;
-    localStream = null;
-    remoteStream = null;
-    mediaElement = null;
+    dataChannel = undefined;
+    localStream = undefined;
+    remoteStream = undefined;
+    mediaElement = undefined;
 
     cacheIceList = [];
     receivedLength = 0;
     isFirstPacket = true;
     completeFile = new Uint8Array();
 
-    mqttClient = null;
-    mqttClientId = null;
+    mqttClient = undefined;
+    mqttClientId = undefined;
 
     constructor(cameraId, options, mqttOptions, mqttClient) {
         this.options = this.initializeOptions(options);
@@ -112,7 +112,7 @@ export class PiCamera {
 
         if (this.rtcTimer) {
             clearTimeout(this.rtcTimer);
-            this.rtcTimer = null;
+            this.rtcTimer = undefined;
         }
 
         // camera status
@@ -156,7 +156,11 @@ export class PiCamera {
             // Use this when you've got a remote Peer connection
             // and you want to set up the local one.
             this.debug('[picamera] creating SDP offer');
-            const offer = await this.rtcPeer.createOffer();
+            const offer = await this.rtcPeer.createOffer({
+                iceRestart: true,
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true,
+            });
 
             // set the generated SDP to be our local session description
             this.debug('[picamera] setting local description');
@@ -210,18 +214,18 @@ export class PiCamera {
         const peer = new RTCPeerConnection(this.getRtcConfig());
 
         // local stream
-        this.localStream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: false,
-        });
+        // this.localStream = await navigator.mediaDevices.getUserMedia({
+        //     audio: true,
+        //     video: false,
+        // });
 
-        this.localStream.getAudioTracks().forEach(track => {
-            peer.addTrack(track, this.localStream);
-            track.enabled = this.options.isMicOn ?? false;
-        });
+        // this.localStream.getAudioTracks().forEach(track => {
+        //     peer.addTrack(track, this.localStream);
+        //     track.enabled = this.options.isMicOn ?? false;
+        // });
 
         peer.addTransceiver('video', { direction: 'recvonly' });
-        peer.addTransceiver('audio', { direction: 'sendrecv' });
+        peer.addTransceiver('audio', { direction: 'recvonly' });
 
         peer.ontrack = e => {
             this.debug(
@@ -261,7 +265,7 @@ export class PiCamera {
         };
 
         peer.onnegotiationneeded = async () => {
-            this.debug('[picamera] negotiation needed');
+            this.debug('[picamera] webrtc event - onnegotiationneeded');
 
             // this.makingOffer = true;
 
@@ -323,7 +327,7 @@ export class PiCamera {
         // following string values: new, connecting, connected, disconnected, failed,
         // or closed.
         peer.onconnectionstatechange = () => {
-            this.debug('e: connectionstatechange', peer.connectionState);
+            this.debug('[picamera] webrtc event - connectionstatechange', peer.connectionState);
 
             // event
             this.onConnectionState?.(peer.connectionState);
@@ -335,7 +339,7 @@ export class PiCamera {
         };
 
         peer.onsignalingstatechange = e => {
-            this.debug('[picamera] WebRTC signaling state changed to: ' + peer.signalingState);
+            this.debug('[picamera] webrtc event - onsignalingstatechange: ' + peer.signalingState);
         };
 
         return peer;
@@ -355,10 +359,13 @@ export class PiCamera {
     }
 
     terminate() {
-        this.debug('f: terminate()');
+        this.debug('[picamera] terminate');
 
         clearTimeout(this.rtcTimer);
-        this.rtcTimer = null;
+        this.rtcTimer = undefined;
+
+        this.makingOffer = false;
+        this.cacheIceList = [];
 
         if (this.dataChannel) {
             if (this.dataChannel.readyState === 'open') {
@@ -370,13 +377,13 @@ export class PiCamera {
             this.dataChannel = undefined;
         }
 
-        if (this.localStream) {
-            this.localStream.getTracks().forEach(track => {
-                track.stop();
-            });
+        // if (this.localStream) {
+        //     this.localStream.getTracks().forEach(track => {
+        //         track.stop();
+        //     });
 
-            this.localStream = undefined;
-        }
+        //     this.localStream = undefined;
+        // }
 
         if (this.remoteStream) {
             this.remoteStream.getTracks().forEach(track => {
@@ -391,20 +398,24 @@ export class PiCamera {
         }
 
         if (this.rtcPeer) {
+            this.rtcPeer.ontrack = null;
+            this.rtcPeer.onicecandidate = null;
+            this.rtcPeer.onnegotiationneeded = null;
+            this.rtcPeer.oniceconnectionstatechange = null;
+            this.rtcPeer.onconnectionstatechange = null;
+            this.rtcPeer.onsignalingstatechange = null;
             this.rtcPeer.close();
-            this.rtcPeer = undefined;
         }
+
+        this.rtcPeer = null;
 
         // if (this.mqttClient) {
         //     this.mqttClient.disconnect();
         //     this.mqttClient = undefined;
         // }
 
-        // event
+        // trigger event
         this.onConnectionState?.('closed');
-        // if (this.onConnectionState) {
-        //     this.onConnectionState("closed");
-        // }
     }
 
     constructTopic(topic, subLevels) {
@@ -440,7 +451,7 @@ export class PiCamera {
 
     toggleMic = (enabled = !this.options.isMicOn) => {
         this.options.isMicOn = enabled;
-        this.toggleTrack(this.options.isMicOn, this.localStream);
+        //this.toggleTrack(this.options.isMicOn, this.localStream);
     };
 
     toggleSpeaker = (enabled = !this.options.isSpeakerOn) => {

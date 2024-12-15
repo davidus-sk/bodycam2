@@ -1,4 +1,4 @@
-import { worker, isObjectEmpty, getTimestamp } from './functions.js';
+import { getTimestamp, worker, isObjectEmpty } from './functions.js';
 import { EventDispatcher } from './EventDispatcher.js';
 import { MqttClient } from './mqtt/client.js';
 import { PiCamera } from './rtc/picamera.js';
@@ -15,20 +15,19 @@ export class MapView {
 
     DEFAULT_GPS_POSITION = [30.672026, -92.260802];
     DEFAULT_ZOOM = 16;
-    MARKER_TIMEOUT = 1120;
+    MARKER_TIMEOUT = 120;
 
     constructor(options, app) {
+        this.options = this.initializeOptions(options);
         this.app = app;
 
-        // merge options
-        this.options = Object.assign({}, options);
-
-        console.log('!: options', this.options);
+        // events dispatcher
+        EventDispatcher.attach(this);
 
         // local variables
         this.templates = {};
         this.running = false;
-        this.deviceRefs = {};
+        this.piCameraRefs = {};
         this.modalRefs = {};
         this.activeMarker = undefined;
 
@@ -36,15 +35,14 @@ export class MapView {
         this.$element = $('#map');
         this.$btnReset = $('#btn-reset');
 
-        // events dispatcher
-        EventDispatcher.attach(this);
-
         // debug
-        if (this.debugMode === true && typeof console != 'undefined') {
+        if (this.options.debug === true && typeof console != 'undefined') {
             this.debug = console.log.bind(console);
         } else {
             this.debug = function (message) {};
         }
+
+        this.debug('[map] options', this.options);
 
         // templates
         this.templates['camera'] = Handlebars.compile($('#entry-template').html());
@@ -62,23 +60,31 @@ export class MapView {
         });
 
         // update markers
-        this.on('map_objects_refresh', data => {
-            console.log('e: map_objects_refresh', data);
-        });
+        // this.on('map_objects_refresh', data => {
+        //     console.log('[map] event - map_objects_refresh', data);
+        // });
+    }
+
+    initializeOptions(userOptions) {
+        const defaultOptions = {
+            debug: false,
+        };
+
+        return { ...defaultOptions, ...userOptions };
     }
 
     initMqtt() {
         // mqtt client
         this.mqttClient = this.app?.getMqttClient();
         if (this.mqttClient) {
-            console.log('!: mqtt initialized');
+            console.log('[map] mqtt initialized');
 
             // topics
             const camGpsRegex = new RegExp(`^device\/device-[0-9a-fA-F]{16}\/gps$`);
 
             // connect callback
             this.mqttClient.on('connect', () => {
-                this.debug('e: mqtt connect');
+                this.debug('[map] mqtt connected');
 
                 // subscribe to topics
                 this.mqttClient.subscribe('device/+/gps');
@@ -88,7 +94,7 @@ export class MapView {
             this.mqttClient.on('message', (topic, msg) => {
                 let payload = msg?.toString() ?? null;
 
-                this.debug('e: message', topic, payload.substring(0, 50) + '...');
+                this.debug('[map] mqtt message: ' + topic, payload.substring(0, 50) + '...');
 
                 // camera gps
                 if (topic.match(camGpsRegex)) {
@@ -99,7 +105,7 @@ export class MapView {
     }
 
     async initMap() {
-        this.mapObjects = {};
+        this._mapObjects = {};
         this.mapFitBounds = true;
 
         // markers super group - all marker groups are in this group
@@ -126,36 +132,23 @@ export class MapView {
         // Icons
         // -----------------------------------------------------------
         this._icons['locomotive'] = L.divIcon({
-            className: 'map-icon',
-            iconUrl: 'assets/img/map_icon_locomotive.png',
+            className: 'map-icon map-icon-locomotive',
+            html: '<div class="inner"></div>',
             iconSize: [48, 48],
-            iconAnchor: [24, 24],
-            popupAnchor: [0, -75],
-            shadowUrl: 'assets/img/map_icon_locomotive.png',
-            shadowSize: [2, 2],
-            shadowAnchor: [0, 0],
         });
 
         this._icons['camera'] = L.divIcon({
-            className: 'map-icon',
-            iconUrl: 'assets/img/map_icon_person.png',
+            className: 'map-icon map-icon-camera',
+            html: '<div class="inner"></div>',
             iconSize: [48, 48],
         });
 
         this._icons['camera_panic'] = L.divIcon({
-            className: 'map-icon map-icon-panic',
-            iconUrl: 'assets/img/map_icon_person.png',
+            className: 'map-icon map-icon-camera panic',
+            html: '<div class="inner"></div>',
             iconSize: [48, 48],
-            html: '<div class="pulsating-circle"></div>',
         });
 
-        // this._icons['camera'] = L.icon.pulse({
-        //     iconSize: [48, 48],
-        //     fillColor: 'transparent',
-        //     color: 'red',
-        // });
-
-        // this._icons['red'] = L.icon.pulse({
         //     color: 'red',
         //     fillColor: 'red',
         //     animate: true,
@@ -206,18 +199,18 @@ export class MapView {
 
     initWorkers() {
         worker('map_markers', 5000, () => {
-            let objects = [...Object.values(this.mapObjects)];
+            let objects = [...Object.values(this._mapObjects)];
             let now = getTimestamp();
 
             for (const obj of objects) {
-                const objectType = obj.type ?? 'camera';
                 const delta = now - obj.ts;
 
                 // remove old map object
                 if (delta > this.MARKER_TIMEOUT) {
-                    console.log('remove marker...');
-                    this._markersRef[obj.device_id].removeFrom(this._markersGroup[objectType]);
-                    this._markersRef[obj.device_id].removeFrom(this.map);
+                    this.debug('[map] removing map object...');
+
+                    this.destroyPiCamera(obj.device_id);
+                    this.removeMapObject(obj.device_id);
                 }
             }
         });
@@ -231,6 +224,7 @@ export class MapView {
 
                 this.mapFitBounds = false;
                 this.filterBadge(this.$btnReset, true);
+                this.$btnReset.show();
             });
         }
 
@@ -240,10 +234,12 @@ export class MapView {
                 this.fitBounds();
 
                 this.filterBadge(this.$btnReset, false);
+                this.$btnReset.hide();
             }
         });
 
         // map marker click
+        // https://stackoverflow.com/questions/49277253/leaflet-contextmenu-how-to-pass-a-marker-reference-when-executing-a-callback-f
         this.on('map_marker_click', (marker, data) => {
             console.log('e: map_marker_click', marker, data);
 
@@ -259,6 +255,9 @@ export class MapView {
                     deviceId: deviceId,
                 });
 
+                // model win count
+                const winCount = Object.keys(this.modalRefs).length;
+
                 this.modalRefs[deviceId] = new Modal({
                     parent: '#content',
                     width: 400,
@@ -268,8 +267,23 @@ export class MapView {
                     offsetX: 20,
                     offsetY: 20,
                     body: modalBody,
+                    active: true,
+                    onInit: m => {
+                        console.log(this);
+                        m.options.offsetY = 20 + winCount * 10;
+
+                        for (var key in this.modalRefs) {
+                            if (this.modalRefs.hasOwnProperty(key)) {
+                                this.modalRefs[key].setActiveStatus(false);
+                            }
+                        }
+                    },
+                    onShow: () => {
+                        this.fitBounds([-420, 0]);
+                        this.initPiCamera(deviceId, true);
+                    },
                     onHide: data => {
-                        this.debug('e: modal hide2', data);
+                        this.debug('[map] event - modal hide', data);
 
                         if (this.activeMarker) {
                             $(this.activeMarker._icon).removeClass('active');
@@ -278,10 +292,6 @@ export class MapView {
 
                         this.fitBounds();
                     },
-                    onShow: () => {
-                        this.fitBounds([-420, 0]);
-                        this.initPiCamera(deviceId, true);
-                    },
                 }).show();
 
                 interact('#' + this.modalRefs[deviceId].getId())
@@ -289,11 +299,11 @@ export class MapView {
                         event.stopPropagation();
                         for (var key in this.modalRefs) {
                             if (this.modalRefs.hasOwnProperty(key)) {
-                                this.modalRefs[key].zIndex(1000);
+                                this.modalRefs[key].setActiveStatus(false);
                             }
                         }
 
-                        this.modalRefs[deviceId].zIndex(2000);
+                        this.modalRefs[deviceId].setActiveStatus(true);
                     })
                     .draggable({
                         inertia: false,
@@ -401,7 +411,7 @@ export class MapView {
             }
 
             // new map object
-            if (this.mapObjects[deviceId] === undefined) {
+            if (this._mapObjects[deviceId] === undefined) {
                 // map
                 var marker = new L.Marker(data.gps, {
                     camera: data,
@@ -410,6 +420,11 @@ export class MapView {
                     self.emit('map_marker_click', this, data);
                 });
 
+                // marker.on('contextmenu', function (e) {
+                //     self.destroyPiCamera(e.target.options.camera.device_id);
+                //     //self.removeMapObject(e.target.options.camera.device_id);
+                // });
+
                 // markers - feature group (markers are added to separate groups)
                 // add marker to the desired group
                 marker.addTo(this._markersGroup[objectType]);
@@ -417,12 +432,12 @@ export class MapView {
                 // marker reference
                 this._markersRef[deviceId] = marker;
 
-                console.log('f: newMapObject() - new object', data, marker);
+                this.debug('[map] new map object', data, marker);
                 marker.getElement().classList.add('css-icon');
 
                 // update position
             } else {
-                console.log('f: newMapObject() - update gps', data);
+                this.debug('[map] map object update - gps', data);
                 this._markersRef[deviceId].setIcon(this._icons[icon]);
                 this._markersRef[deviceId].setLatLng(data.gps);
             }
@@ -432,29 +447,60 @@ export class MapView {
             }
 
             // store object reference
-            this.mapObjects[deviceId] = data;
+            this._mapObjects[deviceId] = data;
         }
 
         this.emit('map_objects_refresh', data);
     }
 
-    initPiCamera(deviceId, connect) {
-        if (this.deviceRefs[deviceId] === undefined) {
-            // pi camera
-            this.deviceRefs[deviceId] = new PiCamera(
-                deviceId,
-                this.options.camera,
-                null,
-                this.mqttClient
-            );
+    removeMapObject(deviceId) {
+        if (deviceId && deviceId.length) {
+            this.debug('[map] removing map object - device id: ' + deviceId);
 
-            // attach video reference to the camera
-            this.deviceRefs[deviceId].attach(document.getElementById('video-' + deviceId));
+            for (const group in this._markersGroup) {
+                this._markersRef[deviceId].removeFrom(this._markersGroup[group]);
+            }
+
+            this._markersRef[deviceId].removeFrom(this.map);
+
+            delete this._markersRef[deviceId];
+            delete this._mapObjects[deviceId];
         }
+    }
 
-        // connect
-        if (connect === true) {
-            this.deviceRefs[deviceId].connect();
+    initPiCamera(deviceId, connect) {
+        if (deviceId && deviceId.length) {
+            if (this.piCameraRefs[deviceId] === undefined) {
+                // initialize new PiCamera object
+                this.piCameraRefs[deviceId] = new PiCamera(
+                    deviceId,
+                    this.options.camera,
+                    null,
+                    this.mqttClient
+                );
+
+                // attach video reference to the camera
+                this.piCameraRefs[deviceId].attach(document.getElementById('video-' + deviceId));
+            }
+
+            // connect
+            if (connect === true) {
+                this.piCameraRefs[deviceId].connect();
+            }
+        }
+    }
+
+    destroyPiCamera(deviceId) {
+        if (deviceId && deviceId.length) {
+            // camera
+            if (this.piCameraRefs[deviceId] !== undefined) {
+                this.piCameraRefs[deviceId].terminate();
+            }
+
+            // modal win
+            if (this.modalRefs[deviceId] !== undefined) {
+                this.modalRefs[deviceId].destroy();
+            }
         }
     }
 }

@@ -19,7 +19,7 @@ export class Modal {
         this._height = 0;
 
         // id
-        this._id = this.options.id ?? this._generateId();
+        this._id = this.options.id = this.options.id ?? this._generateId();
 
         // parent
         if (typeof this.options.parent === 'string') {
@@ -31,9 +31,15 @@ export class Modal {
         }
 
         // events
+        this.onInit = this.options.onInit;
+        this.beforeShow = this.options.beforeShow;
         this.onShow = this.options.onShow;
+        this.beforeHide = this.options.beforeHide;
         this.onHide = this.options.onHide;
         this.onDestroy = this.options.onDestroy;
+
+        // trigger event
+        this.onInit?.(this);
     }
 
     initializeOptions(userOptions) {
@@ -47,9 +53,13 @@ export class Modal {
             offsetX: 0,
             offsetY: 0,
             body: '',
+            active: true,
 
             // events
+            onInit: undefined,
+            beforeShow: undefined,
             onShow: undefined,
+            beforeHide: undefined,
             onHide: undefined,
             onDestroy: undefined,
         };
@@ -96,6 +106,14 @@ export class Modal {
 
             this.hide(data);
         });
+
+        // active
+        if (this.options.active === true) {
+            this.setActiveStatus(true);
+        }
+
+        // trigger event
+        this.beforeShow?.();
 
         // already initialized
         this._$element.show();
@@ -209,6 +227,20 @@ export class Modal {
 
     zIndex(value) {
         this._$element.css('z-index', value);
+    }
+
+    setActiveStatus(active) {
+        if (active === true) {
+            this._$element.css('z-index', 9999);
+            this._$element.addClass('active');
+        } else {
+            this._$element.css('z-index', 1000);
+            this._$element.removeClass('active');
+        }
+    }
+
+    setActive() {
+        this.setActive(true);
     }
 
     _generateHtml() {
