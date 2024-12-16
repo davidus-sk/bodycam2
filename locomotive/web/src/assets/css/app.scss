@@ -285,6 +285,18 @@ body.sidebar-hide {
 }
 
 // -------------------------------------------------------------------------------------
+// CARDS
+// -------------------------------------------------------------------------------------
+
+.card-cool {
+    background-color: #1d1d29;
+    border-color: rgb(61, 106, 255);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #fff;
+}
+
+// -------------------------------------------------------------------------------------
 // BUTTONS
 // -------------------------------------------------------------------------------------
 .btn-h-100 {
@@ -295,7 +307,6 @@ body.sidebar-hide {
     border-color: rgb(61, 106, 255);
     text-transform: uppercase;
     letter-spacing: 2px;
-
     color: #fff;
     overflow: hidden;
     box-shadow: 0 0 0 0 transparent;

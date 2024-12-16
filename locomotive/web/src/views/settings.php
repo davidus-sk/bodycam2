@@ -1,39 +1,69 @@
+<?php
+$networkInfo = file_exists('/dev/shm/info.json') ? file_get_contents('/dev/shm/info.json') : '{"wwan0":{"ip":"10.117.105.55","status":"connected","signal":"84","failed":"--","network":"AT&T"},"tun0":{"ip":"10.220.0.34"}}';
+$networkInfo = $networkInfo ? json_decode($networkInfo, true) : [];
+?>
 <div class="relative h-full">
-    <div class="container h-full d-flex justify-content-center align-items-center">
+    <div class="container">
+        <div class="pt-5 d-flex justify-content-center">
+            <button 
+                id="btn-air" 
+                type="button" 
+                class="btn btn-lg btn-cool btn-h-100 mx-2" 
+                style="width: 220px;" 
+                data-bs-toggle="modal" 
+                data-bs-target="#blow-air" 
+                disabled 
+            >
+                BLOW AIR
+            </button>
+            <button
+                id="btn-restart-camera"
+                type="button"
+                class="btn btn-lg btn-cool btn-h-100 mx-2"
+                style="width: 220px;"
+                data2-bs-toggle="modal"
+                data2-bs-target="#restart" 
+                disabled 
+            >
+                RESTART CAMERA
+            </button>
+            <button
+                id="btn-restart"
+                type="button"
+                class="btn btn-lg btn-cool btn-h-100 mx-2"
+                style="width: 220px;"
+                data-bs-toggle="modal"
+                data-bs-target="#restart" 
+                disabled 
+            >
+                RESTART SYSTEM
+            </button>
+        </div>
 
-        <button 
-            id="btn-air" 
-            type="button" 
-            class="btn btn-lg btn-cool btn-h-100 mx-2" 
-            style="width: 220px;" 
-            data-bs-toggle="modal" 
-            data-bs-target="#blow-air" 
-            disabled 
-        >
-            BLOW AIR
-        </button>
-        <button
-            id="btn-restart-camera"
-            type="button"
-            class="btn btn-lg btn-cool btn-h-100 mx-2"
-            style="width: 220px;"
-            data2-bs-toggle="modal"
-            data2-bs-target="#restart" 
-            disabled 
-        >
-            RESTART CAMERA
-        </button>
-        <button
-            id="btn-restart"
-            type="button"
-            class="btn btn-lg btn-cool btn-h-100 mx-2"
-            style="width: 220px;"
-            data-bs-toggle="modal"
-            data-bs-target="#restart" 
-            disabled 
-        >
-            RESTART SYSTEM
-        </button>
+        <?php if ($networkInfo) { ?>
+
+        <div class="mt-5 d-flex justify-content-center">
+            <div class="card card-cool">
+                <div class="card-body">
+                    <div class="mb-3">WLAN0:</div>
+    
+                    <?php if (isset($networkInfo['wwan0'])) { ?>                
+                    <pre class="mb-0"><?= json_encode($networkInfo['wwan0'], JSON_PRETTY_PRINT); ?></pre>
+                    <?php } ?>
+                </div>
+            </div>
+            <div class="card card-cool ms-3">
+                <div class="card-body">         
+                    <div class="mb-3">TUN0:</div>
+
+                    <?php if (isset($networkInfo['tun0'])) { ?>                
+                    <pre class="mb-0"><?= json_encode($networkInfo['tun0'], JSON_PRETTY_PRINT); ?></pre>
+                    <?php } ?>
+                </div>
+            </div>
+        </div>
+
+        <?php } ?>
     </div>
 
     <!-- Modal - blow air -->
