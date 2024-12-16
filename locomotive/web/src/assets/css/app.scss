@@ -4,6 +4,7 @@ body {
     padding: 0;
     margin: 0;
     background-color: #151518;
+    font-optical-sizing: auto;
     font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Liberation Sans',
         sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -71,9 +72,9 @@ a {
         background-color: #292c2f;
     }
     svg {
-        width: 42px;
-        height: 42px;
-        margin-bottom: 5px;
+        width: 36px;
+        height: 36px;
+        margin-bottom: 8px;
     }
 }
 
@@ -141,6 +142,14 @@ body.sidebar-hide {
     }
 }
 
+#mqtt-status-count {
+    font-size: 16px;
+    margin: 10px;
+    text-align: center;
+    color: #898881;
+    font-weight: 500;
+}
+
 // MODAL
 .modal-win {
     position: absolute;
@@ -179,7 +188,7 @@ body.sidebar-hide {
     margin: 10px;
     border-radius: 5px;
     text-align: center;
-    height: 50px;
+    height: 34px;
     align-items: center;
     justify-content: center;
     font-weight: 600;

@@ -1,9 +1,12 @@
-import { generateClientId } from './functions.js';
+import { getTimestamp, worker } from './functions.js';
 import { EventDispatcher } from './EventDispatcher.js';
 import { MqttClient } from './mqtt/client.js';
 
 export class App {
     options = {};
+    liveDevices = [];
+
+    LIVE_DEVICE_TIMEOUT = 15;
 
     constructor(options) {
         this.options = this.initializeOptions(options);
@@ -28,6 +31,7 @@ export class App {
 
         // dom elements
         this.$mqttStatus = $('#mqtt-status');
+        this.$mqttStatusCount = $('#mqtt-status-count');
 
         // mqtt
         this.initMqtt();
@@ -37,6 +41,9 @@ export class App {
 
         // sidebar
         this.sidebar();
+
+        // workers
+        this.initWorkers();
     }
 
     initializeOptions(userOptions) {
@@ -68,11 +75,43 @@ export class App {
     mqttConnected() {
         this.debug('[app] mqtt connected');
         this.$mqttStatus.addClass('connected').html('ONLINE');
+
+        this.liveDevices = [];
+        this.mqttClient.subscribe('device/+/status');
+        this.mqttClient.on('message', (topic, message) => {
+            const data = JSON.parse(message);
+
+            if (data && data.device_id) {
+                this.liveDevices[data.device_id] = data.ts;
+            }
+
+            this.$mqttStatusCount.html(Object.keys(this.liveDevices).length);
+        });
     }
 
     mqttDisconnected() {
         this.debug('[app] mqtt disconnected');
         this.$mqttStatus.removeClass('connected').html('OFFLINE');
+
+        this.liveDevices = [];
+    }
+
+    initWorkers() {
+        worker('live_devices', 5000, () => {
+            let now = getTimestamp();
+
+            for (const deviceId in this.liveDevices) {
+                const deviceTs = this.liveDevices[deviceId];
+                const delta = now - deviceTs;
+
+                // remove old map object
+                if (delta > this.LIVE_DEVICE_TIMEOUT) {
+                    delete this.liveDevices[deviceId];
+                }
+            }
+
+            this.$mqttStatusCount.html(Object.keys(this.liveDevices).length);
+        });
     }
 
     sidebar() {

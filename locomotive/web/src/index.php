@@ -76,6 +76,7 @@ $cssLastModified = '20240801-0930';
                 <span class="separator"></span>
 
                 <div id="mqtt-status" class="mt-4">OFFLINE</div>
+                <div id="mqtt-status-count" class="mt-2"></div>
 
             </div>
         </aside>
