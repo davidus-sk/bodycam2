@@ -113,6 +113,10 @@ export class Video {
             if (this.isDeviceInGrid(deviceId)) {
                 //this.debug('[video] camera already in the grid');
 
+                // update timestamp
+                this._devices[deviceId].ts = payload.ts;
+                this._devices[deviceId].status = payload.status;
+
                 // device disconnected
                 if (!this.isDeviceConnected(deviceId)) {
                     this.debug('[video] camera already in the grid - not connected - reconnect');
@@ -255,13 +259,15 @@ export class Video {
 
             for (const deviceId in this._devices) {
                 const device = this._devices[deviceId];
-                const delta = now - device.ts;
+                if (device && device.ts) {
+                    const delta = now - device.ts;
 
-                // remove old map object
-                if (delta > this.VIDEO_TIMEOUT) {
-                    this.debug('[video] removing device from the grid ...');
+                    // remove old map object
+                    if (delta > this.VIDEO_TIMEOUT) {
+                        this.debug('[video] removing device from the grid ... delta = ' + delta);
 
-                    this.removeDevice(device.device_id);
+                        this.removeDevice(device.device_id);
+                    }
                 }
             }
         });
