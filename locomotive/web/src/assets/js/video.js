@@ -251,10 +251,10 @@ export class Video {
 
     initWorkers() {
         worker('video_grid', 5000, () => {
-            let devices = [...Object.values(this._devices)];
             let now = getTimestamp();
 
-            for (const device of devices) {
+            for (const deviceId in this._devices) {
+                const device = this._devices[deviceId];
                 const delta = now - device.ts;
 
                 // remove old map object
