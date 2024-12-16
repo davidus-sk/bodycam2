@@ -6,7 +6,7 @@ export class App {
     options = {};
     liveDevices = [];
 
-    LIVE_DEVICE_TIMEOUT = 15;
+    LIVE_DEVICE_TIMEOUT = 120;
 
     constructor(options) {
         this.options = this.initializeOptions(options);
