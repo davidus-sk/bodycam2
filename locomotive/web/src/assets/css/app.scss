@@ -469,53 +469,58 @@ body.sidebar-hide {
 .map-icon-locomotive {
     background-image: url(../img/map_icon_locomotive.png);
 }
-.map-icon-camera {
-    background-image: url(../img/map_icon_person.png);
-}
-.map-icon {
-    &.panic {
-        background-color: #fff;
 
-        .inner {
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
+.map-icon-pulse {
+    background-color: #fff;
+
+    .inner {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 100%;
+        height: 100%;
+
+        &:before {
+            content: '';
+            position: relative;
+            display: block;
             width: 100%;
             height: 100%;
+            box-sizing: border-box;
+            //background-color: #ff0000;
+            border-radius: 100%;
+            left: 0px;
+            top: 0px;
+            //animation: pulse-ring 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+            animation: pulse-red 1.5s linear infinite both;
+        }
 
-            &:before {
-                content: '';
-                position: relative;
-                display: block;
-                width: 100%;
-                height: 100%;
-                box-sizing: border-box;
-                //background-color: #ff0000;
-                border-radius: 100%;
-                left: 0px;
-                top: 0px;
-                //animation: pulse-ring 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-                animation: pulse 1.5s linear infinite both;
-            }
-
-            &:after {
-                content: '';
-                position: absolute;
-                left: 0;
-                top: 0;
-                display: block;
-                width: 100%;
-                height: 100%;
-                border-radius: 100%;
-                //animation: circle 1.25s cubic-bezier(0.455, 0.03, 0.515, 0.955) -0.4s infinite;
-                animation: pulse2 1.5s linear infinite both;
-            }
+        &:after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: 100%;
+            //animation: circle 1.25s cubic-bezier(0.455, 0.03, 0.515, 0.955) -0.4s infinite;
+            animation: pulse-red-2 1.5s linear infinite both;
         }
     }
 }
 
-@keyframes pulse {
+.map-icon-pulse.fall {
+    .inner:before {
+        animation: pulse-orange 1.5s linear infinite both;
+    }
+    .inner:after {
+        animation: pulse-orange-2 1.5s linear infinite both;
+    }
+}
+
+@keyframes pulse-red {
     0% {
         box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.75);
         background-color: rgba(255, 0, 0, 0.8);
@@ -527,9 +532,33 @@ body.sidebar-hide {
         box-shadow: 0 0 0 0 rgba(255, 0, 0, 0);
     }
 }
-@keyframes pulse2 {
+@keyframes pulse-red-2 {
     0% {
         box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 40px rgba(255, 0, 0, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 0, 0, 0);
+    }
+}
+
+@keyframes pulse-orange {
+    0% {
+        box-shadow: 0 0 0 0 rgba(200, 135, 0, 0.75);
+        background-color: rgba(200, 135, 0, 0.8);
+    }
+    70% {
+        box-shadow: 0 0 0 20px rgba(255, 0, 0, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 0, 0, 0);
+    }
+}
+@keyframes pulse-orange-2 {
+    0% {
+        box-shadow: 0 0 0 0 rgba(200, 135, 0, 0.4);
     }
     70% {
         box-shadow: 0 0 0 40px rgba(255, 0, 0, 0);

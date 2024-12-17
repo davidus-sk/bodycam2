@@ -80,7 +80,7 @@ export class MapView {
 
             // topics
             const gpsRegex = new RegExp(`^device\/device-[0-9a-fA-F]{16}\/gps$`);
-            const panicButtonRegex = new RegExp(`^device\/device-[0-9a-fA-F]{16}\/button$`);
+            const buttonRegex = new RegExp(`^device\/device-[0-9a-fA-F]{16}\/button$`);
 
             // connect callback
             this.mqttClient.on('connect', () => {
@@ -93,7 +93,6 @@ export class MapView {
             // message callback
             this.mqttClient.on('message', (topic, msg) => {
                 const payload = msg ? JSON.parse(msg.toString()) : null;
-                const deviceId = payload ? payload.device_id : null;
 
                 this.debug('[map] mqtt message: ' + topic, msg.toString().substring(0, 50) + '...');
 
@@ -103,8 +102,8 @@ export class MapView {
                 }
 
                 // panic button
-                if (topic.match(panicButtonRegex)) {
-                    this.panicButton(deviceId);
+                if (topic.match(buttonRegex)) {
+                    this.deviceButton(payload);
                 }
             });
         }
@@ -140,19 +139,25 @@ export class MapView {
         this._icons['locomotive'] = L.divIcon({
             className: 'map-icon map-icon-locomotive',
             html: '<div class="inner"></div>',
-            iconSize: [48, 48],
+            iconSize: [38, 38],
         });
 
         this._icons['camera'] = L.divIcon({
-            className: 'map-icon map-icon-camera',
+            className: 'map-icon',
             html: '<div class="inner"></div>',
-            iconSize: [48, 48],
+            iconSize: [38, 38],
         });
 
-        this._icons['camera_panic'] = L.divIcon({
-            className: 'map-icon map-icon-camera panic',
+        this._icons['camera_fall'] = L.divIcon({
+            className: 'map-icon map-icon-pulse fall',
             html: '<div class="inner"></div>',
-            iconSize: [48, 48],
+            iconSize: [38, 38],
+        });
+
+        this._icons['camera_emergency'] = L.divIcon({
+            className: 'map-icon map-icon-pulse emergency',
+            html: '<div class="inner"></div>',
+            iconSize: [38, 38],
         });
 
         //     color: 'red',
@@ -431,7 +436,7 @@ export class MapView {
                 // marker reference
                 this._markersRef[deviceId] = marker;
 
-                this.debug('[map] new map object', data, marker);
+                this.debug('[map] new map object', data);
                 marker.getElement().classList.add('css-icon');
 
                 // update position
@@ -508,11 +513,27 @@ export class MapView {
         }
     }
 
-    panicButton(deviceId) {
-        this.debug('[map] panic button', deviceId);
-        if (deviceId && deviceId.length) {
+    deviceButton(data) {
+        this.debug('[map] device button pressed', data);
+        if (data && data.device_id && data.device_id.length) {
+            const deviceId = data.device_id;
+            const status = data.status || '';
+            let icon;
+
             if (this._markersRef[deviceId] !== undefined) {
-                this._markersRef[deviceId].setIcon(this._icons['camera_panic']);
+                switch (status) {
+                    case 'fall':
+                        icon = this._icons['camera_fall'];
+                        break;
+                    case 'emergency':
+                        icon = this._icons['camera_emergency'];
+                        break;
+                    default:
+                        icon = this._icons['camera'];
+                        break;
+                }
+
+                this._markersRef[deviceId].setIcon(icon);
             }
         }
     }

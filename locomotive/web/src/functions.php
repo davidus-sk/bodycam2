@@ -241,3 +241,20 @@ function js(string $filename, bool $htmlTag = false): string
         return './assets/js/' . $filename;
     }
 }
+
+/**
+ * Random device id
+ * @return string
+ */
+function randomDeviceId(): string
+{
+    $clientId = '';
+    $chars = '0123456789abcdefABCDEF';
+
+    for ($i = 0; $i < 16; $i++) {
+        $index = random_int(0, strlen($chars) - 1);
+        $clientId .= $chars[$index];
+    }
+
+    return 'device-' . $clientId;
+}

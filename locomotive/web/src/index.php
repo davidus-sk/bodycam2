@@ -3,11 +3,18 @@
 include_once 'bootstrap.php';
 include_once 'class/Config.php';
 
+// assets
+$cssLastModified = '20240801-0930';
+
 // views
 define('VIEW', !empty($_GET['r']) ? $_GET['r'] : 'video');
 
-// assets
-$cssLastModified = '20240801-0930';
+// mqtt
+$MQTT_CLIENT_ID = (VIEW === 'debug' && $_SERVER['HTTP_HOST'] === 'localhost')
+    ? 'mqttjs_debug' : MQTT_CLIENT_ID;
+
+// content
+$content = render(VIEW);
 ?>
 <!doctype html>
 <html class="no-js" lang="">
@@ -27,26 +34,6 @@ $cssLastModified = '20240801-0930';
 <script src="./assets/js/vendor.js?v=<?= $cssLastModified; ?>" type="text/javascript"></script>
 </head>
 <body>
-
-    <script>
-    let app;
-    </script>
-    <script type="module">
-    import {App} from "./assets/js/app.js";
-
-    // app config
-    const config = <?= Config::read(true, [
-        'mqtt' => [
-            'clientId' => VIEW === 'debug' ? 'mqttjs_debug' : MQTT_CLIENT_ID,
-        ],
-    ]); ?>;
-
-    $(function() {
-
-        app = new App(config);
-
-    });
-    </script>
 
     <div id="wrapper">
         <div id="sidebar-toggle"><span></span></div>
@@ -82,13 +69,23 @@ $cssLastModified = '20240801-0930';
         </aside>
         <div id="content" class="h-screen">
             
-            <?php echo render(VIEW); ?>
+            <?php echo $content; ?>
 
         </div>
     </div>
     
+    <script>
+    let app;
+    </script>
+    <script type="module">
+    import {App} from "./assets/js/app.js";
 
+    // app config
+    const config = <?= Config::read(true, [
+        'mqtt' => ['clientId' => $MQTT_CLIENT_ID],
+    ]); ?>;
 
-
+    app = new App(config);
+    </script>
 </body>
 </html>

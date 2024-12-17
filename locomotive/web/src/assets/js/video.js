@@ -120,7 +120,7 @@ export class Video {
                 // device disconnected
                 if (!this.isDeviceConnected(deviceId)) {
                     this.debug('[video] camera already in the grid - not connected - reconnect');
-                    //this.getDeviceData(deviceId)?.picamera?.reconnect();
+                    this.getDeviceData(deviceId)?.picamera?.reconnect();
 
                     // device connected
                 } else {
@@ -264,7 +264,12 @@ export class Video {
 
                     // remove old map object
                     if (delta > this.VIDEO_TIMEOUT) {
-                        this.debug('[video] removing device from the grid ... delta = ' + delta);
+                        this.debug(
+                            '[video] removing device from the grid - deviceId: ' +
+                                deviceId +
+                                ', delta: ' +
+                                delta
+                        );
 
                         this.removeDevice(device.device_id);
                     }

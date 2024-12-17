@@ -1,18 +1,20 @@
 import { getTimestamp } from './functions.js';
 
 export class Debug {
-    constructor() {
+    options = {};
+
+    constructor(options) {
+        this.options = this.initializeOptions(options);
+
+        // generate device ID
+        this.deviceId = this.options.deviceId ? this.options.deviceId : this.randomDeviceId();
+
         // dom elements
         this.$debug = $('#debug');
         this.$selDevices = $('#sel-cameras');
 
-        const $btnDeviceStatus = $('#btn-cam-status');
-        const $btnDeviceStatusAuto = $('#btn-cam-status-auto');
-        const $btnPanic = $('#btn-panic');
-
         // regex map
         const deviceIdPattern = 'device-[0-9a-fA-F]{16}';
-
         this.topicRegex = {};
         this.topicRegex['camera_status'] = new RegExp(`^device\/${deviceIdPattern}\/status$`);
         this.topicRegex['camera_gps'] = new RegExp(`^device\/${deviceIdPattern}\/gps$`);
@@ -31,52 +33,45 @@ export class Debug {
             this.mqttClient.on('disconnect', () => this.mqttDisconnect());
         }
 
-        // buttons
-        $btnDeviceStatus.on('click', () => this.sendDeviceStatus());
-        $btnPanic.on('click', () => this.panicButton());
+        // buttons status
+        this.buttonsStatus = {};
 
-        let deviceStatusTimer;
-        $btnDeviceStatusAuto.on('click', () => {
-            let active = parseInt($btnDeviceStatusAuto.attr('data-active')) === 1;
-            if (active) {
-                active = false;
-                $btnDeviceStatusAuto.attr('data-active', 0).html('Device Status Start');
-            } else {
-                active = true;
-                $btnDeviceStatusAuto.attr('data-active', 1).html('Device Status Stop');
-            }
-
-            if (active) {
-                this.sendDeviceStatus();
-                deviceStatusTimer = setInterval(() => {
-                    this.sendDeviceStatus();
-                }, 15000);
-            } else {
-                clearInterval(deviceStatusTimer);
-                deviceStatusTimer = null;
-            }
-        });
-
-        //
+        this.buttons();
         this.stream();
         this.cameraRestart();
         this.gps();
     }
 
-    mqttConnected() {
-        console.log('[debug] mqtt connected');
+    initializeOptions(userOptions) {
+        const defaultOptions = {
+            debug: false,
+        };
 
-        $('[data-btn-mqtt=1]').attr('disabled', false);
+        return { ...defaultOptions, ...userOptions };
+    }
+
+    mqttConnected() {
+        console.log(
+            '[debug] mqtt connected - client id: ' + this.mqttClient.client.options.clientId
+        );
+
+        $('[data-mqtt=1]').attr('disabled', false);
     }
 
     mqttDisconnect() {
         console.log('e: mqtt disconnected');
 
-        $('[data-btn-mqtt=1]').attr('disabled', 'disabled');
+        $('[data-mqtt=1]').attr('disabled', 'disabled');
     }
 
-    getSelectedDeviceId() {
-        return this.$selDevices.find(':selected').val();
+    getSelectedDeviceId(randomIfEmpty) {
+        let deviceId = this.$selDevices.find(':selected').val();
+
+        if (deviceId === '' && randomIfEmpty !== false) {
+            deviceId = this.deviceId;
+        }
+
+        return deviceId;
     }
 
     checkMqttConnection() {
@@ -88,54 +83,110 @@ export class Debug {
         return true;
     }
 
-    constructTopic(topic, subLevels) {
-        let t = `${this.deviceId}/${topic}/${this.mqttClientId}`;
-        if (typeof subLevels === 'string') {
-            t += subLevels;
+    randomDeviceId() {
+        var result = '';
+        const length = 16;
+        const chars = '0123456789abcdefABCDEF';
+
+        for (var i = length; i > 0; --i) {
+            result += chars[Math.floor(Math.random() * chars.length)];
         }
 
-        t = t.replace('/{1,}/', '/');
-
-        return t;
+        return 'device-' + result;
     }
 
-    sendDeviceStatus() {
-        if (this.mqttClient && this.mqttClient.isConnected()) {
+    buttons() {
+        let deviceStatusTimer;
+
+        // status buttons (emergency, fall...)
+        this.$debug.on('click', '[data-status]', e => {
+            e.preventDefault();
+
+            const $btn = $(e.target);
+            const mode = $btn.attr('data-status') || '';
             const deviceId = this.getSelectedDeviceId();
+
+            let active = parseInt($btn.attr('data-active')) === 1;
+
+            if (deviceStatusTimer) {
+                clearInterval(deviceStatusTimer);
+                deviceStatusTimer = null;
+            }
+
+            if (mode === 'auto') {
+                if (active) {
+                    active = false;
+                    $btn.attr('data-active', 0).removeClass('btn-success');
+                } else {
+                    active = true;
+                    $btn.attr('data-active', 1).addClass('btn-success');
+                }
+
+                if (active) {
+                    this.sendDeviceStatus(deviceId);
+                    deviceStatusTimer = setInterval(() => {
+                        this.sendDeviceStatus(deviceId);
+                    }, 5000);
+                }
+            } else {
+                this.sendDeviceStatus(deviceId);
+            }
+        });
+
+        // status buttons (emergency, fall...)
+        this.$debug.on('click', '[data-button-status]', e => {
+            e.preventDefault();
+            let $btn = $(e.target);
+
+            const deviceId = this.getSelectedDeviceId();
+            const status = $btn.attr('data-button-status') || '';
+            let active = parseInt($btn.attr('data-active')) === 1;
+
+            if (active) {
+                active = 0;
+                this.buttonsStatus[status] = 0;
+                $btn.attr('data-active', 0).removeClass('bg-success');
+            } else {
+                active = 1;
+                this.buttonsStatus[status] = 1;
+                $btn.attr('data-active', 1).addClass('bg-success');
+            }
+
+            if (status) {
+                this.mqttButtonStatus(deviceId, status, active);
+            }
+        });
+    }
+
+    sendDeviceStatus(deviceId) {
+        if (this.mqttClient && this.mqttClient.isConnected()) {
             const topic = `device/${deviceId}/status`;
+            console.log('[debug] sending device status: ' + topic);
 
             this.mqttClient.publish(
                 topic,
                 JSON.stringify({
-                    ts: getTimestamp(),
-                    client_id: this.mqttClientId,
                     device_id: deviceId,
+                    device_type: 'camera',
+                    ts: getTimestamp(),
                     status: 'alive',
                 })
             );
         }
     }
 
-    panicButton() {
+    mqttButtonStatus(deviceId, status, active) {
         if (this.mqttClient && this.mqttClient.isConnected()) {
-            console.log('[debug] panic button pressed', this);
+            console.log('[debug] status button pressed: ' + status);
 
-            const $btnPanic = $('#btn-panic');
-            if ($btnPanic.attr('data-panic') == '1') {
-                $btnPanic.attr('data-panic', 0).html('Panic OFF');
-            } else {
-                $btnPanic.attr('data-panic', 1).html('Panic ON');
-            }
-
-            const deviceId = this.getSelectedDeviceId();
             const topic = `device/${deviceId}/button`;
-
             this.mqttClient.publish(
                 topic,
                 JSON.stringify({
-                    ts: getTimestamp(),
-                    client_id: this.mqttClientId,
                     device_id: deviceId,
+                    device_type: 'camera',
+                    ts: getTimestamp(),
+                    status: parseInt(active) === 1 ? status : null,
                 })
             );
 
@@ -165,9 +216,8 @@ export class Debug {
             this.mqttClient.publish(
                 topic,
                 JSON.stringify({
-                    ts: getTimestamp(),
-                    client_id: this.mqttClientId,
                     device_id: deviceId,
+                    ts: getTimestamp(),
                 })
             );
         });
@@ -182,10 +232,6 @@ export class Debug {
         let _pc = {};
         let _cacheIceList = {};
         let _remoteDescriptionSet = {};
-
-        let pc = undefined;
-        let cacheIceList = [];
-        let remoteDescriptionSet = false;
 
         let $btnStartStream = $('#btn-start-stream');
         let $btnStopStream = $('#btn-stop-stream');
@@ -463,8 +509,11 @@ export class Debug {
             }
 
             $localVideo.hide();
-            $btnStartStream.attr('disabled', false);
+            $btnStopStream.hide();
+            $btnStartStream.attr('disabled', false).show();
         };
+
+        let deviceStatusTimer;
 
         // start stream
         $btnStartStream.on('click', e => {
@@ -475,28 +524,36 @@ export class Debug {
                 return;
             }
 
-            $btnStartStream.attr('disabled', 'disabled');
-
             // mqtt connection
             if (!this.checkMqttConnection()) {
                 return;
             }
 
             deviceId = this.getSelectedDeviceId();
-            cacheIceList = [];
+
+            _remoteDescriptionSet = {};
+            _cacheIceList = [];
+
+            $btnStartStream.attr('disabled', 'disabled');
 
             console.log('[debug] requesting media devices...');
             navigator.mediaDevices
                 .getUserMedia({
                     audio: false,
-                    video: true,
+                    video: {
+                        facingMode: { ideal: 'environment' },
+                    },
                 })
                 .then(stream => {
                     console.log(
                         '[debug] %cCamera initialized',
                         'background-color:#540101;color:#dbe2ff;font-weight:500'
                     );
+
                     console.log('[debug] stream started. waiting for signaling!');
+
+                    $btnStartStream.hide();
+                    $btnStopStream.show();
 
                     localStream = stream;
                     localVideo.srcObject = localStream;
@@ -522,6 +579,19 @@ export class Debug {
                             handleRemoteIceCandidate(found[1], msg);
                         }
                     });
+
+                    if (deviceStatusTimer) {
+                        clearInterval(deviceStatusTimer);
+                        deviceStatusTimer = null;
+                    }
+
+                    setTimeout(() => {
+                        this.sendDeviceStatus(deviceId);
+                    }, 1000);
+
+                    deviceStatusTimer = setInterval(() => {
+                        this.sendDeviceStatus(deviceId);
+                    }, 15000);
                 })
                 .catch(e => {
                     console.log('[debug] error opening camera: ' + e.message);
@@ -534,6 +604,16 @@ export class Debug {
 
             // mqtt connection
             stopLocalStream();
+
+            // stop sending status messages
+            if (deviceStatusTimer) {
+                clearInterval(deviceStatusTimer);
+                deviceStatusTimer = null;
+            }
+
+            $localVideo.hide();
+            $btnStopStream.hide();
+            $btnStartStream.attr('disabled', false).show();
 
             this.mqttClient.off('message');
         });
@@ -576,16 +656,28 @@ export class Debug {
 
     gps() {
         const $btnAddLoco = $('#btn-add-loco');
-        const $btnGps = $('#btn-gps');
-        const $btnGpsAuto = $('#btn-gps-auto');
-
-        let fakeGpsStart = false;
-        let gpsTimer;
 
         const locomotiveGps = { lat: 30.672026, lng: -92.260802 };
         let lastGps = Object.assign({}, locomotiveGps);
 
-        const addLoco = () => {
+        const sendGpsPosition = (deviceId, gps) => {
+            if (deviceId && deviceId.length) {
+                const topic = `device/${deviceId}/gps`;
+
+                this.mqttClient.publish(
+                    topic,
+                    JSON.stringify({
+                        ts: getTimestamp(),
+                        client_id: this.mqttClientId,
+                        device_id: deviceId,
+                        gps: gps,
+                    })
+                );
+            }
+        };
+
+        // locomotive gps
+        $btnAddLoco.on('click', () => {
             const topic = `device/device-0000000000000000/gps`;
             this.mqttClient.publish(
                 topic,
@@ -595,54 +687,102 @@ export class Debug {
                     gps: locomotiveGps,
                 })
             );
-        };
+        });
 
-        const fakeGps = gps => {
+        // gps
+
+        let gpsTimer = null;
+        let gpsWatchTimer = null;
+        this.$debug.on('click', '[data-gps]', e => {
+            e.preventDefault();
+
+            const $btn = $(e.target);
+            const gpsMode = $btn.attr('data-gps') || '';
             const deviceId = this.getSelectedDeviceId();
-            const topic = `device/${deviceId}/gps`;
+            const _deviceId = this.getSelectedDeviceId(false);
+            let active = parseInt($btn.attr('data-active')) === 1;
 
-            this.mqttClient.publish(
-                topic,
-                JSON.stringify({
-                    ts: getTimestamp(),
-                    client_id: this.mqttClientId,
-                    device_id: deviceId,
-                    gps: gps,
-                })
-            );
-        };
+            if (gpsMode === 'auto') {
+                if (active) {
+                    active = false;
+                    $btn.attr('data-active', 0).removeClass('btn-success');
+                } else {
+                    active = true;
+                    $btn.attr('data-active', 1).addClass('btn-success');
+                }
 
-        $btnGps.on('click', () => {
-            let gps = this.getRandomCoordinate(lastGps, 200);
-            fakeGps(gps);
-        });
+                if (gpsTimer) {
+                    clearInterval(gpsTimer);
+                    gpsTimer = null;
+                }
 
-        $btnAddLoco.on('click', () => {
-            let gps;
-            addLoco(gps);
-        });
+                if (gpsWatchTimer) {
+                    navigator.geolocation.clearWatch(gpsWatchTimer);
+                    gpsWatchTimer = null;
+                }
 
-        $btnGpsAuto.on('click', () => {
-            let gpsActive = parseInt($btnGpsAuto.attr('data-active')) === 1;
-            if (gpsActive) {
-                fakeGpsStart = false;
-                $btnGpsAuto.attr('data-active', 0).html('Fake Gps Start');
+                if (active) {
+                    // gps from device
+                    if (_deviceId === '') {
+                        gpsWatchTimer = navigator.geolocation.watchPosition(
+                            position => {
+                                sendGpsPosition(deviceId, {
+                                    lat: position.coords.latitude,
+                                    lng: position.coords.longitude,
+                                });
+                            },
+                            error => {
+                                console.log(
+                                    '[debug] failed to read GPS position - error: ',
+                                    error.message
+                                );
+                            },
+                            {
+                                enableHighAccuracy: true,
+                                maximumAge: 5000,
+                                timeout: 0,
+                            }
+                        );
+
+                        // fake gps
+                    } else {
+                        let gps = this.getRandomCoordinate(lastGps, 5);
+                        sendGpsPosition(deviceId, gps);
+
+                        gpsTimer = setInterval(() => {
+                            lastGps = this.getRandomCoordinate(lastGps, 15);
+                            sendGpsPosition(deviceId, lastGps);
+                        }, 2000);
+                    }
+                }
             } else {
-                fakeGpsStart = true;
-                $btnGpsAuto.attr('data-active', 1).html('Fake Gps Stop');
-            }
+                // gps from device
+                if (_deviceId === '') {
+                    gpsWatchTimer = navigator.geolocation.getCurrentPosition(
+                        position => {
+                            sendGpsPosition(deviceId, {
+                                lat: position.coords.latitude,
+                                lng: position.coords.longitude,
+                            });
+                        },
+                        error => {
+                            console.log(
+                                '[debug] failed to read GPS position - error: ',
+                                error.message
+                            );
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            maximumAge: 1000,
+                            timeout: 3000,
+                        }
+                    );
 
-            if (fakeGpsStart) {
-                let gps = this.getRandomCoordinate(lastGps, 200);
-                fakeGps(gps);
-
-                gpsTimer = setInterval(() => {
-                    lastGps = this.getRandomCoordinate(lastGps, 15);
-                    fakeGps(lastGps);
-                }, 4000);
-            } else {
-                clearInterval(gpsTimer);
-                gpsTimer = null;
+                    // fake gps
+                } else {
+                    let gps = this.getRandomCoordinate(lastGps, 5);
+                    sendGpsPosition(deviceId, gps);
+                }
             }
         });
     }

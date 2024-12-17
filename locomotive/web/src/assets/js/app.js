@@ -73,7 +73,7 @@ export class App {
     }
 
     mqttConnected() {
-        this.debug('[app] mqtt connected');
+        this.debug('[app] mqtt connected - client id: ' + this.mqttClient.client.options.clientId);
         this.$mqttStatus.addClass('connected').html('ONLINE');
 
         this.liveDevices = [];

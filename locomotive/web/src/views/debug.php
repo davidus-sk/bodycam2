@@ -1,52 +1,71 @@
-<script>
-let deb;
-</script>
+<?php
+$deviceId = $_COOKIE['device_id'] ?? null;
+if (!$deviceId) {
+    $deviceId = randomDeviceId();
+    setcookie('device_id', $deviceId, time() + 3 * 24 * 3600);
+}
+?>
+<div id="debug" class="container">
+    
+    <div class="mt-3">
+        <strong>Device:</strong>
+        <select id="sel-cameras" class="form-control">         
+            <option value="" selected>My Device</option>   
+            <option value="device-100000003a0a2f6e">PI - Marek</option>
+            <option value="device-00000000b203ade4">AL</option>            
+        </select>
 
-<div id="debug">
-    <div class="p-5">
-        <div class="mb-5">
-            <strong>Live cameras:</strong>
-            <select id="sel-cameras" class="form-control">            
-                <option value="device-100000003a0a2f6e" selected>Marek PI</option>
-                <option value="device-0000000000000001">Marek PC</option>                
-                <option value="device-00000000b203ade4">AL</option>
-                <option value="device-0000000000000002">Fake</option>
-            </select>
+    </div>
+    <div class="d-grid gap-3 d-md-block mt-5">
+        <button type="button" class="btn btn-lg btn-secondary" data-mqtt="1" data-status="1" disabled>/status</button>
+        <button type="button" class="btn btn-lg btn-secondary" data-mqtt="1" data-status="auto" disabled>/status (AUTO)</button>
+    </div>
 
-        </div>
-        <div class="mb-3">
-            <button id="btn-cam-status" type="button" class="btn btn-lg btn-secondary mt-3" data-btn-mqtt="1" disabled>Camera status</button>
-            <button id="btn-cam-status-auto" type="button" class="btn btn-lg btn-secondary mt-3 ms-3" data-btn-mqtt="1" disabled>Camera status Start</button>
+    <hr class="my-4" />
 
-            <button id="btn-panic" type="button" class="btn btn-lg btn-secondary mt-3 ms-3" style="width: 134px;" data-btn-mqtt="1" disabled>Panic OFF</button>
+    <div class="d-grid gap-3 d-md-block">
+        <button id="btn-start-stream" type="button" class="btn btn-lg btn-secondary" data-mqtt="1" disabled>Stream - Start</button>
+        <button id="btn-stop-stream" type="button" class="btn btn-lg btn-danger ms-md-2" style="display: none;" data-mqtt="1" disabled>Stream - Stop</button>
+    </div>
 
-            <button id="btn-cam-restart" type="button" class="btn btn-lg btn-secondary mt-3 ms-3" data-btn-mqtt="1" disabled>Camera restart</button>
-        </div>
-        <div class="mb-3">
-            <button id="btn-start-stream" type="button" class="btn btn-lg btn-secondary mt-3" data-btn-mqtt="1" disabled>Start Stream</button>
-            
-            <button id="btn-stop-stream" type="button" class="btn btn-lg btn-secondary mt-3 ms-3" data-btn-mqtt="1" disabled>Stop Stream</button>
-        </div>
-        <div class="mb-0">
-            <button id="btn-add-loco" type="button" class="btn btn-lg btn-secondary mt-3" data-btn-mqtt="1" disabled>Add Loco</button>
-            <button id="btn-gps-fake" type="button" class="btn btn-lg btn-secondary mt-3 ms-3" data-btn-mqtt="1" disabled>Fake GPS</button>
-            <button id="btn-gps-auto" type="button" class="btn btn-lg btn-secondary mt-3 ms-3" data-btn-mqtt="1" disabled>Fake GPS Start</button>
-        </div>
+    <video id="local-video" class="mt-3" style="display: none; width:100%; height: 250px; max-width: 340px;" playsinline autoplay muted></video>
 
-        <video id="local-video" class="mt-3" style="display: none;width:250px;height: 250px;" playsinline autoplay muted></video>
+    <hr class="my-4" />
+
+    <!-- BUTTONS -->
+    <div class="d-grid gap-3 d-md-block">
+        <button type="button" class="btn btn-lg btn-secondary" data-mqtt="1" 
+        data-button-status="emergency" disabled>/button/ESTOP</button>
+        <button type="button" class="btn btn-lg btn-secondary ms-md-2" data-mqtt="1" 
+        data-button-status="fall" disabled>/button/fall</button>
+    </div>
+
+    <hr class="my-4" />
+
+    <div class="d-grid gap-3 d-md-block">
+        <button type="button" class="btn btn-lg btn-secondary" data-mqtt="1" data-gps="1" disabled>GPS</button>
+        <button type="button" class="btn btn-lg btn-secondary ms-md-2" data-mqtt="1" data-gps="auto" disabled>GPS (AUTO)</button>
+
+        <button id="btn-add-loco" type="button" class="btn btn-lg btn-secondary mt-3 mt-md-0 ms-md-2" data-mqtt="1" disabled>GPS LOCOMOTIVE</button>
+
+    </div>
+
+    <hr class="my-4" />
+
+    <div class="d-grid gap-3 d-md-block">
+        <button id="btn-cam-restart" type="button" class="btn btn-lg btn-secondary" data-mqtt="1"   disabled>Camera restart</button>
     </div>
 
 
 </div>
-
 <script type="module">
 import {Debug} from "./assets/js/debug.js?t=<?=time();?>";
 
-const config = <?= Config::read(true); ?>;
-
+const config = <?= Config::read(true, [
+    'deviceId' => $deviceId,
+]); ?>;
 $(function() { 
-
-    deb = new Debug(config, app);
-
+    const deb = new Debug(config, app);
 });
 </script>
+
