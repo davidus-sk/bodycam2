@@ -43,16 +43,16 @@ $networkInfo = $networkInfo ? json_decode($networkInfo, true) : [];
         <?php if ($networkInfo) { ?>
 
         <div class="mt-5 d-flex justify-content-center">
-            <div class="card card-cool">
+            <div class="card card-dark" style="width: 420px;">
                 <div class="card-body">
-                    <div class="mb-3">WLAN0:</div>
+                    <div class="mb-3">WWAN0:</div>
     
                     <?php if (isset($networkInfo['wwan0'])) { ?>                
                     <pre class="mb-0"><?= json_encode($networkInfo['wwan0'], JSON_PRETTY_PRINT); ?></pre>
                     <?php } ?>
                 </div>
             </div>
-            <div class="card card-cool ms-3">
+            <div class="card card-dark ms-3" style="width: 420px;">
                 <div class="card-body">         
                     <div class="mb-3">TUN0:</div>
 

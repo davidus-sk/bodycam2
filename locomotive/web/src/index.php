@@ -4,7 +4,7 @@ include_once 'bootstrap.php';
 include_once 'class/Config.php';
 
 // assets
-$cssLastModified = '20240801-0930';
+define('ASSETS_VERSION', '20241217-2127');
 
 // views
 define('VIEW', !empty($_GET['r']) ? $_GET['r'] : 'video');
@@ -14,7 +14,7 @@ $MQTT_CLIENT_ID = (VIEW === 'debug' && $_SERVER['HTTP_HOST'] === 'localhost')
     ? 'mqttjs_debug' : MQTT_CLIENT_ID;
 
 // content
-$content = render(VIEW);
+$content = render(VIEW, ['cssLastModified' => ASSETS_VERSION]);
 ?>
 <!doctype html>
 <html class="no-js" lang="">
@@ -26,12 +26,12 @@ $content = render(VIEW);
 <meta name="description" content="">
 <meta name="color-scheme" content="light">
 <meta name="viewport" content="initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, width=device-width, height=device-height">
-<link href="./assets/css/style.css?v=<?= $cssLastModified; ?>" rel="stylesheet">
+<link href="./assets/css/style.css?v=<?= ASSETS_VERSION; ?>" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.min.css" rel="stylesheet">
 <link rel="icon" href="./assets/img/favicon.ico" sizes="any">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="./manifest.json">
-<script src="./assets/js/vendor.js?v=<?= $cssLastModified; ?>" type="text/javascript"></script>
+<script src="./assets/js/vendor.js?v=<?= ASSETS_VERSION; ?>" type="text/javascript"></script>
 </head>
 <body>
 

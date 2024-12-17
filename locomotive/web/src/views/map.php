@@ -37,7 +37,7 @@
 <script src="./assets/vendor/leaflet/leaflet.js"></script>
 
 <script type="module">
-import {MapView} from "<?= js('map.js'); ?>";
+import {MapView} from "./assets/js/map.js?v=<?= ASSETS_VERSION ?>";
 
 const config = <?= Config::read(true); ?>;
 config.debug = true;

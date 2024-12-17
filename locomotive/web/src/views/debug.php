@@ -59,7 +59,7 @@ if (!$deviceId) {
 
 </div>
 <script type="module">
-import {Debug} from "./assets/js/debug.js?t=<?=time();?>";
+import {Debug} from "./assets/js/debug.js?v=<?= ASSETS_VERSION ?>";
 
 const config = <?= Config::read(true, [
     'deviceId' => $deviceId,
