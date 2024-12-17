@@ -18,7 +18,7 @@ class Config
      * @param bool $returnJson
      * @return array
      */
-    public static function read(bool $returnJson = false, array $overrideOptions = null): array|string
+    public static function read(bool $returnJson = false, array $overrideOptions = null)
     {
 
         // init
