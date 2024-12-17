@@ -61,6 +61,29 @@ export class Debug {
         return { ...defaultOptions, ...userOptions };
     }
 
+    getRtcConfig() {
+        let config = {};
+
+        config.iceServers = [];
+        config.iceCandidatePoolSize = 5;
+
+        // STUN servers
+        if (this.options.camera.stunUrls && this.options.camera.stunUrls.length > 0) {
+            config.iceServers.push({ urls: this.options.camera.stunUrls });
+        }
+
+        // TURN servers
+        if (this.options.camera.turnUrls && typeof this.options.camera.turnUrls === 'object') {
+            config.iceServers.push({
+                urls: this.options.camera.turnUrls,
+                username: this.options.camera.turnUsername,
+                credential: this.options.camera.turnPassword,
+            });
+        }
+
+        return config;
+    }
+
     mqttConnected() {
         console.log(
             '[debug] mqtt connected - client id: ' + this.mqttClient.client.options.clientId
@@ -319,11 +342,12 @@ export class Debug {
             console.log('[debug] initializing webrtc connection');
 
             const key = deviceId + '___' + clientId;
+            const webrtcConfig = this.getRtcConfig();
 
             _remoteDescriptionSet[key] = false;
             _iceCache[key] = [];
 
-            _pc[key] = new RTCPeerConnection();
+            _pc[key] = new RTCPeerConnection(webrtcConfig);
             //_pc[key].addTransceiver('video', { direction: 'sendonly' });
             //_pc[key].addTransceiver('audio', { direction: 'sendonly' });
 

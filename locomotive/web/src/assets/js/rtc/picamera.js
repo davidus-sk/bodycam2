@@ -190,7 +190,7 @@ export class PiCamera {
         let config = {};
 
         config.iceServers = [];
-        config.iceCandidatePoolSize = 10;
+        config.iceCandidatePoolSize = 5;
 
         // STUN servers
         if (this.options.stunUrls && this.options.stunUrls.length > 0) {
