@@ -113,7 +113,7 @@ function stdout($string): void
     echo $string;
 }
 
-function readConfig(bool $returnJson = false): array|string
+function readConfig(bool $returnJson = false)
 {
     return Config::read($returnJson);
 }
