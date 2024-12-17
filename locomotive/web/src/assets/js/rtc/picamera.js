@@ -271,8 +271,6 @@ export class PiCamera {
         peer.onnegotiationneeded = async () => {
             this.debug('[picamera] webrtc event - onnegotiationneeded');
 
-            this.makingOffer = true;
-
             try {
                 this.makingOffer = true;
 
@@ -303,7 +301,8 @@ export class PiCamera {
                 peer.iceConnectionState === 'disconnected'
             ) {
                 this.debug('[picamera] negotiation failed - restarting');
-                peer.restartIce();
+                //peer.restartIce();
+                this.reconnect();
             }
         };
 
@@ -359,13 +358,19 @@ export class PiCamera {
     };
 
     reconnect() {
-        if (this.rtcPeer) {
-            this.debug('[picamera] restarting webrtc negotiation');
-            this.rtcPeer.restartIce();
-        } else {
-            this.debug('[picamera] reconnecting');
+        // if (this.rtcPeer) {
+        //     this.debug('[picamera] restarting webrtc negotiation');
+        //     //this.rtcPeer.restartIce();
+        // } else {
+        //     this.debug('[picamera] reconnecting');
+        //     this.connect();
+        // }
+
+        this.terminate();
+
+        setTimeout(() => {
             this.connect();
-        }
+        }, 1000);
     }
 
     restart() {
@@ -519,6 +524,10 @@ export class PiCamera {
     };
 
     handleSdpMessage = message => {
+        if (this.makingOffer === true) {
+            return;
+        }
+
         const sdp = JSON.parse(message);
         //this.debug('e: handleSdpMessage()', sdp);
 
