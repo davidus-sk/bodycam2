@@ -9,21 +9,29 @@ export class Debug {
         // generate device ID
         this.deviceId = this.options.deviceId ? this.options.deviceId : this.randomDeviceId();
 
+        // debug
+        if (this.debugMode === true && typeof console != 'undefined') {
+            this.debug = console.log.bind(console);
+        } else {
+            this.debug = function (message) {};
+        }
+
         // dom elements
         this.$debug = $('#debug');
         this.$selDevices = $('#sel-cameras');
 
         // regex map
         const deviceIdPattern = 'device-[0-9a-fA-F]{16}';
+
         this.topicRegex = {};
-        this.topicRegex['camera_status'] = new RegExp(`^device\/${deviceIdPattern}\/status$`);
+        this.topicRegex['camera_status'] = new RegExp(`^device\/device-[0-9a-fA-F]{16}\/status$`);
         this.topicRegex['camera_gps'] = new RegExp(`^device\/${deviceIdPattern}\/gps$`);
 
         this.topicRegex['web_rtc_sdp_offer'] = new RegExp(
-            `^${deviceIdPattern}\/sdp\/([^\/]+)\/offer$`
+            `^(${deviceIdPattern})\/sdp\/([^\/]+)\/offer$`
         );
         this.topicRegex['web_rtc_ice_offer'] = new RegExp(
-            `^${deviceIdPattern}\/ice\/([^\/]+)\/offer$`
+            `^(${deviceIdPattern})\/ice\/([^\/]+)\/offer$`
         );
 
         // mqtt
@@ -35,6 +43,9 @@ export class Debug {
 
         // buttons status
         this.buttonsStatus = {};
+
+        // local variables
+        this.colorReceived = 'background-color:#540101;color:#dbe2ff;font-weight:500';
 
         this.buttons();
         this.stream();
@@ -227,10 +238,10 @@ export class Debug {
         let localStream = undefined;
         let $localVideo = $('#local-video');
         let localVideo = $localVideo.get(0);
-        let deviceId;
+        let _deviceId;
 
         let _pc = {};
-        let _cacheIceList = {};
+        let _iceCache = {};
         let _remoteDescriptionSet = {};
 
         let $btnStartStream = $('#btn-start-stream');
@@ -239,15 +250,21 @@ export class Debug {
         // attach events
         window.onbeforeunload = function () {
             console.log('e: window reload');
+
             stopLocalStream();
         };
 
-        const handleICECandidateEvent = (e, clientId) => {
+        // attach events
+        window.onbeforeunload = function () {
+            console.log('e: window reload');
+            stopLocalStream();
+        };
+
+        const handleICECandidateEvent = (e, clientId, deviceId) => {
             if (e.candidate) {
                 const topic = `${deviceId}/ice/${clientId}`;
 
-                console.log('[debug] sending local ICE candidate back to other peer');
-                console.log('[mqtt_service] publish: ' + topic);
+                console.log('[debug] sending local ICE candidate back to other peer', topic);
 
                 this.mqttClient.publish(topic, JSON.stringify(e.candidate));
             }
@@ -280,26 +297,35 @@ export class Debug {
         // Accept an offer to video chat. We configure our local settings,
         // create our RTCPeerConnection, get and attach our local camera
         // stream, then create and send an answer to the caller.
-        const handleOfferMessage = async (clientId, offer) => {
+        const handleOfferMessage = async (clientId, deviceId, offer) => {
             const sdp = JSON.parse(offer);
 
             if (!sdp || sdp.type !== 'offer') {
                 return;
             }
 
-            console.log('[debug] received remote offer SDP - client_id : ' + clientId);
+            console.log('');
+            console.log(
+                '[debug] %cgot remote offer SDP - client_id : ' +
+                    clientId +
+                    ', device_id: ' +
+                    deviceId,
+                this.colorReceived
+            );
 
             // this.mqttClient.unsubscribe(`${deviceId}/sdp/+/offer`);
             // console.log('[mqtt_service] unsubscribe: ' + `${deviceId}/sdp/+/offer`);
 
             console.log('[debug] initializing webrtc connection');
 
-            _remoteDescriptionSet[clientId] = false;
-            _cacheIceList[clientId] = [];
+            const key = deviceId + '___' + clientId;
 
-            _pc[clientId] = new RTCPeerConnection({ iceCandidatePoolSize: 10 });
-            // _pc[clientId].addTransceiver('video', { direction: 'sendonly' });
-            // _pc[clientId].addTransceiver('audio', { direction: 'sendonly' });
+            _remoteDescriptionSet[key] = false;
+            _iceCache[key] = [];
+
+            _pc[key] = new RTCPeerConnection();
+            //_pc[key].addTransceiver('video', { direction: 'sendonly' });
+            //_pc[key].addTransceiver('audio', { direction: 'sendonly' });
 
             console.log('[debug] adding tracks to the RTCPeerConnection');
 
@@ -307,30 +333,30 @@ export class Debug {
             // video. even though we're just using the video track, we should
             // add all tracks to the webrtc connection
             for (const track of localStream.getTracks()) {
-                console.log(localStream);
-                _pc[clientId]?.addTrack(track, localStream);
+                _pc[key]?.addTrack(track, localStream);
             }
 
-            _pc[clientId].onicecandidate = e => handleICECandidateEvent(e, clientId);
-            _pc[clientId].onremovestream = handleRemoveStreamEvent;
-            _pc[clientId].oniceconnectionstatechange = handleICEConnectionStateChangeEvent;
-            _pc[clientId].onicegatheringstatechange = e =>
-                handleICEGatheringStateChangeEvent(e, clientId);
-            _pc[clientId].onsignalingstatechange = handleSignalingStateChangeEvent;
-            _pc[clientId].onnegotiationneeded = handleNegotiationNeededEvent;
-            _pc[clientId].ontrack = handleTrackEvent;
+            _pc[key].onicecandidate = e => handleICECandidateEvent(e, clientId, deviceId);
+            _pc[key].onremovestream = handleRemoveStreamEvent;
+            _pc[key].oniceconnectionstatechange = e =>
+                handleICEConnectionStateChangeEvent(e, clientId, deviceId);
+            _pc[key].onicegatheringstatechange = e =>
+                handleICEGatheringStateChangeEvent(e, clientId, deviceId);
+            _pc[key].onsignalingstatechange = handleSignalingStateChangeEvent;
+            _pc[key].onnegotiationneeded = handleNegotiationNeededEvent;
+            _pc[key].ontrack = handleTrackEvent;
 
-            _pc[clientId]
+            _pc[key]
                 .setRemoteDescription(sdp)
                 .then(() => {
-                    _remoteDescriptionSet[clientId] = true;
+                    _remoteDescriptionSet[key] = true;
 
                     console.log('[debug] creating answer');
                     // Now that we've successfully set the remote description, we need to
                     // start our stream up locally then create an SDP answer. This SDP
                     // data describes the local end of our call, including the codec
                     // information, options agreed upon, and so forth.
-                    return _pc[clientId].createAnswer();
+                    return _pc[key].createAnswer();
                 })
                 .then(answer => {
                     console.log('[debug] setting local description');
@@ -338,18 +364,19 @@ export class Debug {
                     // We now have our answer, so establish that as the local description.
                     // This actually configures our end of the call to match the settings
                     // specified in the SDP.
-                    return _pc[clientId].setLocalDescription(answer);
+                    return _pc[key].setLocalDescription(answer);
                 })
                 .then(() => {
                     // We've configured our end of the call now. Time to send our
                     // answer back to the caller so they know that we want to talk
                     // and how to talk to us.
 
-                    console.log('[debug] sending answer back to other peer');
-
                     const topic = `${deviceId}/sdp/${clientId}`;
-                    console.log('[mqtt_service] publish: ' + topic, _pc[clientId].localDescription);
-                    this.mqttClient.publish(topic, JSON.stringify(_pc[clientId].localDescription));
+
+                    console.log('[debug] sending answer back to other peer');
+                    console.log('[mqtt_service] publish: ' + topic);
+
+                    this.mqttClient.publish(topic, JSON.stringify(_pc[key].localDescription));
                 })
                 .catch(handleGetUserMediaError);
         };
@@ -357,14 +384,13 @@ export class Debug {
         // A new ICE candidate has been received from the other peer. Call
         // RTCPeerConnection.addIceCandidate() to send it along to the
         // local ICE framework.
-        const handleRemoteIceCandidate = (clientId, message) => {
+        const handleRemoteIceCandidate = (clientId, deviceId, message) => {
             let ice = JSON.parse(message);
+            const key = deviceId + '___' + clientId;
 
             if (ice && ice.candidate) {
                 const descSet =
-                    _remoteDescriptionSet[clientId] !== undefined
-                        ? _remoteDescriptionSet[clientId]
-                        : false;
+                    _remoteDescriptionSet[key] !== undefined ? _remoteDescriptionSet[key] : false;
 
                 console.log(
                     '[debug] got remote ICE (remote description set: ' +
@@ -373,21 +399,21 @@ export class Debug {
                 );
 
                 if (descSet === true) {
-                    _pc[clientId].addIceCandidate(new RTCIceCandidate(ice));
+                    _pc[key].addIceCandidate(new RTCIceCandidate(ice));
 
-                    if (_cacheIceList[clientId] !== undefined) {
-                        while (_cacheIceList[clientId].length > 0) {
-                            const ice = _cacheIceList[clientId].shift();
+                    if (_iceCache[key] !== undefined) {
+                        while (_iceCache[key].length > 0) {
+                            const ice = _iceCache[key].shift();
                             console.log('[debug] adding cached remote ICE');
-                            _pc[clientId].addIceCandidate(new RTCIceCandidate(ice));
+                            _pc[key].addIceCandidate(new RTCIceCandidate(ice));
                         }
                     }
                 } else {
-                    if (_cacheIceList[clientId] === undefined) {
-                        _cacheIceList[clientId] = [];
+                    if (_iceCache[key] === undefined) {
+                        _iceCache[key] = [];
                     }
 
-                    _cacheIceList[clientId].push(ice);
+                    _iceCache[key].push(ice);
                 }
             }
         };
@@ -402,10 +428,17 @@ export class Debug {
         // We don't need to do anything when this happens, but we log it to the
         // console so you can see what's going on when playing with the sample.
 
-        function handleICEGatheringStateChangeEvent(event, clientId) {
+        function handleICEGatheringStateChangeEvent(event, clientId, deviceId) {
             console.log(
                 '[debug] ICE gathering state changed to: ' + event.target.iceGatheringState
             );
+
+            if (event.target.iceGatheringState === 'complete') {
+                const key = deviceId + '___' + clientId;
+
+                _remoteDescriptionSet[key] = false;
+                _iceCache[key] = [];
+            }
         }
 
         // Called by the WebRTC layer when events occur on the media tracks
@@ -428,7 +461,7 @@ export class Debug {
         //
         // This is called when the state of the ICE agent changes.
 
-        function handleICEConnectionStateChangeEvent(event) {
+        function handleICEConnectionStateChangeEvent(event, clientId, deviceId) {
             console.log(
                 '[debug] ICE connection state changed to ' + event.target.iceConnectionState
             );
@@ -437,7 +470,10 @@ export class Debug {
                 case 'closed':
                 case 'failed':
                 case 'disconnected':
-                    closeVideoCall();
+                    const key = deviceId + '___' + clientId;
+
+                    _remoteDescriptionSet[key] = false;
+                    _iceCache[key] = [];
                     break;
             }
         }
@@ -460,15 +496,6 @@ export class Debug {
             }
         }
 
-        // Close the RTCPeerConnection and reset variables so that the user can
-        // make or receive another call if they wish. This is called both
-        // when the user hangs up, the other user hangs up, or if a connection
-        // failure is detected.
-
-        function closeVideoCall() {
-            return;
-        }
-
         // Handle errors which occur when trying to access the local media
         // hardware; that is, exceptions thrown by getUserMedia(). The two most
         // likely scenarios are that the user has no camera and/or microphone
@@ -485,12 +512,8 @@ export class Debug {
             closeVideoCall();
         }
 
-        const stopLocalStream = () => {
+        const stopLocalStream = deviceId => {
             console.log('f: stopLocalStream()', localStream);
-
-            _pc = {};
-            _remoteDescriptionSet = {};
-            _cacheIceList = {};
 
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
@@ -499,14 +522,17 @@ export class Debug {
 
             localVideo.srcObject = null;
 
-            for (const clientId in _pc) {
-                const val = _pc[clientId];
+            for (const key in _pc) {
+                const val = _pc[key];
 
                 if (val) {
                     val.close();
-                    delete _pc[clientId];
                 }
             }
+
+            _pc = {};
+            _remoteDescriptionSet = {};
+            _iceCache = {};
 
             $localVideo.hide();
             $btnStopStream.hide();
@@ -529,10 +555,11 @@ export class Debug {
                 return;
             }
 
-            deviceId = this.getSelectedDeviceId();
+            const deviceId = this.getSelectedDeviceId();
 
+            _pc = {};
             _remoteDescriptionSet = {};
-            _cacheIceList = [];
+            _iceCache = {};
 
             $btnStartStream.attr('disabled', 'disabled');
 
@@ -567,16 +594,16 @@ export class Debug {
 
                     this.mqttClient.on('message', (topic, message) => {
                         const msg = message ? message.toString() : null;
-                        let found, clientId;
+                        let found;
 
                         found = topic.match(this.topicRegex['web_rtc_sdp_offer']);
                         if (found) {
-                            handleOfferMessage(found[1], msg);
+                            handleOfferMessage(found[2], found[1], msg);
                         }
 
                         found = topic.match(this.topicRegex['web_rtc_ice_offer']);
                         if (found) {
-                            handleRemoteIceCandidate(found[1], msg);
+                            handleRemoteIceCandidate(found[2], found[1], msg);
                         }
                     });
 
@@ -602,8 +629,10 @@ export class Debug {
         $btnStopStream.on('click', e => {
             e.preventDefault();
 
+            let deviceId = this.getSelectedDeviceId();
+
             // mqtt connection
-            stopLocalStream();
+            stopLocalStream(deviceId);
 
             // stop sending status messages
             if (deviceStatusTimer) {

@@ -98,7 +98,7 @@ export class MapView {
 
                 // camera gps
                 if (topic.match(gpsRegex)) {
-                    this.newMapObject(payload);
+                    this.devicGpsHandler(payload);
                 }
 
                 // panic button
@@ -210,18 +210,20 @@ export class MapView {
 
     initWorkers() {
         worker('map_markers', 5000, () => {
-            let objects = [...Object.values(this._mapObjects)];
             let now = getTimestamp();
+            const keys = Object.keys(this._mapObjects);
 
-            for (const obj of objects) {
-                const delta = now - obj.ts;
+            if (keys.length) {
+                for (const deviceId of keys) {
+                    const device = this._mapObjects[deviceId];
+                    const delta = now - device.ts;
 
-                // remove old map object
-                if (delta > this.MARKER_TIMEOUT) {
-                    this.debug('[map] removing map object...');
+                    // remove old map object
+                    if (delta > this.MARKER_TIMEOUT) {
+                        this.debug('[map] removing map object...');
 
-                    this.destroyPiCamera(obj.device_id);
-                    //this.removeMapObject(obj.device_id);
+                        this.removeMapMapObject(device.device_id);
+                    }
                 }
             }
         });
@@ -287,7 +289,7 @@ export class MapView {
                         }
                     },
                     onShow: () => {
-                        this.fitBounds([-420, 0]);
+                        //this.fitBounds([-420, 0]);
                         this.initPiCamera(deviceId, true);
                     },
                     onHide: data => {
@@ -371,11 +373,6 @@ export class MapView {
             } else {
                 this._modalRefs[deviceId].show();
             }
-
-            // $appModal.draggable({
-            //     helper: 'modal-win-header',
-            //     containment: $appModal.parent(),
-            // });
         });
     }
 
@@ -398,6 +395,7 @@ export class MapView {
         if (!isObjectEmpty(bounds)) {
             this.map.fitBounds(bounds, {
                 maxZoom: 19,
+                maxNativeZoom: 18,
                 paddingTopLeft: padding,
             });
         } else {
@@ -406,7 +404,7 @@ export class MapView {
     }
 
     // refresh map objects
-    newMapObject(data) {
+    devicGpsHandler(data) {
         var self = this;
 
         if (data && typeof data === 'object') {
@@ -425,7 +423,7 @@ export class MapView {
                 });
 
                 marker.on('contextmenu', function (e) {
-                    self.destroyPiCamera(e.target.options.camera.device_id);
+                    self.removeMapMapObject(e.target.options.camera.device_id);
                     //self.removeMapObject(e.target.options.camera.device_id);
                 });
 
@@ -439,14 +437,14 @@ export class MapView {
                 this.debug('[map] new map object', data);
                 marker.getElement().classList.add('css-icon');
 
+                if (this.mapFitBounds === true) {
+                    this.fitBounds();
+                }
+
                 // update position
             } else {
                 this.debug('[map] map object update - gps', data);
                 this._markersRef[deviceId].setLatLng(data.gps);
-            }
-
-            if (this.mapFitBounds === true) {
-                this.fitBounds();
             }
 
             // store object reference
@@ -485,8 +483,6 @@ export class MapView {
                 );
 
                 // attach video reference to the camera
-                console.log('video-' + deviceId);
-                console.log(document.getElementById('video-' + deviceId));
                 this._piCameraRefs[deviceId].attach(document.getElementById('video-' + deviceId));
             }
 
@@ -497,7 +493,7 @@ export class MapView {
         }
     }
 
-    destroyPiCamera(deviceId) {
+    removeMapMapObject(deviceId) {
         if (deviceId && deviceId.length) {
             // camera
             if (this._piCameraRefs[deviceId] !== undefined) {
@@ -509,6 +505,11 @@ export class MapView {
             if (this._modalRefs[deviceId] !== undefined) {
                 this._modalRefs[deviceId].destroy();
                 delete this._modalRefs[deviceId];
+            }
+
+            // map object reference
+            if (this._mapObjects[deviceId] !== undefined) {
+                delete this._mapObjects[deviceId];
             }
         }
     }

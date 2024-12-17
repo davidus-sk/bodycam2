@@ -277,8 +277,8 @@ export class PiCamera {
 
                 const offer = await peer.createOffer({
                     //iceRestart: true,
-                    offerToReceiveAudio: true,
-                    offerToReceiveVideo: true,
+                    // offerToReceiveAudio: true,
+                    // offerToReceiveVideo: true,
                 });
 
                 // set the generated SDP to be our local session description
