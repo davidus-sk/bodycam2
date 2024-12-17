@@ -120,7 +120,11 @@ export class Video {
                 // device disconnected
                 if (!this.isDeviceConnected(deviceId)) {
                     this.debug('[video] camera already in the grid - not connected - reconnect');
-                    this.getDeviceData(deviceId)?.picamera?.reconnect();
+                    this.getDeviceData(deviceId)?.picamera?.terminate();
+
+                    setTimeout(() => {
+                        this.getDeviceData(deviceId)?.picamera?.connect();
+                    }, 1000);
                 }
             } else {
                 this.debug('[video] new device');
