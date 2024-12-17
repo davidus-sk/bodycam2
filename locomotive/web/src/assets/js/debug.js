@@ -65,7 +65,8 @@ export class Debug {
         let config = {};
 
         config.iceServers = [];
-        config.iceCandidatePoolSize = 5;
+        config.iceCandidatePoolSize = 1;
+        config.bundlePolicy = 'max-bundle';
 
         // STUN servers
         if (this.options.camera.stunUrls && this.options.camera.stunUrls.length > 0) {

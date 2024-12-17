@@ -133,8 +133,8 @@ export class PiCamera {
             this.mqttClient.subscribe(sdpTopic, this.handleSdpMessage);
             this.mqttClient.subscribe(iceTopic, this.handleIceMessage);
 
-            this.debug('[mqtt_service] subscribe: ' + sdpTopic);
-            this.debug('[mqtt_service] subscribe: ' + iceTopic);
+            this.debug('[picamera] mqtt subscribe: ' + sdpTopic);
+            this.debug('[picamera] mqtt subscribe: ' + iceTopic);
 
             //self.video.onplaying = onPlaying;
             // self.$video.on("ended", onEnded);
@@ -165,7 +165,7 @@ export class PiCamera {
 
             // const topic = this.constructTopic(MQTT_SDP_TOPIC, '/offer');
             // this.debug('[picamera] sending offer to remote peer');
-            // this.debug('[mqtt_service] publish: ' + topic);
+            // this.debug('[picamera] mqtt publish: ' + topic);
             // this.mqttClient.publish(topic, JSON.stringify(offer));
 
             this.rtcTimer = setTimeout(() => {
@@ -190,7 +190,8 @@ export class PiCamera {
         let config = {};
 
         config.iceServers = [];
-        config.iceCandidatePoolSize = 5;
+        config.iceCandidatePoolSize = 1;
+        config.bundlePolicy = 'max-bundle';
 
         // STUN servers
         if (this.options.stunUrls && this.options.stunUrls.length > 0) {
@@ -287,7 +288,7 @@ export class PiCamera {
 
                 const topic = this.constructTopic(MQTT_SDP_TOPIC, '/offer');
                 this.debug('[picamera] sending offer to remote peer');
-                this.debug('[mqtt_service] publish: ' + topic);
+                this.debug('[picamera] mqtt publish: ' + topic);
                 this.mqttClient.publish(topic, JSON.stringify(peer.localDescription));
             } catch (err) {
                 console.error(err);
