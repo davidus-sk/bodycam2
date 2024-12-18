@@ -169,7 +169,7 @@ export class PiCamera {
                 this.onTimeout();
             }
 
-            this.terminate();
+            this.reconnect();
         }, this.options.timeout);
     }
 
