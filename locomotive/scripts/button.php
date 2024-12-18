@@ -45,6 +45,8 @@ $mqtt->connect($connectionSettings, $clean_session);
 
 $mqtt->subscribe('device/+/button', function ($topic, $message) {
     printf("Received message on topic [%s]: %s\n", $topic, $message);
+	$command = dirname(__FILE__) . '/relay.py';
+	`$command`;
 }, 0);
 
 $mqtt->loop(true);
