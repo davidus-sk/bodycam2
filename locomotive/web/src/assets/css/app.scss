@@ -1,4 +1,4 @@
-$sidebarWidth: 100px;
+$sidebarWidth: 90px;
 
 body {
     padding: 0;
@@ -46,13 +46,14 @@ a {
     margin-top: 80px;
     margin-bottom: 10px;
     padding: 0 10px;
+    list-style: none;
 
     li + li {
         margin-top: 8px;
     }
 }
 .sidebar-menu-item {
-    padding: 12px 10px;
+    padding: 8px 5px;
     text-decoration: none;
     display: flex;
     flex-direction: column;
@@ -61,6 +62,10 @@ a {
     color: #dbe2ff;
     font-size: 1rem;
     border-radius: 4px;
+
+    .label {
+        font-size: 0.9rem;
+    }
 
     &:hover,
     &:focus {
@@ -93,8 +98,8 @@ a {
         content: '';
         position: absolute;
         top: calc(50% - 2px);
-        left: 30%;
-        width: 40%;
+        left: calc($sidebarWidth/2) - calc(30 / 2);
+        width: 30px;
         height: 3px;
         background-color: #727c7e;
         border-radius: 3px;
