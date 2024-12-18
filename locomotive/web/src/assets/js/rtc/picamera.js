@@ -119,12 +119,12 @@ export class PiCamera {
 
         // camera status
         if (this.getStatus() === 'failed') {
-            this.terminate();
-            setTimeout(() => {
-                this.connect();
-            }, 1000);
+            // this.terminate();
+            // setTimeout(() => {
+            //     this.connect();
+            // }, 1000);
 
-            //this.rtcPeer.restartIce();
+            this.rtcPeer.restartIce();
         } else {
             // create webrtc peer connection
             this.rtcPeer = await this.createPeer();
@@ -384,7 +384,7 @@ export class PiCamera {
     }
 
     terminate() {
-        console.trace('[picamera] terminate');
+        this.debug('[picamera] terminate');
 
         clearTimeout(this.rtcTimer);
         this.rtcTimer = undefined;
