@@ -6,7 +6,6 @@ export class Video {
     options = {};
 
     _devices = {};
-    debugMode = true;
 
     VIDEO_TIMEOUT = 120;
 
@@ -34,7 +33,7 @@ export class Video {
         };
 
         // debug
-        if (this.debugMode === true && typeof console != 'undefined') {
+        if (this.options.debug === true && typeof console != 'undefined') {
             this.debug = console.log.bind(console);
         } else {
             this.debug = function (message) {};
@@ -44,7 +43,7 @@ export class Video {
         this.$grid = $('#video-grid');
 
         // local variables
-        this.colorReceived = 'background-color:#540101;color:#dbe2ff;font-weight:500';
+        this.bgLightGreen = 'font-weight:500;background-color:#ccff33;color:#004b23;';
 
         // regex map
         const deviceIdPattern = 'device-[0-9a-fA-F]{16}';
@@ -106,7 +105,7 @@ export class Video {
     receivedDeviceStatus(payload) {
         const deviceId = payload.device_id ?? null;
 
-        this.debug('[video] mqtt message: %cdevice/+/status', this.colorReceived, payload);
+        this.debug('[video] %cmqtt message:', this.bgLightGreen, 'device/+/status', payload);
 
         if (deviceId && deviceId.length) {
             // camera is already in reference list, check time
