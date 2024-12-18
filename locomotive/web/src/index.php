@@ -4,7 +4,7 @@ include_once 'bootstrap.php';
 include_once 'class/Config.php';
 
 // assets
-define('ASSETS_VERSION', '20241217-2128');
+define('ASSETS_VERSION', '20241218-001');
 
 // views
 define('VIEW', !empty($_GET['r']) ? $_GET['r'] : 'video');
