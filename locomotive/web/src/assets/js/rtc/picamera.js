@@ -38,7 +38,6 @@ export class PiCamera {
     rtcPeer = undefined;
     makingOffer = false;
     ignoreOffer = false;
-    politePeer = true;
     dataChannel = undefined;
     localStream = undefined;
     remoteStream = undefined;
@@ -118,16 +117,14 @@ export class PiCamera {
             this.mqttClientId = this.mqttClient.client.options.clientId;
         }
 
-        clearTimeout(this.rtcTimer);
-        this.rtcTimer = undefined;
-
-        this.makingOffer = false;
-        this.cacheIceList = [];
-        this.ignoreOffer = false;
-
         // camera status
         if (this.getStatus() === 'failed') {
-            this.reconnect();
+            this.terminate();
+            setTimeout(() => {
+                this.connect();
+            }, 1000);
+
+            //this.rtcPeer.restartIce();
         } else {
             // create webrtc peer connection
             this.rtcPeer = await this.createPeer();
@@ -142,6 +139,38 @@ export class PiCamera {
 
             this.debug('[picamera] mqtt subscribe: ' + sdpTopic);
             this.debug('[picamera] mqtt subscribe: ' + iceTopic);
+
+            //self.video.onplaying = onPlaying;
+            // self.$video.on("ended", onEnded);
+            // self.$video.on("loadeddata", onLoadedData);
+            // self.$video.on("loadedmetadata", onLoadedMetadata);
+            // self.$video.on("loadstart", loadstart);
+            // self.$video.on("playing", onPlaying);
+            // self.$video.on("suspend", onSuspend);
+            // self.$video.on("error", onError);
+            // self.$video.on("abort", onAbort);
+            // self.$video.on("volumechange", onVolumeChange);
+            // self.$video.on("muted", onMuted);
+
+            // Create offer generates a blob of description data to
+            // facilitate a PeerConnection to the local machine.
+            // Use this when you've got a remote Peer connection
+            // and you want to set up the local one.
+            // this.debug('[picamera] creating SDP offer');
+            // const offer = await this.rtcPeer.createOffer({
+            //     //iceRestart: true,
+            //     offerToReceiveAudio: true,
+            //     offerToReceiveVideo: true,
+            // });
+
+            // set the generated SDP to be our local session description
+            // this.debug('[picamera] setting local description');
+            // await this.rtcPeer?.setLocalDescription(offer);
+
+            // const topic = this.constructTopic(MQTT_SDP_TOPIC, '/offer');
+            // this.debug('[picamera] sending offer to remote peer');
+            // this.debug('[picamera] mqtt publish: ' + topic);
+            // this.mqttClient.publish(topic, JSON.stringify(offer));
 
             this.rtcTimer = setTimeout(() => {
                 let state = this.rtcPeer?.connectionState;
@@ -186,11 +215,23 @@ export class PiCamera {
     }
 
     createPeer = async () => {
-        const pc = new RTCPeerConnection(this.getRtcConfig());
-        pc.addTransceiver('video', { direction: 'recvonly' });
-        pc.addTransceiver('audio', { direction: 'recvonly' });
+        const peer = new RTCPeerConnection(this.getRtcConfig());
 
-        pc.ontrack = e => {
+        // local stream
+        // this.localStream = await navigator.mediaDevices.getUserMedia({
+        //     audio: true,
+        //     video: false,
+        // });
+
+        // this.localStream.getAudioTracks().forEach(track => {
+        //     peer.addTrack(track, this.localStream);
+        //     track.enabled = this.options.isMicOn ?? false;
+        // });
+
+        peer.addTransceiver('video', { direction: 'recvonly' });
+        peer.addTransceiver('audio', { direction: 'recvonly' });
+
+        peer.ontrack = e => {
             this.debug('[picamera] %cnew track added', self.bgRed);
 
             this.remoteStream = new MediaStream();
@@ -218,31 +259,32 @@ export class PiCamera {
             }
         };
 
-        pc.onicecandidate = e => {
+        peer.onicecandidate = e => {
             //this.debug('e: onicecandidate - candidate: ' + (e.candidate ? 'yes' : 'no'));
             if (e.candidate && this.mqttClient?.isConnected()) {
                 const topic = this.constructTopic(MQTT_ICE_TOPIC, '/offer');
 
-                this.debug('[picamera] sending ICE candidate to the remote peer - ' + topic);
+                this.debug('[picamera] publish: ' + topic);
                 this.mqttClient.publish(topic, JSON.stringify(e.candidate));
             }
         };
 
-        pc.onnegotiationneeded = async () => {
+        peer.onnegotiationneeded = async () => {
             this.debug('[picamera] webrtc event - %connegotiationneeded', this.bgBlue);
 
             try {
-                //const offer = await pc.createOffer();
                 this.makingOffer = true;
+
+                const offer = await peer.createOffer();
 
                 // set the generated SDP to be our local session description
                 this.debug('[picamera] setting local description');
-                await pc.setLocalDescription();
+                await peer.setLocalDescription(offer);
 
                 const topic = this.constructTopic(MQTT_SDP_TOPIC, '/offer');
-                this.debug('[picamera] sending offer to the remote peer - ' + topic);
-
-                this.mqttClient.publish(topic, JSON.stringify(pc.localDescription));
+                this.debug('[picamera] sending offer to remote peer');
+                this.debug('[picamera] mqtt publish: ' + topic);
+                this.mqttClient.publish(topic, JSON.stringify(peer.localDescription));
             } catch (err) {
                 console.error(err);
             } finally {
@@ -250,17 +292,19 @@ export class PiCamera {
             }
         };
 
-        pc.oniceconnectionstatechange = () => {
-            if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        peer.oniceconnectionstatechange = () => {
+            if (
+                peer.iceConnectionState === 'failed' ||
+                peer.iceConnectionState === 'disconnected'
+            ) {
                 this.debug('[picamera] negotiation failed - restarting');
-                pc.restartIce();
-            } else if (pc.iceConnectionState === 'disconnected') {
+                //peer.restartIce();
                 this.reconnect();
             }
         };
 
         /*
-        this.dataChannel = pc.createDataChannel(generateClientId(10), {
+        this.dataChannel = peer.createDataChannel(generateClientId(10), {
             negotiated: true,
             ordered: true,
             id: 0,
@@ -288,26 +332,26 @@ export class PiCamera {
         */
 
         // The connectionState read-only property of the RTCPeerConnection interface
-        // indicates the current state of the pc connection by returning one of the
+        // indicates the current state of the peer connection by returning one of the
         // following string values: new, connecting, connected, disconnected, failed,
         // or closed.
-        pc.onconnectionstatechange = () => {
-            this.debug('[picamera] webrtc event - connectionstatechange: ' + pc.connectionState);
+        peer.onconnectionstatechange = () => {
+            this.debug('[picamera] webrtc event - connectionstatechange: ' + peer.connectionState);
 
             // event
-            this.onConnectionState?.(pc.connectionState);
+            this.onConnectionState?.(peer.connectionState);
 
-            if (pc.connectionState === 'connected') {
-            } else if (pc.connectionState === 'failed') {
+            if (peer.connectionState === 'connected') {
+            } else if (peer.connectionState === 'failed') {
                 this.reconnect();
             }
         };
 
-        pc.onsignalingstatechange = e => {
-            this.debug('[picamera] webrtc event - onsignalingstatechange: ' + pc.signalingState);
+        peer.onsignalingstatechange = e => {
+            this.debug('[picamera] webrtc event - onsignalingstatechange: ' + peer.signalingState);
         };
 
-        return pc;
+        return peer;
     };
 
     reconnect() {
@@ -347,7 +391,6 @@ export class PiCamera {
 
         this.makingOffer = false;
         this.cacheIceList = [];
-        this.ignoreOffer = false;
 
         if (this.dataChannel) {
             if (this.dataChannel.readyState === 'open') {
@@ -477,55 +520,26 @@ export class PiCamera {
         }
     };
 
-    handleSdpMessage = async message => {
-        const description = JSON.parse(message);
-        if (!description) {
+    handleSdpMessage = message => {
+        if (this.makingOffer === true) {
             return;
         }
 
-        this.debug('[picamera] got remote SDP: ', description);
+        const sdp = JSON.parse(message);
+        const topic = this.constructTopic(MQTT_SDP_TOPIC);
 
-        const offerCollision =
-            description.type === 'offer' &&
-            (this.makingOffer || this.rtcPeer?.signalingState !== 'stable');
+        this.debug('[picamera] got remote SDP: ' + topic, sdp);
 
-        this.ignoreOffer = !this.politePeer && offerCollision;
-        if (this.ignoreOffer) {
-            return;
-        }
-
-        //const topic = this.constructTopic(MQTT_SDP_TOPIC);
-        //await this.rtcPeer?.setRemoteDescription(new RTCSessionDescription(sdp));
-        await this.rtcPeer?.setRemoteDescription(description);
+        this.rtcPeer?.setRemoteDescription(new RTCSessionDescription(sdp));
     };
 
-    handleIceMessage = async message => {
-        const candidate = JSON.parse(message);
-        if (!candidate) {
-            return;
-        }
+    handleIceMessage = message => {
+        const ice = JSON.parse(message);
+        //this.debug('e: handleIceMessage');
 
         const topic = this.constructTopic(MQTT_ICE_TOPIC);
         this.debug('[picamera] got remote ICE: ' + topic);
 
-        try {
-            if (this.rtcPeer?.currentRemoteDescription) {
-                await this.rtcPeer?.addIceCandidate(candidate);
-
-                while (this.cacheIceList.length > 0) {
-                    const cachedCandidate = this.cacheIceList.shift();
-                    await this.rtcPeer.addIceCandidate(cachedCandidate);
-                }
-            } else {
-                this.cacheIceList.push(candidate);
-            }
-        } catch (err) {
-            if (!this.ignoreOffer) {
-                throw err;
-            }
-        }
-
-        /*
         if (this.rtcPeer?.currentRemoteDescription) {
             this.rtcPeer.addIceCandidate(new RTCIceCandidate(ice));
 
@@ -536,6 +550,5 @@ export class PiCamera {
         } else {
             this.cacheIceList.push(ice);
         }
-        */
     };
 }
