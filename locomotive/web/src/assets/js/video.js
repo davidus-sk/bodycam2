@@ -79,15 +79,11 @@ export class Video {
 
             // received camera status
             this.debug('[video] subscribe: device/+/status');
-            this.mqtt.unsubscribe('device/+/status');
             this.mqtt.subscribe('device/+/status');
 
             // got the message
-            this.mqtt.off('message');
             this.mqtt.on('message', (topic, message) => {
-                let payload = message?.toString() ?? null;
-                //this.debug('e: message', topic, payload.substring(0, 50) + '...');
-                payload = JSON.parse(payload);
+                let payload = JSON.parse(message?.toString());
 
                 if (payload) {
                     // camera status
@@ -122,7 +118,7 @@ export class Video {
 
             // device disconnected
             if (!this.isDeviceConnected(deviceId)) {
-                this.debug('[video] camera already in the grid - not connected - reconnect');
+                this.debug('[video] camera not connected - reconnect');
 
                 // reconnect picamera
                 this.getDeviceData(deviceId)?.picamera?.reconnect();

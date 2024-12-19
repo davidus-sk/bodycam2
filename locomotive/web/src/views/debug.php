@@ -26,6 +26,9 @@ if (!$deviceId) {
     <div class="d-grid gap-3 d-md-block">
         <button id="btn-start-stream" type="button" class="btn btn-lg btn-secondary" data-mqtt="1" disabled>Stream - Start</button>
         <button id="btn-stop-stream" type="button" class="btn btn-lg btn-danger" style="display: none;" data-mqtt="1" disabled>Stream - Stop</button>
+
+        <button id="btn-resume-stream" type="button" class="btn btn-lg btn-secondary ms-md-2" data-mqtt="1" style="display: none;" disabled>Stream - Resume</button>
+        <button id="btn-pause-stream" type="button" class="btn btn-lg btn-secondary ms-md-2" style="display: none;" data-mqtt="1" style="display: none;" disabled>Stream - Pause</button>
     </div>
 
     <video id="local-video" class="mt-3" style="display: none; width:100%; height: 250px; max-width: 340px;" playsinline autoplay muted></video>

@@ -4,9 +4,13 @@ import { MqttClient } from './mqtt/client.js';
 
 export class App {
     options = {};
-    liveDevices = [];
 
     LIVE_DEVICE_TIMEOUT = 120;
+
+    mqtt = undefined;
+    mqttClientId = undefined;
+
+    _connectedDevices = [];
 
     constructor(options) {
         this.options = this.initializeOptions(options);
@@ -23,9 +27,9 @@ export class App {
 
         // attach events
         window.onbeforeunload = function () {
-            if (this.mqttClient) {
-                this.mqttClient.disconnect();
-                this.mqttClient = null;
+            if (this.mqtt) {
+                this.mqtt.disconnect();
+                this.mqtt = null;
             }
         };
 
@@ -35,9 +39,6 @@ export class App {
 
         // mqtt
         this.initMqtt();
-        setTimeout(() => {
-            this.mqttClient.connect();
-        }, 500);
 
         // sidebar
         this.sidebar();
@@ -56,36 +57,40 @@ export class App {
 
     initMqtt() {
         // init mqtt client
-        if (this.mqttClient) {
-            if (this.mqttClient.isConnected()) {
-                this.mqttClient.disconnect();
+        if (this.mqtt) {
+            if (this.mqtt.isConnected()) {
+                this.mqtt.disconnect();
             }
         }
 
-        this.mqttClient = new MqttClient(this.options.mqtt);
+        this.mqtt = new MqttClient(this.options.mqtt);
+        this.mqtt.on('connect', () => this.mqttConnected());
+        this.mqtt.on('disconnect', () => this.mqttDisconnected());
 
-        this.mqttClient.on('connect', () => this.mqttConnected());
-        this.mqttClient.on('disconnect', () => this.mqttDisconnected());
+        setTimeout(() => {
+            this.mqtt.connect();
+        }, 500);
     }
 
     getMqttClient() {
-        return this.mqttClient;
+        return this.mqtt;
     }
 
     mqttConnected() {
-        this.debug('[app] mqtt connected - client id: ' + this.mqttClient.client.options.clientId);
+        this.debug('[app] mqtt connected - client id: ' + this.mqtt.client.options.clientId);
         this.$mqttStatus.addClass('connected').html('ONLINE');
 
-        this.liveDevices = [];
-        this.mqttClient.subscribe('device/+/status');
-        this.mqttClient.on('message', (topic, message) => {
-            const data = JSON.parse(message);
+        this._connectedDevices = new Array();
 
+        this.mqtt.subscribe('device/+/status');
+
+        this.mqtt.on('message', (topic, message) => {
+            const data = JSON.parse(message);
             if (data && data.device_id) {
-                this.liveDevices[data.device_id] = data.ts;
+                this._connectedDevices[data.device_id] = data.ts;
             }
 
-            this.$mqttStatusCount.html(Object.keys(this.liveDevices).length);
+            this.updateLiveDevicesCount();
         });
     }
 
@@ -93,24 +98,26 @@ export class App {
         this.debug('[app] mqtt disconnected');
         this.$mqttStatus.removeClass('connected').html('OFFLINE');
 
-        this.liveDevices = [];
+        this._connectedDevices = [];
+
+        this.updateLiveDevicesCount();
     }
 
     initWorkers() {
         worker('live_devices', 5000, () => {
             let now = getTimestamp();
 
-            for (const deviceId in this.liveDevices) {
-                const deviceTs = this.liveDevices[deviceId];
+            for (const deviceId in this._connectedDevices) {
+                const deviceTs = this._connectedDevices[deviceId];
                 const delta = now - deviceTs;
 
                 // remove old map object
                 if (delta > this.LIVE_DEVICE_TIMEOUT) {
-                    delete this.liveDevices[deviceId];
+                    delete this._connectedDevices[deviceId];
                 }
             }
 
-            this.$mqttStatusCount.html(Object.keys(this.liveDevices).length);
+            this.updateLiveDevicesCount();
         });
     }
 
@@ -129,5 +136,10 @@ export class App {
                 sidebarHide = true;
             }
         });
+    }
+
+    updateLiveDevicesCount() {
+        // update count in sidebar
+        this.$mqttStatusCount.html(Object.keys(this._connectedDevices).length);
     }
 }

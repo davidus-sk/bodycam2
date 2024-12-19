@@ -102,7 +102,7 @@ export class Debug {
     }
 
     mqttDisconnected() {
-        this.debug('e: mqtt disconnected');
+        this.debug('[debug] mqtt disconnected');
 
         $('[data-mqtt=1]').attr('disabled', 'disabled');
     }
@@ -268,7 +268,6 @@ export class Debug {
         let localStream = undefined;
         let $localVideo = $('#local-video');
         let localVideo = $localVideo.get(0);
-        let _deviceId;
 
         let _pc = {};
         let _iceCandidateList = {};
@@ -277,11 +276,15 @@ export class Debug {
         let $btnStartStream = $('#btn-start-stream');
         let $btnStopStream = $('#btn-stop-stream');
 
+        let $btnPauseStream = $('#btn-pause-stream');
+        let $btnResumeStream = $('#btn-resume-stream');
+        let deviceStatusTimer;
+
         // attach events
         window.onbeforeunload = function () {
             this.debug('[debug] window reload');
 
-            stopLocalStream();
+            stopStream();
         };
 
         const onicecandidateCallback = (e, clientId, deviceId) => {
@@ -511,8 +514,8 @@ export class Debug {
             closeVideoCall();
         };
 
-        const stopLocalStream = deviceId => {
-            this.debug('f: stopLocalStream()', localStream);
+        const stopStream = deviceId => {
+            this.debug('[debug] stop stream');
 
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
@@ -529,16 +532,43 @@ export class Debug {
                 }
             }
 
+            if (this.mqtt) {
+                this.mqtt.off('message');
+            }
+
+            // stop sending status messages
+            if (deviceStatusTimer) {
+                clearInterval(deviceStatusTimer);
+                deviceStatusTimer = null;
+            }
+
             _pc = {};
             _remoteDescriptionSet = {};
             _iceCandidateList = {};
 
             $localVideo.hide();
+
             $btnStopStream.hide();
+            $btnResumeStream.hide();
+            $btnPauseStream.hide();
             $btnStartStream.attr('disabled', false).show();
         };
 
-        let deviceStatusTimer;
+        const pauseStream = () => {
+            this.debug('[debug] pause stream');
+
+            for (const key in _pc) {
+                const val = _pc[key];
+
+                if (val) {
+                    val.close();
+                }
+            }
+        };
+
+        const resumeStream = () => {
+            this.debug('[debug] resume stream');
+        };
 
         // start stream
         $btnStartStream.on('click', e => {
@@ -575,6 +605,8 @@ export class Debug {
 
                     $btnStartStream.hide();
                     $btnStopStream.show();
+                    $btnResumeStream.hide();
+                    $btnPauseStream.show();
 
                     localStream = stream;
                     localVideo.srcObject = localStream;
@@ -620,25 +652,31 @@ export class Debug {
                 });
         });
 
+        $btnPauseStream.on('click', e => {
+            e.preventDefault();
+
+            $btnPauseStream.hide();
+            $btnResumeStream.show();
+
+            pauseStream();
+        });
+
+        $btnResumeStream.on('click', e => {
+            e.preventDefault();
+
+            $btnResumeStream.hide();
+            $btnPauseStream.show();
+
+            resumeStream();
+        });
+
         $btnStopStream.on('click', e => {
             e.preventDefault();
 
             let deviceId = this.getSelectedDeviceId();
 
             // mqtt connection
-            stopLocalStream(deviceId);
-
-            // stop sending status messages
-            if (deviceStatusTimer) {
-                clearInterval(deviceStatusTimer);
-                deviceStatusTimer = null;
-            }
-
-            $localVideo.hide();
-            $btnStopStream.hide();
-            $btnStartStream.attr('disabled', false).show();
-
-            this.mqtt.off('message');
+            stopStream(deviceId);
         });
     }
 
