@@ -34,6 +34,7 @@ class Config
             $cfg = self::readFile($configPath);
             $cfgDefault = self::readFile($defaultConfigPath);
 
+            // merge
             $cfg = self::merge($cfgDefault, $cfg);
 
             if ($overrideOptions) {
@@ -196,14 +197,19 @@ class Config
 
         while (!empty($args)) {
             foreach (array_shift($args) as $k => $v) {
-                if (is_int($k)) {
+                if ($v instanceof UnsetArrayValue) {
+                    unset($res[$k]);
+                } elseif ($v instanceof ReplaceArrayValue) {
+                    $res[$k] = $v->value;
+                } elseif (is_int($k)) {
                     if (array_key_exists($k, $res)) {
-                        $res[] = $v;
+                        //$res[] = $v;
+                        $res = [ $v ];
                     } else {
                         $res[$k] = $v;
                     }
                 } elseif (is_array($v) && isset($res[$k]) && is_array($res[$k])) {
-                    $res[$k] = !count($v) ? [] : self::merge($res[$k], $v);
+                    $res[$k] = static::merge($res[$k], $v);
                 } else {
                     $res[$k] = $v;
                 }
