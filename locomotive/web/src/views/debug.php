@@ -18,14 +18,14 @@ if (!$deviceId) {
     </div>
     <div class="d-grid gap-3 d-md-block mt-5">
         <button type="button" class="btn btn-lg btn-secondary" data-mqtt="1" data-status="1" disabled>/status</button>
-        <button type="button" class="btn btn-lg btn-secondary" data-mqtt="1" data-status="auto" disabled>/status (AUTO)</button>
+        <button type="button" class="btn btn-lg btn-secondary ms-md-2" data-mqtt="1" data-status="auto" disabled>/status (AUTO)</button>
     </div>
 
     <hr class="my-4" />
 
     <div class="d-grid gap-3 d-md-block">
         <button id="btn-start-stream" type="button" class="btn btn-lg btn-secondary" data-mqtt="1" disabled>Stream - Start</button>
-        <button id="btn-stop-stream" type="button" class="btn btn-lg btn-danger ms-md-2" style="display: none;" data-mqtt="1" disabled>Stream - Stop</button>
+        <button id="btn-stop-stream" type="button" class="btn btn-lg btn-danger" style="display: none;" data-mqtt="1" disabled>Stream - Stop</button>
     </div>
 
     <video id="local-video" class="mt-3" style="display: none; width:100%; height: 250px; max-width: 340px;" playsinline autoplay muted></video>

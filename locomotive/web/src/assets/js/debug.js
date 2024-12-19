@@ -3,14 +3,18 @@ import { getTimestamp } from './functions.js';
 export class Debug {
     options = {};
 
-    constructor(options) {
+    deviceId = undefined;
+
+    mqtt = undefined;
+
+    constructor(options, app) {
         this.options = this.initializeOptions(options);
 
         // generate device ID
         this.deviceId = this.options.deviceId ? this.options.deviceId : this.randomDeviceId();
 
         // debug
-        if (this.debugMode === true && typeof console != 'undefined') {
+        if (this.options.debug === true && typeof console != 'undefined') {
             this.debug = console.log.bind(console);
         } else {
             this.debug = function (message) {};
@@ -20,32 +24,17 @@ export class Debug {
         this.$debug = $('#debug');
         this.$selDevices = $('#sel-cameras');
 
-        // regex map
-        const deviceIdPattern = 'device-[0-9a-fA-F]{16}';
-
-        this.topicRegex = {};
-        this.topicRegex['camera_status'] = new RegExp(`^device\/device-[0-9a-fA-F]{16}\/status$`);
-        this.topicRegex['camera_gps'] = new RegExp(`^device\/${deviceIdPattern}\/gps$`);
-
-        this.topicRegex['web_rtc_sdp_offer'] = new RegExp(
-            `^(${deviceIdPattern})\/sdp\/([^\/]+)\/offer$`
-        );
-        this.topicRegex['web_rtc_ice_offer'] = new RegExp(
-            `^(${deviceIdPattern})\/ice\/([^\/]+)\/offer$`
-        );
-
         // mqtt
-        this.mqttClient = app?.getMqttClient();
-        if (this.mqttClient) {
-            this.mqttClient.on('connect', () => this.mqttConnected());
-            this.mqttClient.on('disconnect', () => this.mqttDisconnect());
-        }
+        this.initMqtt(app?.getMqttClient());
 
         // buttons status
         this.buttonsStatus = {};
 
         // local variables
-        this.colorReceived = 'background-color:#540101;color:#dbe2ff;font-weight:500';
+        this.bgRed = 'font-weight:500;background-color:#c1121f;color:#dbe2ff;';
+        this.bgYellow = 'font-weight:500;background-color:#ffe45e;color:#432818;';
+        this.bgBlue = 'font-weight:500;background-color:#a6e1fa;color:#001c55;';
+        this.bgGreen = 'font-weight:500;background-color:#92e6a7;color:#10451d;';
 
         this.buttons();
         this.stream();
@@ -59,6 +48,27 @@ export class Debug {
         };
 
         return { ...defaultOptions, ...userOptions };
+    }
+
+    initMqtt(mqttClient) {
+        if (mqttClient && typeof mqttClient === 'object') {
+            this.mqtt = mqttClient;
+
+            // regex map
+            this.topicRegex = {};
+            this.topicRegex['camera_status'] = new RegExp('^device/device-[0-9a-fA-F]{16}/status$');
+            this.topicRegex['camera_gps'] = new RegExp('^device/device-[0-9a-fA-F]{16}/gps$');
+
+            this.topicRegex['web_rtc_sdp_offer'] = new RegExp(
+                '^(device-[0-9a-fA-F]{16})/sdp/([^/]+)/offer$'
+            );
+            this.topicRegex['web_rtc_ice_offer'] = new RegExp(
+                '^(device-[0-9a-fA-F]{16})/ice/([^/]+)/offer$'
+            );
+
+            this.mqtt.on('connect', () => this.mqttConnected());
+            this.mqtt.on('disconnect', () => this.mqttDisconnected());
+        }
     }
 
     getRtcConfig() {
@@ -86,15 +96,13 @@ export class Debug {
     }
 
     mqttConnected() {
-        console.log(
-            '[debug] mqtt connected - client id: ' + this.mqttClient.client.options.clientId
-        );
+        this.debug('[debug] mqtt connected - client id: ' + this.mqtt.client.options.clientId);
 
         $('[data-mqtt=1]').attr('disabled', false);
     }
 
-    mqttDisconnect() {
-        console.log('e: mqtt disconnected');
+    mqttDisconnected() {
+        this.debug('e: mqtt disconnected');
 
         $('[data-mqtt=1]').attr('disabled', 'disabled');
     }
@@ -110,8 +118,8 @@ export class Debug {
     }
 
     checkMqttConnection() {
-        if (!this.mqttClient || !this.mqttClient.isConnected()) {
-            console.log('! mqtt is not connected');
+        if (!this.mqtt || !this.mqtt.isConnected()) {
+            this.debug('! mqtt is not connected');
             return false;
         }
 
@@ -161,7 +169,7 @@ export class Debug {
                     this.sendDeviceStatus(deviceId);
                     deviceStatusTimer = setInterval(() => {
                         this.sendDeviceStatus(deviceId);
-                    }, 5000);
+                    }, 15000);
                 }
             } else {
                 this.sendDeviceStatus(deviceId);
@@ -194,11 +202,11 @@ export class Debug {
     }
 
     sendDeviceStatus(deviceId) {
-        if (this.mqttClient && this.mqttClient.isConnected()) {
+        if (this.mqtt && this.mqtt.isConnected()) {
             const topic = `device/${deviceId}/status`;
-            console.log('[debug] sending device status: ' + topic);
+            this.debug('[debug] sending device status: ' + topic);
 
-            this.mqttClient.publish(
+            this.mqtt.publish(
                 topic,
                 JSON.stringify({
                     device_id: deviceId,
@@ -211,11 +219,11 @@ export class Debug {
     }
 
     mqttButtonStatus(deviceId, status, active) {
-        if (this.mqttClient && this.mqttClient.isConnected()) {
-            console.log('[debug] status button pressed: ' + status);
+        if (this.mqtt && this.mqtt.isConnected()) {
+            this.debug('[debug] status button pressed: ' + status);
 
             const topic = `device/${deviceId}/button`;
-            this.mqttClient.publish(
+            this.mqtt.publish(
                 topic,
                 JSON.stringify({
                     device_id: deviceId,
@@ -225,7 +233,7 @@ export class Debug {
                 })
             );
 
-            console.log('f: mqtt publish -> ' + topic);
+            this.debug('[debug] mqtt publish | ' + topic);
         }
     }
 
@@ -236,8 +244,6 @@ export class Debug {
         $btnDeviceRestart.on('click', e => {
             e.preventDefault();
 
-            console.log('!: camera restart');
-
             // mqtt connection
             if (!this.checkMqttConnection()) {
                 return;
@@ -246,9 +252,9 @@ export class Debug {
             const deviceId = this.getSelectedDeviceId();
             const topic = `device/${deviceId}/restart`;
 
-            console.log('!: camera restart', topic);
+            this.debug('[debug] camera restart | ' + topic);
 
-            this.mqttClient.publish(
+            this.mqtt.publish(
                 topic,
                 JSON.stringify({
                     device_id: deviceId,
@@ -265,7 +271,7 @@ export class Debug {
         let _deviceId;
 
         let _pc = {};
-        let _iceCache = {};
+        let _iceCandidateList = {};
         let _remoteDescriptionSet = {};
 
         let $btnStartStream = $('#btn-start-stream');
@@ -273,24 +279,18 @@ export class Debug {
 
         // attach events
         window.onbeforeunload = function () {
-            console.log('e: window reload');
+            this.debug('[debug] window reload');
 
             stopLocalStream();
         };
 
-        // attach events
-        window.onbeforeunload = function () {
-            console.log('e: window reload');
-            stopLocalStream();
-        };
-
-        const handleICECandidateEvent = (e, clientId, deviceId) => {
+        const onicecandidateCallback = (e, clientId, deviceId) => {
             if (e.candidate) {
                 const topic = `${deviceId}/ice/${clientId}`;
 
-                console.log('[debug] sending local ICE candidate back to other peer', topic);
+                this.debug('[debug] sending ICE candidate to the remote peer | ' + topic);
 
-                this.mqttClient.publish(topic, JSON.stringify(e.candidate));
+                this.mqtt.publish(topic, JSON.stringify(e.candidate));
             }
         };
 
@@ -302,8 +302,8 @@ export class Debug {
         // "connection failure" scenarios should occur, so sometimes they simply
         // don't happen.
 
-        function handleRemoveStreamEvent(event) {
-            console.log('[debug] stream removed');
+        function onremovestreamCallback(event) {
+            this.debug('[debug] stream removed');
             closeVideoCall();
         }
 
@@ -314,8 +314,8 @@ export class Debug {
         // description to the callee as an offer. This is a proposed media
         // format, codec, resolution, etc.
 
-        const handleNegotiationNeededEvent = () => {
-            console.log('[debug] negotiation needed');
+        const onnegotiationneededCallback = () => {
+            this.debug('[debug] negotiation needed');
         };
 
         // Accept an offer to video chat. We configure our local settings,
@@ -323,36 +323,27 @@ export class Debug {
         // stream, then create and send an answer to the caller.
         const handleOfferMessage = async (clientId, deviceId, offer) => {
             const sdp = JSON.parse(offer);
-
             if (!sdp || sdp.type !== 'offer') {
                 return;
             }
 
-            console.log('');
-            console.log(
-                '[debug] %cgot remote offer SDP - client_id : ' +
-                    clientId +
-                    ', device_id: ' +
-                    deviceId,
-                this.colorReceived
-            );
+            this.debug('[debug]');
+            this.debug('[debug] %cgot remote SDP (' + sdp.type + ')', this.bgGreen);
 
-            // this.mqttClient.unsubscribe(`${deviceId}/sdp/+/offer`);
-            // console.log('[mqtt_service] unsubscribe: ' + `${deviceId}/sdp/+/offer`);
+            // this.mqtt.unsubscribe(`${deviceId}/sdp/+/offer`);
+            // this.debug('[mqtt_service] unsubscribe: ' + `${deviceId}/sdp/+/offer`);
 
-            console.log('[debug] initializing webrtc connection');
+            this.debug('[debug] initializing webrtc connection');
 
             const key = deviceId + '___' + clientId;
             const webrtcConfig = this.getRtcConfig();
 
             _remoteDescriptionSet[key] = false;
-            _iceCache[key] = [];
 
+            // new peer connection
             _pc[key] = new RTCPeerConnection(webrtcConfig);
             //_pc[key].addTransceiver('video', { direction: 'sendonly' });
             //_pc[key].addTransceiver('audio', { direction: 'sendonly' });
-
-            console.log('[debug] adding tracks to the RTCPeerConnection');
 
             // our local stream can provide different tracks, e.g. audio and
             // video. even though we're just using the video track, we should
@@ -361,84 +352,71 @@ export class Debug {
                 _pc[key]?.addTrack(track, localStream);
             }
 
-            _pc[key].onicecandidate = e => handleICECandidateEvent(e, clientId, deviceId);
-            _pc[key].onremovestream = handleRemoveStreamEvent;
+            _pc[key].onicecandidate = e => onicecandidateCallback(e, clientId, deviceId);
+            _pc[key].onremovestream = e => onremovestreamCallback(e);
             _pc[key].oniceconnectionstatechange = e =>
-                handleICEConnectionStateChangeEvent(e, clientId, deviceId);
+                oniceconnectionstatechangeCallback(e, clientId, deviceId);
             _pc[key].onicegatheringstatechange = e =>
-                handleICEGatheringStateChangeEvent(e, clientId, deviceId);
-            _pc[key].onsignalingstatechange = handleSignalingStateChangeEvent;
-            _pc[key].onnegotiationneeded = handleNegotiationNeededEvent;
-            _pc[key].ontrack = handleTrackEvent;
+                onicegatheringstatechangeCallback(e, clientId, deviceId);
+            _pc[key].onsignalingstatechange = e => onsignalingstatechangeCallback(e);
+            _pc[key].onnegotiationneeded = e => onnegotiationneededCallback(e);
+            _pc[key].ontrack = e => ontrackCallback(e);
 
             _pc[key]
                 .setRemoteDescription(sdp)
                 .then(() => {
                     _remoteDescriptionSet[key] = true;
+                    const length = _iceCandidateList.length;
 
-                    console.log('[debug] creating answer');
-                    // Now that we've successfully set the remote description, we need to
-                    // start our stream up locally then create an SDP answer. This SDP
-                    // data describes the local end of our call, including the codec
-                    // information, options agreed upon, and so forth.
+                    this.debug('[debug] remote description set');
+                    this.debug('[debug] ice candidate list size to be added: ' + length);
+
+                    for (var i = 0; i < length; i++) {
+                        _pc[key].addIceCandidate(_iceCandidateList[i]);
+                    }
+
+                    _iceCandidateList = {};
+
+                    this.debug('[debug] creating answer');
                     return _pc[key].createAnswer();
                 })
                 .then(answer => {
-                    console.log('[debug] setting local description');
+                    this.debug('[debug] local description set');
 
-                    // We now have our answer, so establish that as the local description.
-                    // This actually configures our end of the call to match the settings
-                    // specified in the SDP.
                     return _pc[key].setLocalDescription(answer);
                 })
                 .then(() => {
-                    // We've configured our end of the call now. Time to send our
-                    // answer back to the caller so they know that we want to talk
-                    // and how to talk to us.
-
                     const topic = `${deviceId}/sdp/${clientId}`;
 
-                    console.log('[debug] sending answer back to other peer');
-                    console.log('[mqtt_service] publish: ' + topic);
+                    this.debug(
+                        '[debug] %csending local SDP (' + _pc[key].localDescription.type + ')',
+                        this.bgGreen,
+                        '| ' + topic
+                    );
 
-                    this.mqttClient.publish(topic, JSON.stringify(_pc[key].localDescription));
+                    this.mqtt.publish(topic, JSON.stringify(_pc[key].localDescription));
                 })
                 .catch(handleGetUserMediaError);
         };
 
-        // A new ICE candidate has been received from the other peer. Call
-        // RTCPeerConnection.addIceCandidate() to send it along to the
-        // local ICE framework.
+        // A new ICE candidate has been received from the other peer
         const handleRemoteIceCandidate = (clientId, deviceId, message) => {
-            let ice = JSON.parse(message);
-            const key = deviceId + '___' + clientId;
+            let candidate = JSON.parse(message);
 
-            if (ice && ice.candidate) {
-                const descSet =
-                    _remoteDescriptionSet[key] !== undefined ? _remoteDescriptionSet[key] : false;
-
-                console.log(
-                    '[debug] got remote ICE (remote description set: ' +
-                        (descSet ? 'yes' : 'no') +
-                        ')'
-                );
+            if (candidate && candidate.candidate) {
+                const key = deviceId + '___' + clientId;
+                const descSet = _remoteDescriptionSet[key] || false;
 
                 if (descSet === true) {
-                    _pc[key].addIceCandidate(new RTCIceCandidate(ice));
-
-                    if (_iceCache[key] !== undefined) {
-                        while (_iceCache[key].length > 0) {
-                            const ice = _iceCache[key].shift();
-                            console.log('[debug] adding cached remote ICE');
-                            _pc[key].addIceCandidate(new RTCIceCandidate(ice));
-                        }
-                    }
+                    _pc[key].addIceCandidate(new RTCIceCandidate(candidate));
+                    this.debug('[debug] got remote ICE candidate - set');
                 } else {
-                    if (_iceCache[key] === undefined) {
-                        _iceCache[key] = [];
+                    if (_iceCandidateList[key] === undefined) {
+                        _iceCandidateList[key] = new Array();
                     }
 
-                    _iceCache[key].push(ice);
+                    _iceCandidateList[key].push(candidate);
+                    this.debug('[debug] got remote ICE candidate - added to list');
                 }
             }
         };
@@ -453,18 +431,16 @@ export class Debug {
         // We don't need to do anything when this happens, but we log it to the
         // console so you can see what's going on when playing with the sample.
 
-        function handleICEGatheringStateChangeEvent(event, clientId, deviceId) {
-            console.log(
-                '[debug] ICE gathering state changed to: ' + event.target.iceGatheringState
-            );
+        const onicegatheringstatechangeCallback = (event, clientId, deviceId) => {
+            this.debug('[debug] ICE gathering state changed to: ' + event.target.iceGatheringState);
 
             if (event.target.iceGatheringState === 'complete') {
                 const key = deviceId + '___' + clientId;
 
                 _remoteDescriptionSet[key] = false;
-                _iceCache[key] = [];
+                delete _iceCandidateList[key];
             }
-        }
+        };
 
         // Called by the WebRTC layer when events occur on the media tracks
         // on our WebRTC call. This includes when streams are added to and
@@ -477,18 +453,18 @@ export class Debug {
         // MediaStream[]        streams
         // RTCRtpTransceiver    transceiver
 
-        function handleTrackEvent(event) {
-            console.log('[debug] track event', event);
-        }
+        const ontrackCallback = event => {
+            this.debug('[debug] track event', event);
+        };
 
         // Handle |iceconnectionstatechange| events. This will detect
         // when the ICE connection is closed, failed, or disconnected.
         //
         // This is called when the state of the ICE agent changes.
 
-        function handleICEConnectionStateChangeEvent(event, clientId, deviceId) {
-            console.log(
-                '[debug] ICE connection state changed to ' + event.target.iceConnectionState
+        const oniceconnectionstatechangeCallback = (event, clientId, deviceId) => {
+            this.debug(
+                '[debug] webrtc oniceconnectionstatechange: ' + event.target.iceConnectionState
             );
 
             switch (event.target.iceConnectionState) {
@@ -498,10 +474,10 @@ export class Debug {
                     const key = deviceId + '___' + clientId;
 
                     _remoteDescriptionSet[key] = false;
-                    _iceCache[key] = [];
+                    _iceCandidateList[key] = [];
                     break;
             }
-        }
+        };
 
         // Set up a |signalingstatechange| event handler. This will detect when
         // the signaling connection is closed.
@@ -510,16 +486,14 @@ export class Debug {
         // returned in the property RTCPeerConnection.connectionState when
         // browsers catch up with the latest version of the specification!
 
-        function handleSignalingStateChangeEvent(event) {
-            console.log(
-                '[debug] WebRTC signaling state changed to: ' + event.target.signalingState
-            );
+        const onsignalingstatechangeCallback = event => {
+            this.debug('[debug] webrtc onsignalingstatechange: ' + event.target.signalingState);
             switch (event.target.signalingState) {
                 case 'closed':
                     closeVideoCall();
                     break;
             }
-        }
+        };
 
         // Handle errors which occur when trying to access the local media
         // hardware; that is, exceptions thrown by getUserMedia(). The two most
@@ -528,17 +502,17 @@ export class Debug {
         // they simply opted not to share their media, that's not really an
         // error, so we won't present a message in that situation.
 
-        function handleGetUserMediaError(e) {
-            console.log('[debug] user media error. ' + e.message);
+        const handleGetUserMediaError = event => {
+            this.debug('[debug] user media error. ' + event.message);
 
             // Make sure we shut down our end of the RTCPeerConnection so we're
             // ready to try again.
 
             closeVideoCall();
-        }
+        };
 
         const stopLocalStream = deviceId => {
-            console.log('f: stopLocalStream()', localStream);
+            this.debug('f: stopLocalStream()', localStream);
 
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
@@ -557,7 +531,7 @@ export class Debug {
 
             _pc = {};
             _remoteDescriptionSet = {};
-            _iceCache = {};
+            _iceCandidateList = {};
 
             $localVideo.hide();
             $btnStopStream.hide();
@@ -571,7 +545,7 @@ export class Debug {
             e.preventDefault();
 
             if (localStream) {
-                console.log('[debug] stream already started');
+                this.debug('[debug] stream already started');
                 return;
             }
 
@@ -584,11 +558,11 @@ export class Debug {
 
             _pc = {};
             _remoteDescriptionSet = {};
-            _iceCache = {};
+            _iceCandidateList = {};
 
             $btnStartStream.attr('disabled', 'disabled');
 
-            console.log('[debug] requesting media devices...');
+            this.debug('[debug] requesting media devices...');
             navigator.mediaDevices
                 .getUserMedia({
                     audio: false,
@@ -597,12 +571,7 @@ export class Debug {
                     },
                 })
                 .then(stream => {
-                    console.log(
-                        '[debug] %cCamera initialized',
-                        'background-color:#540101;color:#dbe2ff;font-weight:500'
-                    );
-
-                    console.log('[debug] stream started. waiting for signaling!');
+                    this.debug('[debug] %ccamera initialized, waiting for signaling', this.bgRed);
 
                     $btnStartStream.hide();
                     $btnStopStream.show();
@@ -611,13 +580,13 @@ export class Debug {
                     localVideo.srcObject = localStream;
                     $localVideo.show();
 
-                    this.mqttClient.subscribe(`${deviceId}/sdp/+/offer`);
-                    this.mqttClient.subscribe(`${deviceId}/ice/+/offer`);
+                    this.mqtt.subscribe(`${deviceId}/sdp/+/offer`);
+                    this.mqtt.subscribe(`${deviceId}/ice/+/offer`);
 
-                    console.log('[debug] mqtt subscribe: ' + `${deviceId}/sdp/+/offer`);
-                    console.log('[debug] mqtt subscribe: ' + `${deviceId}/ice/+/offer`);
+                    this.debug('[debug] mqtt subscribe: ' + `${deviceId}/sdp/+/offer`);
+                    this.debug('[debug] mqtt subscribe: ' + `${deviceId}/ice/+/offer`);
 
-                    this.mqttClient.on('message', (topic, message) => {
+                    this.mqtt.on('message', (topic, message) => {
                         const msg = message ? message.toString() : null;
                         let found;
 
@@ -646,7 +615,7 @@ export class Debug {
                     }, 15000);
                 })
                 .catch(e => {
-                    console.log('[debug] error opening camera: ' + e.message);
+                    this.debug('[debug] error opening camera: ' + e.message);
                     $btnStartStream.attr('disabled', false);
                 });
         });
@@ -669,7 +638,7 @@ export class Debug {
             $btnStopStream.hide();
             $btnStartStream.attr('disabled', false).show();
 
-            this.mqttClient.off('message');
+            this.mqtt.off('message');
         });
     }
 
@@ -718,11 +687,11 @@ export class Debug {
             if (deviceId && deviceId.length) {
                 const topic = `device/${deviceId}/gps`;
 
-                this.mqttClient.publish(
+                this.mqtt.publish(
                     topic,
                     JSON.stringify({
                         ts: getTimestamp(),
-                        client_id: this.mqttClientId,
+                        client_id: this.mqttId,
                         device_id: deviceId,
                         gps: gps,
                     })
@@ -733,7 +702,7 @@ export class Debug {
         // locomotive gps
         $btnAddLoco.on('click', () => {
             const topic = `device/device-0000000000000000/gps`;
-            this.mqttClient.publish(
+            this.mqtt.publish(
                 topic,
                 JSON.stringify({
                     ts: getTimestamp(),
@@ -786,7 +755,7 @@ export class Debug {
                                 });
                             },
                             error => {
-                                console.log(
+                                this.debug(
                                     '[debug] failed to read GPS position - error: ',
                                     error.message
                                 );
@@ -820,7 +789,7 @@ export class Debug {
                             });
                         },
                         error => {
-                            console.log(
+                            this.debug(
                                 '[debug] failed to read GPS position - error: ',
                                 error.message
                             );

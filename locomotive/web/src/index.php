@@ -22,7 +22,7 @@ $content = render(VIEW, ['cssLastModified' => ASSETS_VERSION]);
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title></title>
+<title>Bodycam</title>
 <meta name="description" content="">
 <meta name="color-scheme" content="light">
 <meta name="viewport" content="initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, width=device-width, height=device-height">
@@ -32,6 +32,20 @@ $content = render(VIEW, ['cssLastModified' => ASSETS_VERSION]);
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="./manifest.json">
 <script src="./assets/js/vendor.js?v=<?= ASSETS_VERSION; ?>" type="text/javascript"></script>
+<script type="text/javascript">
+let app = undefined;
+let appConfig = {};
+</script>
+<script type="module">
+import {App} from "./assets/js/app.js";
+
+// app config
+appConfig = <?= Config::read(true, [
+    'mqtt' => ['clientId' => $MQTT_CLIENT_ID],
+]); ?>;
+
+app = new App(appConfig);
+</script>
 </head>
 <body>
 
@@ -74,18 +88,6 @@ $content = render(VIEW, ['cssLastModified' => ASSETS_VERSION]);
         </div>
     </div>
     
-    <script>
-    let app;
-    </script>
-    <script type="module">
-    import {App} from "./assets/js/app.js";
 
-    // app config
-    const config = <?= Config::read(true, [
-        'mqtt' => ['clientId' => $MQTT_CLIENT_ID],
-    ]); ?>;
-
-    app = new App(config);
-    </script>
 </body>
 </html>

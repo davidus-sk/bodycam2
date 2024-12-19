@@ -5,16 +5,14 @@ import { PiCamera } from './rtc/picamera.js';
 export class Video {
     options = {};
 
-    _devices = {};
-
     VIDEO_TIMEOUT = 120;
 
-    mqttClient = null;
+    mqtt = undefined;
+    _devices = {};
     topicRegex = {};
 
     constructor(options, app) {
         this.options = this.initializeOptions(options);
-        this.app = app;
 
         // events dispatcher
         EventDispatcher.attach(this);
@@ -51,7 +49,7 @@ export class Video {
         this.topicRegex['device_gps'] = new RegExp(`^device\/${deviceIdPattern}\/gps$`);
 
         // mqtt
-        this.initMqtt();
+        this.initMqtt(app?.getMqttClient());
 
         // init workers
         this.initWorkers();
@@ -65,37 +63,40 @@ export class Video {
         return { ...defaultOptions, ...userOptions };
     }
 
-    initMqtt() {
-        // mqtt
-        this.mqttClient = this.app?.getMqttClient();
-        if (this.mqttClient) {
-            this.mqttClient.on('connect', () => this.mqttConnected());
-            this.mqttClient.on('disconnect', () => this.mqttDisconnected());
+    initMqtt(mqttClient) {
+        if (mqttClient && typeof mqttClient === 'object') {
+            this.mqtt = mqttClient;
+            this.mqtt.on('connect', () => this.mqttConnected());
+            this.mqtt.on('disconnect', () => this.mqttDisconnected());
         }
     }
 
     mqttConnected() {
-        this.mqttClientId = this.mqttClient.getClientId();
+        if (this.mqtt) {
+            this.mqttId = this.mqtt.getClientId();
 
-        this.debug('[video] mqtt connected');
+            this.debug('[video] mqtt connected');
 
-        // received camera status
-        this.debug('[video] subscribe: device/+/status');
-        this.mqttClient.subscribe('device/+/status');
+            // received camera status
+            this.debug('[video] subscribe: device/+/status');
+            this.mqtt.unsubscribe('device/+/status');
+            this.mqtt.subscribe('device/+/status');
 
-        // got the message
-        this.mqttClient.on('message', (topic, message) => {
-            let payload = message?.toString() ?? null;
-            //this.debug('e: message', topic, payload.substring(0, 50) + '...');
-            payload = JSON.parse(payload);
+            // got the message
+            this.mqtt.off('message');
+            this.mqtt.on('message', (topic, message) => {
+                let payload = message?.toString() ?? null;
+                //this.debug('e: message', topic, payload.substring(0, 50) + '...');
+                payload = JSON.parse(payload);
 
-            if (payload) {
-                // camera status
-                if (topic.match(this.topicRegex['device_status'])) {
-                    this.receivedDeviceStatus(payload);
+                if (payload) {
+                    // camera status
+                    if (topic.match(this.topicRegex['device_status'])) {
+                        this.receivedDeviceStatus(payload);
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     mqttDisconnected() {
@@ -107,56 +108,56 @@ export class Video {
 
         this.debug('[video] %cmqtt message:', this.bgLightGreen, 'device/+/status', payload);
 
-        if (deviceId && deviceId.length) {
-            // camera is already in reference list, check time
-            if (this.isDeviceInGrid(deviceId)) {
-                //this.debug('[video] camera already in the grid');
+        if (!deviceId || !deviceId.length) {
+            return;
+        }
 
-                // update timestamp
-                this._devices[deviceId].ts = payload.ts;
-                this._devices[deviceId].status = payload.status;
+        // camera is already in reference list, check time
+        if (this.isDeviceInGrid(deviceId)) {
+            //this.debug('[video] camera already in the grid');
 
-                // device disconnected
-                if (!this.isDeviceConnected(deviceId)) {
-                    this.debug('[video] camera already in the grid - not connected - reconnect');
-                    this.getDeviceData(deviceId)?.picamera?.terminate();
+            // update timestamp
+            this._devices[deviceId].ts = payload.ts;
+            this._devices[deviceId].status = payload.status;
 
-                    setTimeout(() => {
-                        this.getDeviceData(deviceId)?.picamera?.connect();
-                    }, 1000);
-                }
-            } else {
-                this.debug('[video] new device');
+            // device disconnected
+            if (!this.isDeviceConnected(deviceId)) {
+                this.debug('[video] camera already in the grid - not connected - reconnect');
 
-                let device = payload;
-
-                // dom id
-                device.dom_id = 'device_' + deviceId;
-                device.video_id = 'video_' + deviceId;
-
-                // append html to the video matrix
-                this.$grid.append(`<div id="${device.dom_id}" class="video-wrapper">
-                        <video id="${device.video_id}" autoplay playsinline muted></video>
-                    </div>`);
-
-                // video element reference
-                device.video_ref = document.getElementById(device.video_id);
-
-                // test
-                // $(device.video_ref).on('contextmenu', e => {
-                //     this.removeDevice(deviceId);
-                // });
-
-                // update reference
-                this._devices[deviceId] = device;
-
-                // update grid
-                this.updateGrid();
-
-                // init pi camera
-                this.initPiCamera(deviceId, true);
-                //this.demoMp4(deviceId, true);
+                // reconnect picamera
+                this.getDeviceData(deviceId)?.picamera?.reconnect();
             }
+        } else {
+            this.debug('[video] !!! new device');
+
+            let device = payload;
+
+            // dom id
+            device.dom_id = 'device_' + deviceId;
+            device.video_id = 'video_' + deviceId;
+
+            // append html to the video matrix
+            this.$grid.append(
+                `<div id="${device.dom_id}" class="video-wrapper"><video id="${device.video_id}" autoplay playsinline muted></video></div>`
+            );
+
+            // video element reference
+            device.video_ref = document.getElementById(device.video_id);
+
+            // test
+            // $(device.video_ref).on('contextmenu', e => {
+            //     this.removeDevice(deviceId);
+            // });
+
+            // update reference
+            this._devices[deviceId] = device;
+
+            // update grid
+            this.updateGrid();
+
+            // init pi camera
+            this.initPiCamera(deviceId, true);
+            //this.demoMp4(deviceId, true);
         }
     }
 
@@ -183,22 +184,21 @@ export class Video {
     }
 
     initPiCamera(deviceId, connect) {
-        var camera = this.getDeviceData(deviceId);
-
-        if (camera) {
+        var device = this.getDeviceData(deviceId);
+        if (device) {
             // pi camera
-            camera.picamera = new PiCamera(deviceId, this.options.camera, null, this.mqttClient);
+            device.picamera = new PiCamera(deviceId, this.options.camera, null, this.mqtt);
 
             // attach video reference to the camera
-            camera.picamera.attach(camera.video_ref);
+            device.picamera.attach(device.video_ref);
 
             // connect
             if (connect === true) {
-                camera.picamera.connect();
+                device.picamera.connect();
             }
 
             // update reference
-            this._devices[deviceId] = camera;
+            //this._devices[deviceId] = device;
         }
     }
 

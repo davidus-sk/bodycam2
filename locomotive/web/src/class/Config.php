@@ -20,7 +20,6 @@ class Config
      */
     public static function read(bool $returnJson = false, array $overrideOptions = null)
     {
-
         // init
         if (self::$initialized !== true) {
             self::$initialized = true;

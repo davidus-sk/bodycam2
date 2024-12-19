@@ -11,15 +11,15 @@ import { Modal } from './modal.js';
 
 export class MapView {
     config = {};
-    mqttClient = null;
 
     DEFAULT_GPS_POSITION = [30.672026, -92.260802];
     DEFAULT_ZOOM = 16;
     MARKER_TIMEOUT = 120;
 
+    mqtt = null;
+
     constructor(options, app) {
         this.options = this.initializeOptions(options);
-        this.app = app;
 
         // events dispatcher
         EventDispatcher.attach(this);
@@ -52,7 +52,7 @@ export class MapView {
             this.attachEvents();
 
             // mqtt
-            this.initMqtt();
+            this.initMqtt(app?.getMqttClient());
 
             // init workers
             this.initWorkers();
@@ -72,26 +72,26 @@ export class MapView {
         return { ...defaultOptions, ...userOptions };
     }
 
-    initMqtt() {
-        // mqtt client
-        this.mqttClient = this.app?.getMqttClient();
-        if (this.mqttClient) {
+    initMqtt(mqttClient) {
+        if (mqttClient && typeof mqttClient === 'object') {
+            this.mqtt = mqttClient;
+
             console.log('[map] mqtt initialized');
 
             // topics
-            const gpsRegex = new RegExp(`^device\/device-[0-9a-fA-F]{16}\/gps$`);
-            const buttonRegex = new RegExp(`^device\/device-[0-9a-fA-F]{16}\/button$`);
+            const gpsRegex = new RegExp('^device/device-[0-9a-fA-F]{16}/gps$');
+            const buttonRegex = new RegExp('^device/device-[0-9a-fA-F]{16}/button$');
 
             // connect callback
-            this.mqttClient.on('connect', () => {
+            this.mqtt.on('connect', () => {
                 this.debug('[map] mqtt connected');
 
                 // subscribe to topics
-                this.mqttClient.subscribe('device/#');
+                this.mqtt.subscribe('device/#');
             });
 
             // message callback
-            this.mqttClient.on('message', (topic, msg) => {
+            this.mqtt.on('message', (topic, msg) => {
                 const payload = msg ? JSON.parse(msg.toString()) : null;
 
                 this.debug('[map] mqtt message: ' + topic, msg.toString().substring(0, 50) + '...');
@@ -479,7 +479,7 @@ export class MapView {
                     deviceId,
                     this.options.camera,
                     null,
-                    this.mqttClient
+                    this.mqtt
                 );
 
                 // attach video reference to the camera

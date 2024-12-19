@@ -40,7 +40,6 @@
 import {MapView} from "./assets/js/map.js?v=<?= ASSETS_VERSION ?>";
 
 const config = <?= Config::read(true); ?>;
-config.debug = true;
 
 $(function() {
     const mapView = new MapView(config, app);
