@@ -1,4 +1,4 @@
-import { getTimestamp, worker } from './functions.js';
+import { getTimestamp, worker, wait } from './functions.js';
 import { EventDispatcher } from './EventDispatcher.js';
 import { PiCamera } from './rtc/picamera.js';
 
@@ -18,8 +18,8 @@ export class Video {
         EventDispatcher.attach(this);
 
         // attach events
-        window.onbeforeunload = function () {
-            console.log('e: window reload');
+        window.onbeforeunload = () => {
+            console.log('[video] window reload');
 
             for (const deviceId in this._devices) {
                 const val = this._devices[deviceId];
@@ -37,11 +37,14 @@ export class Video {
             this.debug = function (message) {};
         }
 
+        // debug
+        this.bgRed = 'font-weight:500;background-color:#620000;color:#dbe2ff;';
+        this.bgYellow = 'font-weight:500;background-color:#ffe45e;color:#432818;';
+        this.bgBlue = 'font-weight:500;background-color:#a6e1fa;color:#001c55;';
+        this.bgGreen = 'font-weight:500;background-color:#92e6a7;color:#10451d;';
+
         // dom elements
         this.$grid = $('#video-grid');
-
-        // local variables
-        this.bgLightGreen = 'font-weight:500;background-color:#ccff33;color:#004b23;';
 
         // regex map
         const deviceIdPattern = 'device-[0-9a-fA-F]{16}';
@@ -84,7 +87,6 @@ export class Video {
             // got the message
             this.mqtt.on('message', (topic, message) => {
                 let payload = JSON.parse(message?.toString());
-
                 if (payload) {
                     // camera status
                     if (topic.match(this.topicRegex['device_status'])) {

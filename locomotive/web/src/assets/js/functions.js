@@ -14,6 +14,8 @@ export function generateClientId(length) {
     return result;
 }
 
+export const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 export function getTimestamp() {
     return Math.floor(Date.now() / 1000);
 }

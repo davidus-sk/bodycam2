@@ -10,8 +10,8 @@ if (!$deviceId) {
     <div class="mt-3">
         <strong>Device:</strong>
         <select id="sel-cameras" class="form-control">         
-            <option value="" selected>My Device</option>   
-            <option value="device-100000003a0a2f6e">PI - Marek</option>
+            <option value="">My Device</option>   
+            <option value="device-100000003a0a2f6e" selected>PI - Marek</option>
             <option value="device-00000000b203ade4">AL</option>            
         </select>
 

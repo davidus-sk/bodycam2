@@ -31,7 +31,7 @@ export class Debug {
         this.buttonsStatus = {};
 
         // local variables
-        this.bgRed = 'font-weight:500;background-color:#c1121f;color:#dbe2ff;';
+        this.bgRed = 'font-weight:500;background-color:#620000;color:#dbe2ff;';
         this.bgYellow = 'font-weight:500;background-color:#ffe45e;color:#432818;';
         this.bgBlue = 'font-weight:500;background-color:#a6e1fa;color:#001c55;';
         this.bgGreen = 'font-weight:500;background-color:#92e6a7;color:#10451d;';
@@ -204,7 +204,7 @@ export class Debug {
     sendDeviceStatus(deviceId) {
         if (this.mqtt && this.mqtt.isConnected()) {
             const topic = `device/${deviceId}/status`;
-            this.debug('[debug] sending device status: ' + topic);
+            this.debug('[debug] device status | ' + topic);
 
             this.mqtt.publish(
                 topic,
@@ -281,7 +281,7 @@ export class Debug {
         let deviceStatusTimer;
 
         // attach events
-        window.onbeforeunload = function () {
+        window.onbeforeunload = () => {
             this.debug('[debug] window reload');
 
             stopStream();
