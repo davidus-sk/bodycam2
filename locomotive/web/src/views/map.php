@@ -39,10 +39,8 @@
 <script type="module">
 import {MapView} from "./assets/js/map.js?v=<?= ASSETS_VERSION ?>";
 
-const config = <?= Config::read(true); ?>;
-
 $(function() {
-    const mapView = new MapView(config, app);
+    const mapView = new MapView(appConfig, app);
     
 });
 </script>

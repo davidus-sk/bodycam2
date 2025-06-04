@@ -1,23 +1,37 @@
 <?php
 $deviceId = $_COOKIE['device_id'] ?? null;
+$lastDeviceId = $_COOKIE['last_device_id'] ?? null;
 if (!$deviceId) {
-    $deviceId = randomDeviceId();
+    $deviceId = randomDeviceId(true);
     setcookie('device_id', $deviceId, time() + 3 * 24 * 3600);
 }
+
+// device list
+$deviceList = Config::get('debug.devices', []);
 ?>
 <div id="debug" class="container">
     
     <div class="mt-3">
         <strong>Device:</strong>
-        <select id="sel-cameras" class="form-control">         
-            <option value="">My Device</option>   
-            <option value="device-100000003a0a2f6e" selected>PI - Marek</option>
-            <option value="device-00000000b203ade4">AL</option>            
+        <select id="select-devices" class="form-control">         
+            <option value="<?=$deviceId;?>"><?=str_replace('device-', '', $deviceId);?> - Current Device</option>
+            
+            <?php
+            foreach ($deviceList as $id => $name) {
+                $_id = str_replace('device-', '', $id);
+                ?>
+            
+            <option value="<?= $id ?>" <?= $lastDeviceId == $id ? 'selected' : '' ?>><?= "$_id - $name" ?></option>
+            
+            <?php
+            }//foreach
+?>
         </select>
 
     </div>
     <div class="d-grid gap-3 d-md-block mt-5">
         <button type="button" class="btn btn-lg btn-secondary" data-mqtt="1" data-status="1" disabled>/status</button>
+        <button type="button" class="btn btn-lg btn-secondary ms-md-2" data-mqtt="1" data-status="1" data-ai="1" disabled>/status ai</button>
         <button type="button" class="btn btn-lg btn-secondary ms-md-2" data-mqtt="1" data-status="auto" disabled>/status (AUTO)</button>
     </div>
 
@@ -64,9 +78,10 @@ if (!$deviceId) {
 <script type="module">
 import {Debug} from "./assets/js/debug.js?v=<?= ASSETS_VERSION ?>";
 
-const config = <?= Config::read(true, [
+const config = <?= readConfig(true, [
     'deviceId' => $deviceId,
 ]); ?>;
+
 $(function() { 
     const deb = new Debug(config, app);
 });

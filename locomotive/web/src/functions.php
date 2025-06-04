@@ -9,8 +9,8 @@ function db()
         include_once APP_DIR . '/class/Config.php';
 
         try {
-            $dsn = sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', Config::get('db_host'), Config::get('db_name'));
-            $_db = new PDO($dsn, Config::get('db_username'), Config::get('db_password'));
+            $dsn = sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', Config::get('database.host'), Config::get('database.name'));
+            $_db = new PDO($dsn, Config::get('database.username'), Config::get('database.password'));
             $_db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             echo "DB Connection failed: " . $e->getMessage();
@@ -113,9 +113,9 @@ function stdout($string): void
     echo $string;
 }
 
-function readConfig(bool $returnJson = false)
+function readConfig(bool $returnJson = false, array $overrideOptions = []): mixed
 {
-    return Config::read($returnJson);
+    return Config::getAll($returnJson, $overrideOptions);
 }
 
 /**
@@ -243,15 +243,25 @@ function js(string $filename, bool $htmlTag = false): string
 }
 
 /**
- * Random device id
+ * Random device id (16 characters)
+ * @param bool $localDevice
  * @return string
  */
-function randomDeviceId(): string
+function randomDeviceId(bool $localDevice = false): string
 {
     $clientId = '';
     $chars = '0123456789abcdefABCDEF';
+    $maxChars = 16;
 
-    for ($i = 0; $i < 16; $i++) {
+    // format 100000003a0a2f6e
+
+    // local devices (client id starts with zeros)
+    if ($localDevice === true) {
+        $clientId = '00000000';
+        $maxChars = 8;
+    }
+
+    for ($i = 0; $i < $maxChars; $i++) {
         $index = random_int(0, strlen($chars) - 1);
         $clientId .= $chars[$index];
     }

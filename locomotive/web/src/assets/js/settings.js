@@ -12,7 +12,10 @@ export class Settings {
         EventDispatcher.attach(this);
 
         // debug
-        if (this.options.debug === true && typeof console != 'undefined') {
+        if (
+            (this.options.debug === true || this.options.app.debug === true) &&
+            typeof console != 'undefined'
+        ) {
             this.debug = console.log.bind(console);
         } else {
             this.debug = function (message) {};

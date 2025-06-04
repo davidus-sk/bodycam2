@@ -1,137 +1,183 @@
 <?php
 
+
 class Config
 {
-    /**
-     * @var boolean
-     */
-    private static $initialized = false;
+    private static $initialized;
 
-    /**
-     * @var array
-     */
-    private static $data;
+    private static $defaultConfig;
+    private static $userConfig;
+    private static $userConfigPath;
+    private static $mergedConfig;
 
 
-    /**
-     * Read configuration
-     * @param bool $returnJson
-     * @return array
-     */
-    public static function read(bool $returnJson = false, array $overrideOptions = null)
+    public static function getAll(bool $jsonEncode = false, array $overrideOptions = null)
     {
-        // init
-        if (self::$initialized !== true) {
-            self::$initialized = true;
+        $config = self::getMergedConfig();
 
-            $configPath = __DIR__ . '/../config/config.ini';
-            $defaultConfigPath = __DIR__ . '/../config/config.default.ini';
-
-            if (!file_exists($configPath)) {
-                copy($defaultConfigPath, $configPath);
-            }
-
-            $cfg = self::readFile($configPath);
-            $cfgDefault = self::readFile($defaultConfigPath);
-
-            // merge
-            $cfg = self::merge($cfgDefault, $cfg);
-
-            if ($overrideOptions) {
-                $cfg = self::merge($cfg, $overrideOptions);
-            }
-
-            self::$data = $cfg;
+        // override
+        if ($overrideOptions !== null) {
+            $config = array_replace_recursive($config, $overrideOptions);
         }
 
-        return $returnJson === true ?
-            json_encode(self::$data, JSON_NUMERIC_CHECK)
-            : self::$data;
-    }
-
-    /**
-     * Read single configuration file
-     * @param mixed $filePath
-     * @throws \Exception
-     * @return array
-     */
-    private static function readFile($filePath): array
-    {
-        $cfg = [];
-
-        if (!file_exists($filePath)) {
-            throw new Exception('Configuration file "'. $filePath .'" does not exist.');
+        if ($jsonEncode) {
+            return json_encode($config, JSON_NUMERIC_CHECK);
+        } else {
+            return $config;
         }
 
-        $cfg = parse_ini_file($filePath, true, INI_SCANNER_TYPED);
-        if (!is_array($cfg)) {
-            throw new Exception('Failed to read configuration file "'. $filePath .'".');
-        }
-
-        return $cfg;
     }
 
     /**
      * Get the raw value for a key
      * If the key does not exist, an optional default value can be returned instead.
      * @param string $key Which config item to look up
-     * @param mixed $defaultFallback Fallback default value to use when configuration object has neither a value nor a default.
+     * @param mixed $defaultFallback Fallback default value to use when configuration
+     * object has neither a value nor a default.
      * @return mixed Config value
      */
-    public static function get($key, $default = null)
+    public static function get(string $key = null, $default = null)
     {
-        self::read();
-        return self::$data[$key] ?? $default;
+        $config = self::getMergedConfig();
+
+        if ($key === null) {
+            return $config;
+        }
+
+        if (isset($config[$key])) {
+            return $config[$key];
+        }
+
+        // dot notation syntax
+        if (strpos($key, '.') !== false) {
+            foreach (explode('.', $key) as $segment) {
+                if (!is_array($config) || !array_key_exists($segment, $config)) {
+                    return $default;
+                }
+
+                $config = $config[$segment];
+            }
+        }
+
+
+        return $config;
     }
 
+
     /**
-     * Set a value for a key. If the key does not yet exist it will be created.
-     * @param array $config
+     * Sets a configuration value.
+     * @param string $key The configuration key.
+     * @param mixed $value The value to set for the given key.
      * @return void
      */
-    public static function set($key, $value)
+    public static function set(string $key, $value): void
     {
-        self::read();
-        self::$data[$key] = $value;
+        if (is_null($key)) {
+            self::$mergedConfig = $value;
+            return;
+        }
+
+        $config = self::getMergedConfig();
+
+        // dot notation syntax
+        if (strpos($key, '.') !== false) {
+            $array = & $config;
+            $parts = explode('.', trim($key));
+
+            while (count($parts) > 1) {
+                $part = array_shift($parts);
+
+                if (!isset($array[$part]) or !is_array($array[$part])) {
+                    $array[$part] = [];
+                }
+
+                $array = & $array[$part];
+            }
+
+            $array[array_shift($parts)] = $value;
+        } else {
+            $config[$key] = $value;
+        }
+
+        self::$mergedConfig = $config;
     }
 
-    /**
-     * Determine if a non-default config value exists.
-     * @param string $key
-     * @return bool
-     */
-    public static function has($key)
+    public static function unset($key)
     {
-        self::read();
-        return isset(self::$data[$key]);
+        if (is_null($key)) {
+            return;
+        }
+
+        $config = self::getMergedConfig();
+
+        // dot notation syntax
+        if (strpos($key, '.') !== false) {
+            $array = & $config;
+            $parts = explode('.', trim($key));
+
+            while (count($parts) > 1) {
+                $part = array_shift($parts);
+
+                $array = & $array[$part];
+            }
+
+            $k = array_shift($parts);
+            unset($array[$k]);
+        } else {
+            if (isset($config[$key])) {
+                unset($config[$key]);
+            }
+        }
+
+        self::$mergedConfig = $config;
     }
 
-    /**
-     * Export data as raw data
-     * @return array
-     */
-    public static function export()
+    public static function getMergedConfig()
     {
-        self::read();
-        return self::$data;
+        if (self::$initialized === null) {
+            self::$initialized = true;
+            self::readConfigs();
+        }
+
+        return self::$mergedConfig;
     }
 
-    /**
-     * Write an ini configuration file
-     * @param array  $array
-     * @return bool
-     */
-    public static function write(array $array): bool
+    private static function readConfigs(string|null $defaultConfigFile = null, string|null $userConfigFile = null): array
     {
-        $configPath = __DIR__ . '/../config/config.ini';
+        if (!$defaultConfigFile) {
+            $defaultConfigFile = __DIR__ . '/../config/config.default.ini';
+        }
 
+        if (!$userConfigFile) {
+            self::$userConfigPath = __DIR__ . '/../config/config.ini';
+        } else {
+            self::$userConfigPath = $userConfigFile;
+        }
+
+        self::$defaultConfig = self::parseIniFileWithSections($defaultConfigFile);
+        self::$userConfig = self::parseIniFileWithSections(self::$userConfigPath);
+
+        self::$mergedConfig = self::mergeIniArrays(self::$defaultConfig, self::$userConfig);
+
+        return self::$mergedConfig;
+    }
+
+    public static function save(): bool
+    {
+        return self::writeIniFile(self::getMergedConfig(), self::$userConfigPath);
+    }
+
+    private static function writeIniFile(array $assocArr, string $path, bool $hasSections = true): bool
+    {
         // process array
         $data = [];
-        foreach ($array as $key => $val) {
+
+        foreach ($assocArr as $key => $val) {
             if (is_array($val)) {
                 $data[] = "[$key]";
 
                 foreach ($val as $skey => $sval) {
+
                     if (is_array($sval)) {
                         foreach ($sval as $_skey => $_sval) {
                             if (is_numeric($_skey)) {
@@ -141,18 +187,28 @@ class Config
                             }
                         }
                     } else {
-                        $data[] = $skey.' = '.(is_numeric($sval) ? $sval : (ctype_upper($sval) ? $sval : '"'.$sval.'"'));
+
+                        if ($sval !== false) {
+                            $data[] = $skey.' = '.(is_numeric($sval) ? $sval : (ctype_upper($sval) ? $sval : '"'.$sval.'"'));
+                        } else {
+                            $data[] = $skey.' = ""';
+                        }
                     }
                 }
             } else {
-                $data[] = $key.' = '.(is_numeric($val) ? $val : (ctype_upper($val) ? $val : '"'.$val.'"'));
+                if ($val !== false) {
+                    $data[] = $key.' = '.(is_numeric($val) ? $val : (ctype_upper($val) ? $val : '"'.$val.'"'));
+                } else {
+                    $data[] = $key.' = ""';
+                }
             }
+
             // empty line
             $data[] = null;
         }
 
         // open file pointer, init flock options
-        $fp = fopen($configPath, 'w');
+        $fp = fopen($path, 'w');
         $retries = 0;
         $max_retries = 100;
 
@@ -183,40 +239,29 @@ class Config
         return true;
     }
 
-    /**
-     * Merges two or more arrays into one recursively.
-     * @param array $a array to be merged to
-     * @param array $b array to be merged from. You can specify additional
-     * arrays via third argument, fourth argument etc.
-     * @return array the merged array (the original arrays are not changed.)
-     */
-    public static function merge($a, $b)
+    private static function parseIniFileWithSections($filename)
     {
-        $args = func_get_args();
-        $res = array_shift($args);
+        return parse_ini_file($filename, true, INI_SCANNER_TYPED);
+    }
 
-        while (!empty($args)) {
-            foreach (array_shift($args) as $k => $v) {
-                if ($v instanceof UnsetArrayValue) {
-                    unset($res[$k]);
-                } elseif ($v instanceof ReplaceArrayValue) {
-                    $res[$k] = $v->value;
-                } elseif (is_int($k)) {
-                    if (array_key_exists($k, $res)) {
-                        //$res[] = $v;
-                        $res = [ $v ];
-                    } else {
-                        $res[$k] = $v;
-                    }
-                } elseif (is_array($v) && isset($res[$k]) && is_array($res[$k])) {
-                    $res[$k] = static::merge($res[$k], $v);
-                } else {
-                    $res[$k] = $v;
-                }
+    private static function mergeIniArrays($defaultArray, $userArray)
+    {
+        $merged = [];
+
+        foreach ($userArray as $key => $value) {
+            if (isset($userArray[$key])) {
+                $merged[$key] = $userArray[$key];
+            } elseif (isset($defaultArray[$key])) {
+                $merged[$key] = $defaultArray[$key];
             }
         }
 
-        return $res;
-    }
+        foreach ($defaultArray as $key => $value) {
+            if (!isset($merged[$key])) {
+                $merged[$key] = $defaultArray[$key];
+            }
+        }
 
+        return $merged;
+    }
 }

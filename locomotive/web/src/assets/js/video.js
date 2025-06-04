@@ -1,5 +1,6 @@
 import { getTimestamp, worker, wait } from './functions.js';
 import { EventDispatcher } from './EventDispatcher.js';
+import { ConsoleColors } from './utils.js';
 import { PiCamera } from './rtc/picamera.js';
 
 export class Video {
@@ -31,17 +32,18 @@ export class Video {
         };
 
         // debug
-        if (this.options.debug === true && typeof console != 'undefined') {
+        if (
+            (this.options.debug === true ||
+                this.options.video.debug === true ||
+                this.options.app.debug === true) &&
+            typeof console != 'undefined'
+        ) {
             this.debug = console.log.bind(console);
         } else {
             this.debug = function (message) {};
         }
 
-        // debug
-        this.bgRed = 'font-weight:500;background-color:#620000;color:#dbe2ff;';
-        this.bgYellow = 'font-weight:500;background-color:#ffe45e;color:#432818;';
-        this.bgBlue = 'font-weight:500;background-color:#a6e1fa;color:#001c55;';
-        this.bgGreen = 'font-weight:500;background-color:#92e6a7;color:#10451d;';
+        console.log(this.options);
 
         // dom elements
         this.$grid = $('#video-grid');
@@ -78,10 +80,10 @@ export class Video {
         if (this.mqtt) {
             this.mqttId = this.mqtt.getClientId();
 
-            this.debug('[video] mqtt connected');
+            this.debug('[video][mqtt] connected');
 
             // received camera status
-            this.debug('[video] subscribe: device/+/status');
+            this.debug('[video][mqtt] subscribe: device/+/status');
             this.mqtt.subscribe('device/+/status');
 
             // got the message
@@ -98,13 +100,18 @@ export class Video {
     }
 
     mqttDisconnected() {
-        this.debug('[video] mqtt disconnected');
+        this.debug('[video][mqtt] mqtt disconnected');
     }
 
     receivedDeviceStatus(payload) {
         const deviceId = payload.device_id ?? null;
 
-        this.debug('[video] %cmqtt message:', this.bgLightGreen, 'device/+/status', payload);
+        this.debug(
+            '[video][mqtt] %cmqtt message:',
+            ConsoleColors.purple,
+            'device/+/status',
+            payload
+        );
 
         if (!deviceId || !deviceId.length) {
             return;
@@ -117,16 +124,21 @@ export class Video {
             // update timestamp
             this._devices[deviceId].ts = payload.ts;
             this._devices[deviceId].status = payload.status;
+            this._devices[deviceId].ai = payload.ai === true;
 
-            // device disconnected
-            if (!this.isDeviceConnected(deviceId)) {
+            // device connected
+            if (this.isDeviceConnected(deviceId)) {
+                this.getDeviceData(deviceId)?.picamera?.setOptions(this._devices[deviceId]);
+
+                // device disconnected
+            } else {
                 this.debug('[video] camera not connected - reconnect');
 
                 // reconnect picamera
                 this.getDeviceData(deviceId)?.picamera?.reconnect();
             }
         } else {
-            this.debug('[video] !!! new device');
+            this.debug('[video] %c!!! new device', ConsoleColors.red, deviceId);
 
             let device = payload;
 
@@ -154,7 +166,9 @@ export class Video {
             this.updateGrid();
 
             // init pi camera
-            this.initPiCamera(deviceId, true);
+            this.initPiCamera(deviceId, true, {
+                enableAi: device.ai,
+            });
             //this.demoMp4(deviceId, true);
         }
     }
@@ -181,11 +195,14 @@ export class Video {
             : 'unknown';
     }
 
-    initPiCamera(deviceId, connect) {
+    initPiCamera(deviceId, connect, options) {
         var device = this.getDeviceData(deviceId);
         if (device) {
+            // override camera options
+            const camOptions = { ...this.options.camera, ...options };
+
             // pi camera
-            device.picamera = new PiCamera(deviceId, this.options.camera, null, this.mqtt);
+            device.picamera = new PiCamera(deviceId, camOptions, null, this.mqtt);
 
             // attach video reference to the camera
             device.picamera.attach(device.video_ref);

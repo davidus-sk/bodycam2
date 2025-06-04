@@ -40,9 +40,10 @@ let appConfig = {};
 import {App} from "./assets/js/app.js";
 
 // app config
-appConfig = <?= Config::read(true, [
+appConfig = <?= readConfig(true, [
     'mqtt' => ['clientId' => $MQTT_CLIENT_ID],
-]); ?>;
+]);
+?>;
 
 app = new App(appConfig);
 </script>
