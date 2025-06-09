@@ -4,7 +4,8 @@ include_once 'bootstrap.php';
 include_once 'class/Config.php';
 
 // assets
-define('ASSETS_VERSION', '20241218-005');
+$assetsTime = filemtime('assets');
+define('ASSETS_VERSION', ($assetsTime ? date('YmdHis', $assetsTime) : date('YmdH')));
 
 // views
 define('VIEW', !empty($_GET['r']) ? $_GET['r'] : 'video');
