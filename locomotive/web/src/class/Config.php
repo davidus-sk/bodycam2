@@ -142,7 +142,14 @@ class Config
         return self::$mergedConfig;
     }
 
-    private static function readConfigs(string|null $defaultConfigFile = null, string|null $userConfigFile = null): array
+    /**
+     * Read configs
+     *
+     * @param string|null $defaultConfigFile
+     * @param string|null $userConfigFile
+     * @return array
+     */
+    private static function readConfigs(?string $defaultConfigFile = null, ?string $userConfigFile = null): array
     {
         if (!$defaultConfigFile) {
             $defaultConfigFile = __DIR__ . '/../config/config.default.ini';
