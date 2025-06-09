@@ -25,7 +25,7 @@ export class MqttClient {
             debug: false,
             host: '127.0.0.1',
             port: 8000,
-            path: '',
+            path: '/mqtt',
             clientId: null,
             username: null,
             password: null,
@@ -74,7 +74,7 @@ export class MqttClient {
 
     disconnect() {
         if (!this.client) return;
-        this.debug(`f: mqtt disconnect`);
+        this.debug(`[mqtt_service] disconnect`);
 
         this.client.removeAllListeners();
         this.client.end(true);
@@ -107,7 +107,7 @@ export class MqttClient {
 
         // emitted on successful (re)connection
         this.client.on('connect', () => {
-            this.debug(`[mqtt_service] event connect - client id: ${this.getClientId()}`);
+            this.debug(`[mqtt_service][event] connect - client id: ${this.getClientId()}`);
 
             this.emit('connect', this);
             this.onConnect?.(this);
@@ -115,7 +115,7 @@ export class MqttClient {
 
         // emitted on successful (re)connection
         this.client.on('close', () => {
-            this.debug(`[mqtt_service] event disconnect - client id: ${this.getClientId()}`);
+            this.debug(`[mqtt_service][event] close - client id: ${this.getClientId()}`);
 
             this.emit('disconnect', this);
             this.onDisconnect?.(this);

@@ -5,11 +5,14 @@ import {
     arrayBufferToBase64,
     arrayBufferToString,
     RtcMessage,
-} from './rtcUtils.js';
+} from './rtc-utils.js';
 import { addWatermarkToImage, addWatermarkToStream } from './watermark.js';
+import { ConsoleColors } from './../utils.js';
+import * as TrackUtils from './track-utils.js';
 
 // https://www.micahbird.com/p/how-to-fix-webrtc-connection-issues-on-ungoogled-chromium/
 // https://stackoverflow.com/questions/60387691/remote-video-not-showing-up-on-one-end-webrtc-video-chat-app
+// https://stackoverflow.com/questions/62020695/webrtc-stuck-in-connecting-state
 
 // const MetadataCommand_LATEST = 'LATEST'
 // const MetadataCommand_OLDER = 'OLDER'
@@ -63,12 +66,6 @@ export class PiCamera {
             this.debug = function (message) {};
         }
 
-        // debug
-        this.bgRed = 'font-weight:500;background-color:#620000;color:#dbe2ff;';
-        this.bgYellow = 'font-weight:500;background-color:#ffe45e;color:#432818;';
-        this.bgBlue = 'font-weight:500;background-color:#a6e1fa;color:#001c55;';
-        this.bgGreen = 'font-weight:500;background-color:#92e6a7;color:#10451d;';
-
         this.debug('[picamera] initializing...', this.options);
 
         // mqtt
@@ -87,6 +84,7 @@ export class PiCamera {
             turnUrls: [],
             turnUsername: '',
             turnPassword: '',
+            enableAi: false,
         };
 
         let opt = { ...defaultOptions, ...options };
@@ -98,20 +96,24 @@ export class PiCamera {
         return opt;
     }
 
+    setOptions(options) {
+        this.options = { ...this.options, ...options };
+    }
+
     initMqtt(mqttClient) {
         if (mqttClient && typeof mqttClient === 'object') {
             this.mqtt = mqttClient;
             this.mqttClientId = mqttClient.client.options.clientId;
 
             this.mqtt.on('connect', () => {
-                console.log('[picamera] mqtt connect event');
+                console.log('[picamera][mqtt] event: connect ');
             });
 
             // signaling
             const sdpTopic = this.constructTopic(MQTT_SDP_TOPIC);
             const iceTopic = this.constructTopic(MQTT_ICE_TOPIC);
-            this.debug('[picamera] ' + this.cameraId + ' | mqtt subscribe: ' + sdpTopic);
-            this.debug('[picamera] ' + this.cameraId + ' | mqtt subscribe: ' + iceTopic);
+            this.debug('[picamera][mqtt] ' + this.cameraId + ' | subscribe: ' + sdpTopic);
+            this.debug('[picamera][mqtt] ' + this.cameraId + ' | mqtt subscribe: ' + iceTopic);
             this.mqtt.subscribe(sdpTopic, this.handleSdpMessage);
             this.mqtt.subscribe(iceTopic, this.handleIceMessage);
 
@@ -144,7 +146,7 @@ export class PiCamera {
         //     const topic = this.constructTopic(MQTT_SDP_TOPIC, '/offer');
         //     this.debug(
         //         '[picamera] ' + this.cameraId + ' | %csending local SDP (' + offer.type + ')',
-        //         this.bgGreen,
+        //         ConsoleColors.green,
         //         '| ' + topic
         //     );
         //     this.mqtt.publish(topic, JSON.stringify(this.rtcPeer.localDescription));
@@ -154,8 +156,8 @@ export class PiCamera {
         // create webrtc peer connection
         this.rtcPeer = await this.createPeer();
 
-        this.debug('[picamera] ----------------------------------------------------------');
-        this.debug('[picamera] ----------------------------------------------------------');
+        this.debug('[picamera] ' + this.cameraId + ' -----------------------------------');
+        this.debug('[picamera] ' + this.cameraId + ' -----------------------------------');
         this.debug('[picamera] ' + this.cameraId + ' | connect');
 
         // new offer
@@ -171,7 +173,7 @@ export class PiCamera {
         const topic = this.constructTopic(MQTT_SDP_TOPIC, '/offer');
         this.debug(
             '[picamera] ' + this.cameraId + ' | %csending local SDP (' + offer.type + ')',
-            this.bgGreen,
+            ConsoleColors.green,
             '| ' + topic
         );
         this.mqtt.publish(topic, JSON.stringify(this.rtcPeer.localDescription));
@@ -185,19 +187,19 @@ export class PiCamera {
 
             this.debug(
                 '[picamera] ' + this.cameraId + ' | %cdisconnecting on timeout',
-                this.bgRed,
+                ConsoleColors.red,
                 '(' + this.options.timeout + ' ms) - client id: ' + this.cameraId
             );
 
             if (this.onTimeout) {
                 this.onTimeout();
             }
-
-            this.reconnect();
         }, this.options.timeout);
     }
 
     async reconnect() {
+        this.debug('[picamera] reconnect');
+
         if (this.reconnectPeer) {
             this.connect(true);
         } else {
@@ -255,6 +257,7 @@ export class PiCamera {
 
         peer.ontrack = e => {
             this.debug('[picamera] ' + this.cameraId + ' | %cnew track added', self.bgRed);
+            this.debug('[picamera] enable AI: ' + (this.options.enableAi ? 'yes' : 'no'));
 
             this.remoteStream = new MediaStream();
 
@@ -276,12 +279,33 @@ export class PiCamera {
             }
 
             if (this.mediaElement) {
-                //this.mediaElement.srcObject = this.remoteStream;
-                if (this.options.showClock) {
-                    this.mediaElement.srcObject = addWatermarkToStream(this.remoteStream, ':)');
+                // enable Ai
+                // start the video processing pipeline
+                if (this.options.enableAi === true) {
+                    // create a transform function and assign it to transformFn variable
+                    let transformFn = TrackUtils.detectPersonsBoundingBox({
+                        stream: this.mediaElement,
+                    });
+
+                    const pTrack = TrackUtils.createProcessedTrack({
+                        track: this.remoteStream.getVideoTracks()[0],
+                        transform: transformFn,
+                    });
+
+                    const processedStream = new MediaStream();
+                    processedStream.addTrack(pTrack);
+
+                    this.mediaElement.srcObject = processedStream;
                 } else {
                     this.mediaElement.srcObject = this.remoteStream;
                 }
+
+                //this.mediaElement.srcObject = this.remoteStream;
+                // if (this.options.showClock) {
+                //     this.mediaElement.srcObject = addWatermarkToStream(this.remoteStream, ':)');
+                // } else {
+                //     this.mediaElement.srcObject = this.remoteStream;
+                // }
             }
         };
 
@@ -323,7 +347,7 @@ export class PiCamera {
     };
 
     async onnegotiationneededCallback(event) {
-        this.debug('[picamera] ' + this.cameraId + ' | %cnegotiationneeded', this.bgBlue);
+        this.debug('[picamera] ' + this.cameraId + ' | %cnegotiationneeded', ConsoleColors.blue);
 
         // try {
         //     this.makingOffer = true;
@@ -367,7 +391,7 @@ export class PiCamera {
 
         this.debug(
             '[picamera] ' + this.cameraId + ' | %cconnectionstatechange: ' + state,
-            this.bgYellow
+            ConsoleColors.yellow
         );
 
         switch (state) {
@@ -586,9 +610,9 @@ export class PiCamera {
             const topic = this.constructTopic(MQTT_SDP_TOPIC);
 
             this.debug(
-                '[picamera] ' + this.cameraId + ' | %cgot remote SDP (' + sdp.type + ')',
-                this.bgGreen,
-                '| ' + topic
+                '[picamera] ' + this.cameraId + ' | %cgot remote SDP',
+                ConsoleColors.green,
+                '| ' + sdp.type + ' | ' + topic
             );
 
             this.rtcPeer
@@ -620,6 +644,8 @@ export class PiCamera {
         if (!this.isConnected()) {
             const candidate = JSON.parse(message);
             if (this.remoteDescriptionSet === true) {
+                //console.log(this.rtcPeer);
+
                 this.rtcPeer.addIceCandidate(new RTCIceCandidate(candidate));
                 this.debug('[picamera] ' + this.cameraId + ' | got remote ICE candidate - set');
             } else {

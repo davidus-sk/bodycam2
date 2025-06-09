@@ -1,4 +1,5 @@
-import { getTimestamp } from './functions.js';
+import { getTimestamp, setCookie } from './functions.js';
+import { ConsoleColors } from './utils.js';
 
 export class Debug {
     options = {};
@@ -14,7 +15,12 @@ export class Debug {
         this.deviceId = this.options.deviceId ? this.options.deviceId : this.randomDeviceId();
 
         // debug
-        if (this.options.debug === true && typeof console != 'undefined') {
+        if (
+            (this.options.debug === true ||
+                this.options.video.debug === true ||
+                this.options.app.debug === true) &&
+            typeof console != 'undefined'
+        ) {
             this.debug = console.log.bind(console);
         } else {
             this.debug = function (message) {};
@@ -22,7 +28,7 @@ export class Debug {
 
         // dom elements
         this.$debug = $('#debug');
-        this.$selDevices = $('#sel-cameras');
+        this.$selectDevices = $('#select-devices');
 
         // mqtt
         this.initMqtt(app?.getMqttClient());
@@ -30,11 +36,11 @@ export class Debug {
         // buttons status
         this.buttonsStatus = {};
 
-        // local variables
-        this.bgRed = 'font-weight:500;background-color:#620000;color:#dbe2ff;';
-        this.bgYellow = 'font-weight:500;background-color:#ffe45e;color:#432818;';
-        this.bgBlue = 'font-weight:500;background-color:#a6e1fa;color:#001c55;';
-        this.bgGreen = 'font-weight:500;background-color:#92e6a7;color:#10451d;';
+        // events
+        this.$selectDevices.on('change', function () {
+            const value = $(this).val();
+            setCookie('last_device_id', value, 365);
+        });
 
         this.buttons();
         this.stream();
@@ -108,7 +114,7 @@ export class Debug {
     }
 
     getSelectedDeviceId(randomIfEmpty) {
-        let deviceId = this.$selDevices.find(':selected').val();
+        let deviceId = this.$selectDevices.find(':selected').val();
 
         if (deviceId === '' && randomIfEmpty !== false) {
             deviceId = this.deviceId;
@@ -147,6 +153,7 @@ export class Debug {
 
             const $btn = $(e.target);
             const mode = $btn.attr('data-status') || '';
+            const enableAi = (parseInt($btn.attr('data-ai')) || 0) === 1;
             const deviceId = this.getSelectedDeviceId();
 
             let active = parseInt($btn.attr('data-active')) === 1;
@@ -172,7 +179,7 @@ export class Debug {
                     }, 15000);
                 }
             } else {
-                this.sendDeviceStatus(deviceId);
+                this.sendDeviceStatus(deviceId, enableAi);
             }
         });
 
@@ -201,7 +208,7 @@ export class Debug {
         });
     }
 
-    sendDeviceStatus(deviceId) {
+    sendDeviceStatus(deviceId, enableAi) {
         if (this.mqtt && this.mqtt.isConnected()) {
             const topic = `device/${deviceId}/status`;
             this.debug('[debug] device status | ' + topic);
@@ -213,6 +220,7 @@ export class Debug {
                     device_type: 'camera',
                     ts: getTimestamp(),
                     status: 'alive',
+                    ai: enableAi,
                 })
             );
         }
@@ -331,7 +339,7 @@ export class Debug {
             }
 
             this.debug('[debug]');
-            this.debug('[debug] %cgot remote SDP (' + sdp.type + ')', this.bgGreen);
+            this.debug('[debug] %cgot remote SDP (' + sdp.type + ')', ConsoleColors.green);
 
             // this.mqtt.unsubscribe(`${deviceId}/sdp/+/offer`);
             // this.debug('[mqtt_service] unsubscribe: ' + `${deviceId}/sdp/+/offer`);
@@ -393,7 +401,7 @@ export class Debug {
 
                     this.debug(
                         '[debug] %csending local SDP (' + _pc[key].localDescription.type + ')',
-                        this.bgGreen,
+                        ConsoleColors.green,
                         '| ' + topic
                     );
 
@@ -601,7 +609,10 @@ export class Debug {
                     },
                 })
                 .then(stream => {
-                    this.debug('[debug] %ccamera initialized, waiting for signaling', this.bgRed);
+                    this.debug(
+                        '[debug] %ccamera initialized, waiting for signaling',
+                        ConsoleColors.red
+                    );
 
                     $btnStartStream.hide();
                     $btnStopStream.show();

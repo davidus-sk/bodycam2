@@ -35,7 +35,12 @@ export class MapView {
         this.$btnReset = $('#btn-reset');
 
         // debug
-        if (this.options.debug === true && typeof console != 'undefined') {
+        if (
+            (this.options.debug === true ||
+                this.options.map.debug === true ||
+                this.options.app.debug === true) &&
+            typeof console != 'undefined'
+        ) {
             this.debug = console.log.bind(console);
         } else {
             this.debug = function (message) {};
