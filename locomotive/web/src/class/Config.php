@@ -11,7 +11,7 @@ class Config
     private static $mergedConfig;
 
 
-    public static function getAll(bool $jsonEncode = false, array $overrideOptions = null)
+    public static function getAll(bool $jsonEncode = false, ?array $overrideOptions = null)
     {
         $config = self::getMergedConfig();
 
@@ -25,7 +25,6 @@ class Config
         } else {
             return $config;
         }
-
     }
 
     /**
@@ -36,7 +35,7 @@ class Config
      * object has neither a value nor a default.
      * @return mixed Config value
      */
-    public static function get(string $key = null, $default = null)
+    public static function get(?string $key = null, $default = null)
     {
         $config = self::getMergedConfig();
 

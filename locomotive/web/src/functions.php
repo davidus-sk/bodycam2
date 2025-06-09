@@ -113,7 +113,7 @@ function stdout($string): void
     echo $string;
 }
 
-function readConfig(bool $returnJson = false, array $overrideOptions = []): mixed
+function readConfig(bool $returnJson = false, array $overrideOptions = [])
 {
     return Config::getAll($returnJson, $overrideOptions);
 }
@@ -124,7 +124,7 @@ function readConfig(bool $returnJson = false, array $overrideOptions = []): mixe
  * @param string $value
  * @return mixed
  */
-function arrayGetValue(array $arr, $value): mixed
+function arrayGetValue(array $arr, $value)
 {
     return $arr[$value] ?? null;
 }
@@ -229,7 +229,7 @@ function secondsToWords($seconds, $roundSeconds = false)
 }
 
 /**
- * Retnder JS file
+ * Render JS file
  * @param string $filename
  * @return string
  */
