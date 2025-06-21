@@ -1,0 +1,15 @@
+[Unit]
+Description=XM125 Distance Detector to MQTT Publisher Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/app/bodycam2/radar
+ExecStart=/app/bodycam2/venv/bin/python3 /app/bodycam2/radar/xm125_mqtt.py
+Restart=always
+RestartSec=1
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+
