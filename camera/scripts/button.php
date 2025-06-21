@@ -1,6 +1,12 @@
 #!/usr/bin/php
 <?php
 
+// Monitor creation of ESTOP file by the button reading service.
+// If the ESTOP file was created send MQTT message to the locomotive
+//
+// Future improvement: Send MQTT right away from the button reading service
+
+
 // load libraries
 require(dirname(__FILE__) . '/../../../vendor/autoload.php');
 require(dirname(__FILE__) . '/../../common/functions.php');
@@ -15,7 +21,7 @@ run_once('/tmp/camera_button.pid', $fh);
 $config = read_config();
 
 // log
-openlog("camera_restart", LOG_PID | LOG_PERROR, LOG_LOCAL0);
+openlog("camera_button", LOG_PID | LOG_PERROR, LOG_LOCAL0);
 
 // MQTT settings
 $clientId = 'device-' . trim(`{$config['client_id']}`);

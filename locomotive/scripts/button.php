@@ -1,37 +1,36 @@
 #!/usr/bin/php
 <?php
 
-// run only once
-$lockFile = fopen('/tmp/locomotive_button.pid', 'c');
-$gotLock = flock($lockFile, LOCK_EX | LOCK_NB, $wouldBlock);
-if ($lockFile === false || (!$gotLock && !$wouldBlock)) {
-        throw new Exception("Can't obtain lock.");
-} else if (!$gotLock && $wouldBlock) {
-        exit();
-}//if
+// Monitor BUTTON topic, if message was received, trigger relay.
+// Messages come from body worn units and trigger relay on the loco unit.
 
-ftruncate($lockFile, 0);
-fwrite($lockFile, getmypid() . "\n");
 
 // load libraries
 require(dirname(__FILE__) . '/../../../vendor/autoload.php');
+require(dirname(__FILE__) . '/../../common/functions.php');
 
 use \PhpMqtt\Client\MqttClient;
 use \PhpMqtt\Client\ConnectionSettings;
 
+// run once
+run_once('/tmp/locomotive_button.pid', $fh);
+
+// load settings
+$config = read_config();
+
+// log
+openlog("locomotive_button", LOG_PID | LOG_PERROR, LOG_LOCAL0);
+
 // MQTT settings
-$server   = '951badeefd764316aa971d7958e80e0c.s1.eu.hivemq.cloud';
-$port     = 8883;
-$clientId = 'locomotive-' . trim(`/usr/bin/cat /proc/cpuinfo | /usr/bin/grep "Serial" | /usr/bin/xargs | /usr/bin/cut -d ' ' -f 3`);
-$username = 'marek';
-$password = 'Mqtt12345';
-$clean_session = false;
+$clientId = 'device-' . trim(`{$config['client_id']}`);
+$clean_session = true;
 $mqtt_version = MqttClient::MQTT_3_1;
+$stop_file = '/tmp/ESTOP';
 
 // MQTT connection string
-$connectionSettings = (new ConnectionSettings)
-  ->setUsername($username)
-  ->setPassword($password)
+$connection_settings = (new ConnectionSettings)
+  ->setUsername($config['username'])
+  ->setPassword($config['password'])
   ->setKeepAliveInterval(60)
   ->setConnectTimeout(3)
   ->setLastWillTopic("device/{$clientId}/last-will")
@@ -40,11 +39,12 @@ $connectionSettings = (new ConnectionSettings)
   ->setLastWillQualityOfService(0);
 
 // connect to the server
-$mqtt = new MqttClient($server, $port, $clientId, $mqtt_version);
+$mqtt = new MqttClient($config['server'], $config['port'], $clientId . '-' . mt_rand(10, 99), $mqtt_version);
 $mqtt->connect($connectionSettings, $clean_session);
 
 $mqtt->subscribe('device/+/button', function ($topic, $message) {
-    printf("Received message on topic [%s]: %s\n", $topic, $message);
+	syslog(LOG_INFO, "Received message on topic [{$topic}]: {$message}.");
+
 	$command = dirname(__FILE__) . '/relay.py';
 	`$command`;
 }, 0);
