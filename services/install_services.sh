@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Define the services directory
-SERVICES_DIR="/app/bodycam2/services"
+set -euo pipefail
+
+SERVICES_DIR="$(dirname "$0")"  # Use the directory where the script is located
 SYSTEMD_DIR="/etc/systemd/system"
 
 echo "Starting service installation process..."
@@ -12,33 +13,35 @@ if [ ! -d "$SERVICES_DIR" ]; then
   exit 1
 fi
 
-# Process each service file in the directory
-for service_file in "$SERVICES_DIR"/*.service; do
-  # Check if there are service files to process
-  if [ ! -f "$service_file" ]; then
-    echo "No service files found in $SERVICES_DIR."
-    exit 1
-  fi
+# Find .service files in the directory (not subdirectories)
+shopt -s nullglob
+service_files=("$SERVICES_DIR"/*.service)
+shopt -u nullglob
 
-  # Copy the service file to the systemd directory
-  echo "Installing $service_file..."
-  sudo cp "$service_file" "$SYSTEMD_DIR/"
-  
-  # Reload systemd to recognize the new service
-  echo "Reloading systemd..."
-  sudo systemctl daemon-reload
+if [ ${#service_files[@]} -eq 0 ]; then
+  echo "No service files found in $SERVICES_DIR."
+  exit 1
+fi
 
-  # Extract the service file name
+# Copy all .service files first
+for service_file in "${service_files[@]}"; do
   service_name=$(basename "$service_file")
-  
-  # Enable and start the service
+  echo "Installing $service_name..."
+  sudo cp "$service_file" "$SYSTEMD_DIR/$service_name"
+done
+
+echo "Reloading systemd..."
+sudo systemctl daemon-reload
+
+# Enable and restart all services
+for service_file in "${service_files[@]}"; do
+  service_name=$(basename "$service_file")
   echo "Enabling $service_name..."
   sudo systemctl enable "$service_name"
-  
-  echo "Starting $service_name..."
+
+  echo "Restarting $service_name..."
   sudo systemctl restart "$service_name"
 
-  # Verify the service status
   if sudo systemctl is-active --quiet "$service_name"; then
     echo "$service_name is running."
   else
