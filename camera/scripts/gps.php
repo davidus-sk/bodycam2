@@ -7,14 +7,14 @@ function openSerialPort($port, $baudrate) {
 	// Use system commands to configure the serial port (Unix-like systems)
 	// This part is crucial and highly dependent on your operating system.
 	// For Windows, you'd use 'MODE COMx: BAUD=115200 PARITY=N DATA=8 STOP=1'
-	$command = "/usr/bin/stty -F {$port} {$baudrate} cs8 cread clocal -ixon -parenb -cstopb raw";
+/*	$command = "/usr/bin/stty -F {$port} {$baudrate}";
 	exec($command, $output, $return_var);
 
 	if ($return_var !== 0) {
 		echo "Error configuring serial port with stty: " . implode("\n", $output) . "\n";
 		return false;
 	}//if
-
+*/
 	echo "Serial port configured.\n";
 
 	// Open the serial port as a file
@@ -72,7 +72,7 @@ function sendAndRead($serialHandle, $command, $delay) {
 			// No more data or timeout
 			break;
 		}//if
-		
+
 		$buffer .= $char;
 		if (strpos($buffer, "\n") !== false) {
 			// Found a newline, process the line
@@ -90,6 +90,73 @@ function sendAndRead($serialHandle, $command, $delay) {
 	return $response;
 }
 
+/**
+ * Converts a GPS coordinate string from DDMM.MMMM,N/S,DDDMM.MMMM,E/W format to decimal degrees.
+ *
+ * @param string $gpsString The GPS coordinate string (e.g., "3015.177003,N,08134.332917,W").
+ * @return array|false An associative array with 'latitude' and 'longitude' in decimal degrees,
+ * or false if the input string format is invalid.
+ */
+function convertGpsToDecimal($gpsString) {
+    // 1. Parse the input string
+    $parts = explode(',', $gpsString);
+
+    // Ensure we have exactly 4 parts: lat_val, lat_dir, lon_val, lon_dir
+    if (count($parts) !== 4) {
+        error_log("Invalid GPS string format: Expected 4 parts, got " . count($parts));
+        return false;
+    }
+
+    list($latValueStr, $latDirection, $lonValueStr, $lonDirection) = $parts;
+
+    // --- Process Latitude ---
+    // Extract degrees and minutes for latitude (DDMM.MMMM)
+    // The degrees are the first two digits.
+    if (strlen($latValueStr) < 2) {
+        error_log("Invalid latitude value format: '{$latValueStr}'");
+        return false;
+    }
+    $latDegrees = (float) substr($latValueStr, 0, 2);
+    $latMinutes = (float) substr($latValueStr, 2); // Remainder is minutes
+
+    // Calculate decimal latitude
+    $decimalLatitude = $latDegrees + ($latMinutes / 60);
+
+    // Apply sign based on direction (N is positive, S is negative)
+    if (strtoupper($latDirection) === 'S') {
+        $decimalLatitude *= -1;
+    } elseif (strtoupper($latDirection) !== 'N') {
+        error_log("Invalid latitude direction: '{$latDirection}'");
+        return false;
+    }
+
+    // --- Process Longitude ---
+    // Extract degrees and minutes for longitude (DDDMM.MMMM)
+    // The degrees are the first three digits.
+    if (strlen($lonValueStr) < 3) {
+        error_log("Invalid longitude value format: '{$lonValueStr}'");
+        return false;
+    }
+    $lonDegrees = (float) substr($lonValueStr, 0, 3);
+    $lonMinutes = (float) substr($lonValueStr, 3); // Remainder is minutes
+
+    // Calculate decimal longitude
+    $decimalLongitude = $lonDegrees + ($lonMinutes / 60);
+
+    // Apply sign based on direction (E is positive, W is negative)
+    if (strtoupper($lonDirection) === 'W') {
+        $decimalLongitude *= -1;
+    } elseif (strtoupper($lonDirection) !== 'E') {
+        error_log("Invalid longitude direction: '{$lonDirection}'");
+        return false;
+    }
+
+    return [
+        'latitude' => $decimalLatitude,
+        'longitude' => $decimalLongitude
+    ];
+}
+
 // --- Main execution ---
 $serialPort = '/dev/ttyUSB3'; // Change this for Windows (e.g., 'COM1')
 $baudRate = 115200;
@@ -102,9 +169,18 @@ try {
 
 	if ($serialHandle) {
 		echo "Starting communication loop...\n";
+		sendAndRead($serialHandle, "AT+CGPS=1\r\n", 0);
+
 		while (true) {
-			$data = sendAndRead($serialHandle, "AT+CGPSINFO\n", 0); // Delay handled by usleep in sendAndRead if needed
-			echo "$data\n";
+			$data = sendAndRead($serialHandle, "AT+CGPSINFO\r\n", 0); // Delay handled by usleep in sendAndRead if needed
+
+			// +CGPSINFO: 3015.177003,N,08134.332917,W,210625,010533.0,23.5,0.0,
+			if (preg_match("/CGPSINFO: ([0-9.]+,[NWES],[0-9.]+,[NWES])/", $data, $m)) {
+				$decimalCoords = convertGpsToDecimal($m[1]);
+
+				echo "LAT: {$decimalCoords['latitude']}, LON: {$decimalCoords['longitude']}\n";
+			}//if
+
 			sleep($loopDelaySeconds); // Delay between iterations
 		}//while
 	}//if
