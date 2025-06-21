@@ -435,7 +435,7 @@ def main():
                             {"index": i, "distance_mm": d, "strength": s}
                             for i, (d, s) in enumerate(peaks)
                         ],
-                        "ts": time.time(),
+                        'ts': int(time.time()),
                     }
                     mqtt_pub.publish(msg)
                 # No peaks: do nothing (no print, no MQTT)

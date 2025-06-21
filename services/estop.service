@@ -1,11 +1,11 @@
 [Unit]
-Description=E-STOP Monitoring Service
+Description=E-STOP MQTT Monitoring Service
 After=multi-user.target
 Wants=multi-user.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /app/bodycam2/estop/estop_monitor.py
+ExecStart=/app/bodycam2/venv/bin/python3 /app/bodycam2/estop/estop_mqtt.py
 Restart=always
 RestartSec=1
 User=root
