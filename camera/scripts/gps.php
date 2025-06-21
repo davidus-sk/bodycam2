@@ -1,26 +1,27 @@
+#!/usr/bin/php
 <?php
+
+// Monitor creation of ESTOP file by the button reading service.
+// If the ESTOP file was created send MQTT message to the locomotive
+//
+// Future improvement: Send MQTT right away from the button reading service
+
+
+// load libraries
+require(dirname(__FILE__) . '/../../../vendor/autoload.php');
+require(dirname(__FILE__) . '/../../common/functions.php');
+
+use \PhpMqtt\Client\MqttClient;
+use \PhpMqtt\Client\ConnectionSettings;
 
 // Function to open and configure the serial port
 function openSerialPort($port, $baudrate) {
-	echo "Attempting to open serial port: {$port} at {$baudrate} baud...\n";
-
-	// Use system commands to configure the serial port (Unix-like systems)
-	// This part is crucial and highly dependent on your operating system.
-	// For Windows, you'd use 'MODE COMx: BAUD=115200 PARITY=N DATA=8 STOP=1'
-/*	$command = "/usr/bin/stty -F {$port} {$baudrate}";
-	exec($command, $output, $return_var);
-
-	if ($return_var !== 0) {
-		echo "Error configuring serial port with stty: " . implode("\n", $output) . "\n";
-		return false;
-	}//if
-*/
-	echo "Serial port configured.\n";
+	syslog(LOG_INFO, "Attempting to open serial port: {$port} at {$baudrate} baud...");
 
 	// Open the serial port as a file
 	$handle = @fopen($port, 'r+b'); // r+b for read/write binary mode
 	if (!$handle) {
-		echo "Error: Could not open serial port {$port}. Check permissions or if it's in use.\n";
+		syslog(LOG_ERR, "Could not open serial port {$port}. Check permissions or if it's in use.";)
 		return false;
 	}//if
 
@@ -30,25 +31,23 @@ function openSerialPort($port, $baudrate) {
 	// Set timeout for read operations (if blocking is enabled)
 	stream_set_timeout($handle, 1); // 1 second timeout
 
-	echo "Successfully opened serial port: {$port}\n";
+	syslog(LOG_INFO, "Successfully opened serial port: {$port}");
 	return $handle;
 }
 
 // Function to send a command and read a line
 function sendAndRead($serialHandle, $command, $delay) {
 	if (!$serialHandle) {
-		echo "Serial port not open.\n";
+		syslog(LOG_ERR, "Serial port not open.");
 		return false;
-	}
+	}//if
 
 	// Send the command
 	$bytesWritten = fwrite($serialHandle, $command);
 	if ($bytesWritten === false) {
-		echo "Error: Could not write to serial port.\n";
+		syslog(LOG_ERR, "Could not write to serial port.");
 		return false;
-	}
-
-	echo "Sent command: '" . rtrim($command) . "' (" . $bytesWritten . " bytes)\n";
+	}//if
 
 	// Ensure data is sent
 	fflush($serialHandle);
@@ -82,9 +81,9 @@ function sendAndRead($serialHandle, $command, $delay) {
 	}//while
 
 	if (!empty($response)) {
-		echo "Received response: '{$response}'\n";
+		//echo "Received response: '{$response}'\n";
 	} else {
-		echo "No response received within timeout.\n";
+		//echo "No response received within timeout.\n";
 	}//if
 
 	return $response;
@@ -98,67 +97,94 @@ function sendAndRead($serialHandle, $command, $delay) {
  * or false if the input string format is invalid.
  */
 function convertGpsToDecimal($gpsString) {
-    // 1. Parse the input string
-    $parts = explode(',', $gpsString);
+	// 1. Parse the input string
+	$parts = explode(',', $gpsString);
 
-    // Ensure we have exactly 4 parts: lat_val, lat_dir, lon_val, lon_dir
-    if (count($parts) !== 4) {
-        error_log("Invalid GPS string format: Expected 4 parts, got " . count($parts));
-        return false;
-    }
+	// Ensure we have exactly 4 parts: lat_val, lat_dir, lon_val, lon_dir
+	if (count($parts) !== 4) {
+		syslog(LOG_ERR, "Invalid GPS string format: Expected 4 parts, got " . count($parts));
+		return false;
+	}
 
-    list($latValueStr, $latDirection, $lonValueStr, $lonDirection) = $parts;
+	list($latValueStr, $latDirection, $lonValueStr, $lonDirection) = $parts;
 
-    // --- Process Latitude ---
-    // Extract degrees and minutes for latitude (DDMM.MMMM)
-    // The degrees are the first two digits.
-    if (strlen($latValueStr) < 2) {
-        error_log("Invalid latitude value format: '{$latValueStr}'");
-        return false;
-    }
-    $latDegrees = (float) substr($latValueStr, 0, 2);
-    $latMinutes = (float) substr($latValueStr, 2); // Remainder is minutes
+	// --- Process Latitude ---
+	// Extract degrees and minutes for latitude (DDMM.MMMM)
+	// The degrees are the first two digits.
+	if (strlen($latValueStr) < 2) {
+		syslog(LOG_ERR, "Invalid latitude value format: '{$latValueStr}'");
+		return false;
+	}
 
-    // Calculate decimal latitude
-    $decimalLatitude = $latDegrees + ($latMinutes / 60);
+	$latDegrees = (float) substr($latValueStr, 0, 2);
+	$latMinutes = (float) substr($latValueStr, 2); // Remainder is minutes
 
-    // Apply sign based on direction (N is positive, S is negative)
-    if (strtoupper($latDirection) === 'S') {
-        $decimalLatitude *= -1;
-    } elseif (strtoupper($latDirection) !== 'N') {
-        error_log("Invalid latitude direction: '{$latDirection}'");
-        return false;
-    }
+	// Calculate decimal latitude
+	$decimalLatitude = $latDegrees + ($latMinutes / 60);
 
-    // --- Process Longitude ---
-    // Extract degrees and minutes for longitude (DDDMM.MMMM)
-    // The degrees are the first three digits.
-    if (strlen($lonValueStr) < 3) {
-        error_log("Invalid longitude value format: '{$lonValueStr}'");
-        return false;
-    }
-    $lonDegrees = (float) substr($lonValueStr, 0, 3);
-    $lonMinutes = (float) substr($lonValueStr, 3); // Remainder is minutes
+	// Apply sign based on direction (N is positive, S is negative)
+	if (strtoupper($latDirection) === 'S') {
+		$decimalLatitude *= -1;
+	} elseif (strtoupper($latDirection) !== 'N') {
+		syslog(LOG_ERR, "Invalid latitude direction: '{$latDirection}'");
+		return false;
+	}
 
-    // Calculate decimal longitude
-    $decimalLongitude = $lonDegrees + ($lonMinutes / 60);
+	// --- Process Longitude ---
+	// Extract degrees and minutes for longitude (DDDMM.MMMM)
+	// The degrees are the first three digits.
+	if (strlen($lonValueStr) < 3) {
+		syslog(LOG_ERR, "Invalid longitude value format: '{$lonValueStr}'");
+		return false;
+	}
 
-    // Apply sign based on direction (E is positive, W is negative)
-    if (strtoupper($lonDirection) === 'W') {
-        $decimalLongitude *= -1;
-    } elseif (strtoupper($lonDirection) !== 'E') {
-        error_log("Invalid longitude direction: '{$lonDirection}'");
-        return false;
-    }
+	$lonDegrees = (float) substr($lonValueStr, 0, 3);
+	$lonMinutes = (float) substr($lonValueStr, 3); // Remainder is minutes
 
-    return [
-        'latitude' => $decimalLatitude,
-        'longitude' => $decimalLongitude
-    ];
+	// Calculate decimal longitude
+	$decimalLongitude = $lonDegrees + ($lonMinutes / 60);
+
+	// Apply sign based on direction (E is positive, W is negative)
+	if (strtoupper($lonDirection) === 'W') {
+		$decimalLongitude *= -1;
+	} elseif (strtoupper($lonDirection) !== 'E') {
+		syslog(LOG_ERR, "Invalid longitude direction: '{$lonDirection}'");
+		return false;
+	}
+
+	return [
+		'latitude' => $decimalLatitude,
+		'longitude' => $decimalLongitude
+	];
 }
 
 // --- Main execution ---
-$serialPort = '/dev/ttyUSB3'; // Change this for Windows (e.g., 'COM1')
+// run once
+run_once('/tmp/camera_gps.pid', $fh);
+
+// load settings
+$config = read_config();
+
+// log
+openlog("camera_gps", LOG_PID | LOG_PERROR, LOG_LOCAL0);
+
+// MQTT settings
+$clientId = 'device-' . trim(`{$config['client_id']}`);
+$clean_session = true;
+$mqtt_version = MqttClient::MQTT_3_1;
+
+// MQTT connection string
+$connection_settings = (new ConnectionSettings)
+  ->setUsername($config['username'])
+  ->setPassword($config['password'])
+  ->setKeepAliveInterval(60)
+  ->setConnectTimeout(3)
+  ->setLastWillTopic("device/{$clientId}/last-will")
+  ->setLastWillMessage('GPS service disconnected.')
+  ->setUseTls(true)
+  ->setLastWillQualityOfService(0);
+
+$serialPort = '/dev/ttyUSB3';
 $baudRate = 115200;
 $loopDelaySeconds = 2; // Delay between command cycles
 
@@ -168,7 +194,10 @@ try {
 	$serialHandle = openSerialPort($serialPort, $baudRate);
 
 	if ($serialHandle) {
-		echo "Starting communication loop...\n";
+		syslog(LOG_INFO, "Starting communication loop...");
+
+		// tell modem to start sending GPS data
+		sendAndRead($serialHandle, "AT\r\n", 0);
 		sendAndRead($serialHandle, "AT+CGPS=1\r\n", 0);
 
 		while (true) {
@@ -178,17 +207,33 @@ try {
 			if (preg_match("/CGPSINFO: ([0-9.]+,[NWES],[0-9.]+,[NWES])/", $data, $m)) {
 				$decimalCoords = convertGpsToDecimal($m[1]);
 
-				echo "LAT: {$decimalCoords['latitude']}, LON: {$decimalCoords['longitude']}\n";
+				// connect to the server
+				$mqtt = new MqttClient($config['server'], $config['port'], $clientId . '-' . mt_rand(10, 99), $mqtt_version);
+				$mqtt->connect($connection_settings, $clean_session);
+
+				// construct payload
+				$payload = [
+					'device_id' => $clientId,
+					'device_type' => 'camera',
+					'ts' => time(),
+					'status' => $status
+				];
+
+				// publish and disconnect
+				$mqtt->publish("device/{$clientId}/gps", json_encode($payload), 0, false);
+				$mqtt->disconnect();
+
+				syslog(LOG_INFO, "LAT: {$decimalCoords['latitude']}, LON: {$decimalCoords['longitude']}");
 			}//if
 
 			sleep($loopDelaySeconds); // Delay between iterations
 		}//while
 	}//if
 } catch (Exception $e) {
-	echo "An error occurred: " . $e->getMessage() . "\n";
+	syslog(LOG_ERR, "An error occurred: " . $e->getMessage());
 } finally {
 	if ($serialHandle && is_resource($serialHandle)) {
 		fclose($serialHandle);
-		echo "Serial port {$serialPort} closed.\n";
+		syslog(LOG_INFO, "Serial port {$serialPort} closed.");
 	}//if
 }//try
