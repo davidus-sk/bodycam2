@@ -129,6 +129,9 @@ def build_mqtt_settings(cfg):
     mqtt_topic = f"device-{base_id}"     # topic (not a path, just the device ID)
     rand_num = random.randint(10, 99)    # Always 2-digit
     mqtt_client_id = f"{mqtt_topic}-{rand_num}"
+    mqtt_topic = f"device/{mqtt_topic}/fall"  # final topic with path
+    print(f"[MQTT] INFO: MQTT_TOPIC: {mqtt_topic}.")
+    print(f"[MQTT] INFO: MQTT_CLIENT_ID: {mqtt_client_id}.")
 
     # Return all needed settings
     return dict(
