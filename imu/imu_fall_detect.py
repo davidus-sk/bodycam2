@@ -271,7 +271,7 @@ class FallDetector:
                             self.log("FALL CONFIRMED!", important=True)
                             # --- MQTT PAYLOAD (only on fall confirm) ---
                             payload = {
-                                'device_id': self.mqtt_settings["client_id"],
+                                'device_id': self.mqtt_settings["client_id"][:-3],
                                 'device_type': 'camera',
                                 'ts': int(time.time()),
                                 'fall': True

@@ -423,7 +423,9 @@ def main():
 
                     # Compose payload and publish only if peaks exist
                     msg = {
-                        "status": status,
+                        'device_id': mqtt_settings["client_id"][:-3],
+                        'device_type': 'camera',
+                        "status": status, 
                         "result": result,
                         "temperature": temp,
                         "num_peaks": num_distances,
