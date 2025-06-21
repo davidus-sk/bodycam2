@@ -21,7 +21,7 @@ function openSerialPort($port, $baudrate) {
 	// Open the serial port as a file
 	$handle = @fopen($port, 'r+b'); // r+b for read/write binary mode
 	if (!$handle) {
-		syslog(LOG_ERR, "Could not open serial port {$port}. Check permissions or if it's in use.";)
+		syslog(LOG_ERR, "Could not open serial port {$port}. Check permissions or if it's in use.");
 		return false;
 	}//if
 

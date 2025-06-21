@@ -1,0 +1,11 @@
+[Unit]
+Description=GPS Messaging Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/app/bodycam2/camera/scripts/gps.php
+Restart=always
+RestartSec=1
+User=root
+WorkingDirectory=/app/bodycam2/camera/scripts/
