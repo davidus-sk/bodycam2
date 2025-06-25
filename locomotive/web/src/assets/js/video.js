@@ -52,6 +52,7 @@ export class Video {
         const deviceIdPattern = 'device-[0-9a-fA-F]{16}';
         this.topicRegex['device_status'] = new RegExp(`^device\/${deviceIdPattern}\/status$`);
         this.topicRegex['device_gps'] = new RegExp(`^device\/${deviceIdPattern}\/gps$`);
+        this.topicRegex['device_distance'] = new RegExp(`^device\/${deviceIdPattern}\/distance$`);
 
         // mqtt
         this.initMqtt(app?.getMqttClient());
@@ -83,8 +84,8 @@ export class Video {
             this.debug('[video][mqtt] connected');
 
             // received camera status
-            this.debug('[video][mqtt] subscribe: device/+/status');
-            this.mqtt.subscribe('device/+/status');
+            this.debug('[video][mqtt] subscribe: device/#');
+            this.mqtt.subscribe('device/#');
 
             // got the message
             this.mqtt.on('message', (topic, message) => {
@@ -92,7 +93,11 @@ export class Video {
                 if (payload) {
                     // camera status
                     if (topic.match(this.topicRegex['device_status'])) {
-                        this.receivedDeviceStatus(payload);
+                        this.handleDeviceStatusMessage(payload);
+                    }
+                    // distance
+                    if (topic.match(this.topicRegex['device_distance'])) {
+                        this.handleDeviceDistanceMessage(payload);
                     }
                 }
             });
@@ -103,7 +108,7 @@ export class Video {
         this.debug('[video][mqtt] mqtt disconnected');
     }
 
-    receivedDeviceStatus(payload) {
+    handleDeviceStatusMessage(payload) {
         const deviceId = payload.device_id ?? null;
 
         this.debug(
@@ -314,6 +319,112 @@ export class Video {
             .catch(error => {
                 console.log(error);
             });
+    }
+
+    showOverlayText(deviceId, text, options) {
+        if (!deviceId) {
+            return;
+        }
+
+        if (!options || typeof options !== 'object') {
+            options = {};
+        }
+
+        let opt = {
+            ...{
+                x: 'center',
+                y: 'top',
+                padding: 15,
+                fontSize: 16,
+                color: '#ffc20c',
+                bgColor: undefined,
+            },
+            ...options,
+        };
+
+        let $videoWrapper = $('#device_' + deviceId);
+        if ($videoWrapper.length) {
+            if (!$videoWrapper.find('.overlay-text').length) {
+                // overlay not found
+
+                //  new div
+                let $div = $(
+                    '<div class="overlay-text"><div class="text">' + text + '</div></div>'
+                );
+
+                let css = { fontSize: opt.fontSize };
+
+                if (opt.x === 'left') {
+                    css.left = opt.padding;
+                } else if (opt.x === 'right') {
+                    css.right = opt.padding;
+                    css.textAlign = 'right';
+                } else if (opt.x === 'center') {
+                    css.textAlign = 'center';
+                    css.width = '100%';
+                } else {
+                    css.left = parseInt(opt.x);
+                }
+
+                if (opt.y === 'top') {
+                    css.top = opt.padding;
+                } else if (opt.y === 'bottom') {
+                    css.bottom = opt.padding;
+                } else if (opt.y === 'center') {
+                    css.top = '50%';
+                } else {
+                    css.top = parseInt(opt.y);
+                }
+
+                $div.appendTo($videoWrapper);
+                $div.css(css).show();
+            } else {
+                // update div
+                $videoWrapper.find('.overlay-text .text').html(text);
+            }
+        }
+    }
+
+    hideOverlayText(deviceId) {
+        $('#device_' + deviceId)
+            .find('.overlay-text')
+            .remove();
+    }
+
+    handleDeviceDistanceMessage(payload) {
+        const deviceId = payload.device_id ?? null;
+
+        this.debug(
+            '[video][mqtt] %cmqtt message:',
+            ConsoleColors.purple,
+            'device/+/distance',
+            payload
+        );
+
+        if (!deviceId || !deviceId.length) {
+            return;
+        }
+
+        if (payload.peaks && Array.isArray(payload.peaks)) {
+            const maxStrength = payload.peaks.reduce(
+                (max, item) => (item.strength > (max?.strength ?? -Infinity) ? item : max),
+                null
+            );
+
+            if (maxStrength) {
+                // convert to feats
+                let ft = maxStrength.distance_mm * 0.00328084;
+                // round
+                ft = Math.round(ft * 100) / 100;
+                // show
+                this.showOverlayText(deviceId, ft + ' ft');
+
+                setTimeout(() => {
+                    this.hideOverlayText(deviceId);
+                }, 2000);
+            }
+        }
+        //}
     }
 }
 

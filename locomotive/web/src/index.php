@@ -4,7 +4,7 @@ include_once 'bootstrap.php';
 include_once 'class/Config.php';
 
 // assets
-$assetsTime = filemtime('assets');
+$assetsTime = isset($_GET['dev']) ? time() : @filemtime('assets');
 define('ASSETS_VERSION', ($assetsTime ? date('YmdHis', $assetsTime) : date('YmdH')));
 
 // views

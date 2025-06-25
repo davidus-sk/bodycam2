@@ -29,18 +29,26 @@ export function createProcessedTrack({ track, transform }) {
 
 // a customizable transform function factory for adding text
 // let's add some default values
-export function addText({
-    text = '',
-    x = 'right',
-    y = 'bottom',
-    padding = 20,
-    color = 'white',
-    fontSize = '14px',
-    fontWeight = 'bold',
-    fontFamily = 'Arial',
-    bgColor = undefined,
-    bgPadding = 10,
-}) {
+export function addText(text, options) {
+    if (!options || typeof options !== 'object') {
+        options = {};
+    }
+
+    let opt = {
+        ...{
+            x: 'right',
+            y: 'bottom',
+            padding: 20,
+            color: 'white',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            fontFamily: 'Arial',
+            bgColor: undefined,
+            bgPadding: 10,
+        },
+        ...options,
+    };
+
     // an ofscreencanvas for drawing video frame and text
     const canvas = new OffscreenCanvas(1, 1);
     const ctx = canvas.getContext('2d');
@@ -60,50 +68,52 @@ export function addText({
         ctx.clearRect(0, 0, width, height);
 
         // set font style
-        ctx.font = fontWeight + ' ' + fontSize + ' ' + fontFamily;
+        ctx.font = opt.fontWeight + ' ' + opt.fontSize + ' ' + opt.fontFamily;
 
         // some values for text size and x position in the canvas
         const textSize = ctx.measureText(text);
         let fontHeight = textSize.actualBoundingBoxAscent + textSize.actualBoundingBoxDescent;
 
-        if (x === 'left') {
-            x = padding;
+        let x, y;
+
+        if (opt.x === 'left') {
+            x = opt.padding;
             ctx.textAlign = 'start';
-        } else if (x === 'right') {
-            x = width - textSize.width - padding;
+        } else if (opt.x === 'right') {
+            x = width - textSize.width - opt.padding;
             ctx.textAlign = 'end';
         } else if (x === 'center') {
             x = width / 2;
             ctx.textAlign = 'center';
         } else {
-            x = parseInt(x);
+            x = parseInt(opt.x);
         }
 
-        if (y === 'top') {
-            y = padding;
+        if (opt.y === 'top') {
+            y = opt.padding;
             ctx.textBaseline = 'top';
-        } else if (y === 'bottom') {
-            y = height - padding;
+        } else if (opt.y === 'bottom') {
+            y = height - opt.padding;
             ctx.textBaseline = 'bottom';
-        } else if (y === 'center') {
+        } else if (opt.y === 'center') {
             y = height / 2 - fontHeight / 2;
             ctx.textBaseline = 'middle';
         } else {
-            y = parseInt(y);
+            y = parseInt(opt.y);
         }
 
         // determine position of the text based on the params
-        const bgHWidth = textSize.width + bgPadding;
-        const bgHeight = fontHeight + bgPadding;
+        const bgHWidth = textSize.width + opt.bgPadding;
+        const bgHeight = fontHeight + opt.bgPadding;
 
         ctx.drawImage(frame, 0, 0, width, height);
 
-        if (bgColor) {
-            ctx.fillStyle = bgColor;
+        if (opt.bgColor) {
+            ctx.fillStyle = opt.bgColor;
             ctx.fillRect(x, y, bgHWidth, bgHeight);
         }
 
-        ctx.fillStyle = color;
+        ctx.fillStyle = opt.color;
         ctx.fillText(text, x, y);
 
         // create a new frame based on the content of the canvas

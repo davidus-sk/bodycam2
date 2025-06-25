@@ -36,9 +36,7 @@ export class MapView {
 
         // debug
         if (
-            (this.options.debug === true ||
-                this.options.map.debug === true ||
-                this.options.app.debug === true) &&
+            (this.options.debug === true || this.options.app.debug === true) &&
             typeof console != 'undefined'
         ) {
             this.debug = console.log.bind(console);
@@ -417,9 +415,9 @@ export class MapView {
             const objectType = data.type ?? 'camera';
             let icon = objectType;
 
-            // new map object
             if (this._mapObjects[deviceId] === undefined) {
-                // map
+                // new map object
+
                 var marker = new L.Marker(data.gps, {
                     camera: data,
                     icon: this._icons[icon],
@@ -445,11 +443,15 @@ export class MapView {
                 if (this.mapFitBounds === true) {
                     this.fitBounds();
                 }
-
-                // update position
             } else {
+                // update position
                 this.debug('[map] map object update - gps', data);
-                this._markersRef[deviceId].setLatLng(data.gps);
+
+                if (
+                    typeof this._markersRef[deviceId] === 'object' &&
+                    this._markersRef[deviceId]['_leaflet_id'] !== undefined
+                )
+                    this._markersRef[deviceId].setLatLng(data.gps);
             }
 
             // store object reference

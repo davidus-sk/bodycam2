@@ -46,6 +46,7 @@ export class Debug {
         this.stream();
         this.cameraRestart();
         this.gps();
+        this.distance();
     }
 
     initializeOptions(userOptions) {
@@ -763,7 +764,6 @@ export class Debug {
 
         // gps
 
-        let gpsTimer = null;
         let gpsWatchTimer = null;
         this.$debug.on('click', '[data-gps]', e => {
             e.preventDefault();
@@ -771,10 +771,11 @@ export class Debug {
             const $btn = $(e.target);
             const gpsMode = $btn.attr('data-gps') || '';
             const deviceId = this.getSelectedDeviceId();
-            const _deviceId = this.getSelectedDeviceId(false);
-            let active = parseInt($btn.attr('data-active')) === 1;
+            //const _deviceId = this.getSelectedDeviceId(false);
 
             if (gpsMode === 'auto') {
+                let active = parseInt($btn.attr('data-active')) === 1;
+
                 if (active) {
                     active = false;
                     $btn.attr('data-active', 0).removeClass('btn-success');
@@ -783,54 +784,9 @@ export class Debug {
                     $btn.attr('data-active', 1).addClass('btn-success');
                 }
 
-                if (gpsTimer) {
-                    clearInterval(gpsTimer);
-                    gpsTimer = null;
-                }
-
-                if (gpsWatchTimer) {
-                    navigator.geolocation.clearWatch(gpsWatchTimer);
-                    gpsWatchTimer = null;
-                }
-
                 if (active) {
                     // gps from device
-                    if (_deviceId === '') {
-                        gpsWatchTimer = navigator.geolocation.watchPosition(
-                            position => {
-                                sendGpsPosition(deviceId, {
-                                    lat: position.coords.latitude,
-                                    lng: position.coords.longitude,
-                                });
-                            },
-                            error => {
-                                this.debug(
-                                    '[debug] failed to read GPS position - error: ',
-                                    error.message
-                                );
-                            },
-                            {
-                                enableHighAccuracy: true,
-                                maximumAge: 5000,
-                                timeout: 0,
-                            }
-                        );
-
-                        // fake gps
-                    } else {
-                        let gps = this.getRandomCoordinate(lastGps, 5);
-                        sendGpsPosition(deviceId, gps);
-
-                        gpsTimer = setInterval(() => {
-                            lastGps = this.getRandomCoordinate(lastGps, 15);
-                            sendGpsPosition(deviceId, lastGps);
-                        }, 2000);
-                    }
-                }
-            } else {
-                // gps from device
-                if (_deviceId === '') {
-                    gpsWatchTimer = navigator.geolocation.getCurrentPosition(
+                    gpsWatchTimer = navigator.geolocation.watchPosition(
                         position => {
                             sendGpsPosition(deviceId, {
                                 lat: position.coords.latitude,
@@ -845,16 +801,123 @@ export class Debug {
                         },
                         {
                             enableHighAccuracy: true,
-                            maximumAge: 1000,
-                            timeout: 3000,
+                            maximumAge: 5000,
+                            timeout: 0,
                         }
                     );
-
-                    // fake gps
                 } else {
-                    let gps = this.getRandomCoordinate(lastGps, 5);
-                    sendGpsPosition(deviceId, gps);
+                    if (gpsWatchTimer) {
+                        navigator.geolocation.clearWatch(gpsWatchTimer);
+                        gpsWatchTimer = null;
+                    }
                 }
+            } else {
+                // gps from device
+                this.debug('[debug] %s requesting GPS position ...', deviceId);
+                gpsWatchTimer = navigator.geolocation.getCurrentPosition(
+                    position => {
+                        this.debug('[debug] %s GPS coordinates received', deviceId);
+
+                        sendGpsPosition(deviceId, {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude,
+                        });
+                    },
+                    error => {
+                        this.debug('[debug] failed to read GPS position - error: ', error.message);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        maximumAge: 1000,
+                        timeout: 3000,
+                    }
+                );
+            }
+        });
+    }
+
+    distance() {
+        let autoTimer;
+        let lastDistance = 0.1;
+
+        const sendDistance = deviceId => {
+            if (deviceId && deviceId.length) {
+                const topic = `device/${deviceId}/distance`;
+
+                //{"status": 1023, "result": 2228225, "peaks": [{"id": 0, "distance_mm": 339, "strength": -26437}], "temp": 34, "near_start": 0, "calib_needed": 0, "measure_error": 0, "timestamp": 1750454382.883319}
+                //  ft = distance_mm * 0.00328084;
+
+                // var msg = {
+                //     'device_id': mqtt_settings["client_id"][:-3],
+                //     'device_type': 'camera',
+                //     "status": status,
+                //     "result": result,
+                //     "temperature": temp,
+                //     "num_peaks": num_distances,
+                //     "near_start_edge": bool(near_start),
+                //     "calibration_needed": bool(calib_needed),
+                //     "peaks": [
+                //         {"index": i, "distance_mm": d, "strength": s}
+                //         for i, (d, s) in enumerate(peaks)
+                //     ],
+                //     'ts': int(time.time()),
+                // };
+
+                const peaks = [{ id: 0, distance_mm: 339, strength: -26437 }];
+                this.debug('[debug] device distance | ' + topic);
+
+                this.mqtt.publish(
+                    topic,
+                    JSON.stringify({
+                        ts: getTimestamp(),
+                        client_id: this.mqttId,
+                        device_id: deviceId,
+                        device_type: 'camera',
+                        status: 1023,
+                        result: 2228225,
+                        temperature: 34,
+                        num_peaks: peaks.length,
+                        near_start_edge: false,
+                        calibration_needed: false,
+                        peaks: peaks,
+                    })
+                );
+            }
+        };
+
+        // buttons
+        this.$debug.on('click', '[data-distance]', e => {
+            e.preventDefault();
+
+            const $btn = $(e.target);
+            const mode = $btn.attr('data-distance') || '';
+            const deviceId = this.getSelectedDeviceId();
+            //const _deviceId = this.getSelectedDeviceId(false);
+
+            if (mode === 'auto') {
+                let active = parseInt($btn.attr('data-active')) === 1;
+
+                if (active) {
+                    active = false;
+                    $btn.attr('data-active', 0).removeClass('btn-success');
+                } else {
+                    active = true;
+                    $btn.attr('data-active', 1).addClass('btn-success');
+                }
+
+                if (active) {
+                    sendDistance(deviceId);
+                    autoTimer = setInterval(() => {
+                        sendDistance(deviceId);
+                    }, 2000);
+                } else {
+                    if (autoTimer) {
+                        clearInterval(autoTimer);
+                        autoTimer = null;
+                    }
+                }
+            } else {
+                sendDistance(deviceId);
             }
         });
     }

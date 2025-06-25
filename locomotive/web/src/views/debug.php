@@ -37,6 +37,7 @@ $deviceList = Config::get('debug.devices', []);
 
     <hr class="my-4" />
 
+    <!-- STREAM -->
     <div class="d-grid gap-3 d-md-block">
         <button id="btn-start-stream" type="button" class="btn btn-lg btn-secondary" data-mqtt="1" disabled>Stream - Start</button>
         <button id="btn-stop-stream" type="button" class="btn btn-lg btn-danger" style="display: none;" data-mqtt="1" disabled>Stream - Stop</button>
@@ -49,7 +50,7 @@ $deviceList = Config::get('debug.devices', []);
 
     <hr class="my-4" />
 
-    <!-- BUTTONS -->
+    <!-- ESTOP -->
     <div class="d-grid gap-3 d-md-block">
         <button type="button" class="btn btn-lg btn-secondary" data-mqtt="1" 
         data-button-status="emergency" disabled>/button/ESTOP</button>
@@ -59,12 +60,20 @@ $deviceList = Config::get('debug.devices', []);
 
     <hr class="my-4" />
 
+    <!-- GPS -->
     <div class="d-grid gap-3 d-md-block">
         <button type="button" class="btn btn-lg btn-secondary" data-mqtt="1" data-gps="1" disabled>GPS</button>
         <button type="button" class="btn btn-lg btn-secondary ms-md-2" data-mqtt="1" data-gps="auto" disabled>GPS (AUTO)</button>
 
         <button id="btn-add-loco" type="button" class="btn btn-lg btn-secondary mt-3 mt-md-0 ms-md-2" data-mqtt="1" disabled>GPS LOCOMOTIVE</button>
+    </div>
 
+    <hr class="my-4" />
+
+    <!-- DISTANCE -->
+    <div class="d-grid gap-3 d-md-block">
+        <button type="button" class="btn btn-lg btn-secondary" data-mqtt="1" data-distance="1" disabled>DISTANCE</button>
+        <button type="button" class="btn btn-lg btn-secondary ms-md-2" data-mqtt="1" data-distance="auto" disabled>DISTANCE (AUTO)</button>
     </div>
 
     <hr class="my-4" />
