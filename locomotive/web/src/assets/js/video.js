@@ -7,6 +7,7 @@ export class Video {
     options = {};
 
     VIDEO_TIMEOUT = 120;
+    TEXT_OVERLAY_TIMEOUT = 5;
 
     mqtt = undefined;
     _devices = {};
@@ -14,6 +15,9 @@ export class Video {
 
     constructor(options, app) {
         this.options = this.initializeOptions(options);
+
+        // local variables
+        this._overlayRefs = {};
 
         // events dispatcher
         EventDispatcher.attach(this);
@@ -137,7 +141,7 @@ export class Video {
 
                 // device disconnected
             } else {
-                this.debug('[video] camera not connected - reconnect');
+                this.debug('[video] %s camera not connected - reconnect', deviceId);
 
                 // reconnect picamera
                 this.getDeviceData(deviceId)?.picamera?.reconnect();
@@ -276,7 +280,6 @@ export class Video {
     initWorkers() {
         worker('video_grid', 5000, () => {
             let now = getTimestamp();
-
             for (const deviceId in this._devices) {
                 const device = this._devices[deviceId];
                 if (device && device.ts) {
@@ -292,6 +295,15 @@ export class Video {
                         );
 
                         this.removeDevice(device.device_id);
+                    }
+                }
+            }
+
+            for (const deviceId in this._overlayRefs) {
+                const ref = this._overlayRefs[deviceId];
+                if (ref && ref.time) {
+                    if (now - ref.time > this.TEXT_OVERLAY_TIMEOUT) {
+                        this.hideOverlayText(deviceId);
                     }
                 }
             }
@@ -335,18 +347,17 @@ export class Video {
                 x: 'center',
                 y: 'top',
                 padding: 15,
-                fontSize: 16,
-                color: '#ffc20c',
+                fontSize: undefined,
+                color: undefined,
                 bgColor: undefined,
             },
             ...options,
         };
 
-        let $videoWrapper = $('#device_' + deviceId);
-        if ($videoWrapper.length) {
-            if (!$videoWrapper.find('.overlay-text').length) {
-                // overlay not found
-
+        if (this._overlayRefs[deviceId] === undefined) {
+            // new overlay
+            let $videoWrapper = $('#device_' + deviceId);
+            if ($videoWrapper.length) {
                 //  new div
                 let $div = $(
                     '<div class="overlay-text"><div class="text">' + text + '</div></div>'
@@ -376,19 +387,41 @@ export class Video {
                     css.top = parseInt(opt.y);
                 }
 
+                if (opt.color) {
+                    css.color = color;
+                }
+
+                if (opt.bgColor) {
+                    css.bgColor = bgColor;
+                }
+
+                if (opt.fontSize) {
+                    css.fontSize = fontSize;
+                }
+
                 $div.appendTo($videoWrapper);
                 $div.css(css).show();
-            } else {
-                // update div
-                $videoWrapper.find('.overlay-text .text').html(text);
+
+                this._overlayRefs[deviceId] = {
+                    time: getTimestamp(),
+                    element: $div,
+                };
             }
+        } else {
+            // update reference
+            this._overlayRefs[deviceId].time = getTimestamp();
+            this._overlayRefs[deviceId].element.find('.text').html(text);
         }
     }
 
     hideOverlayText(deviceId) {
-        $('#device_' + deviceId)
-            .find('.overlay-text')
-            .remove();
+        if (deviceId && this._overlayRefs[deviceId]) {
+            if (this._overlayRefs[deviceId].element) {
+                this._overlayRefs[deviceId].element.remove();
+            }
+
+            delete this._overlayRefs[deviceId];
+        }
     }
 
     handleDeviceDistanceMessage(payload) {
@@ -405,26 +438,14 @@ export class Video {
             return;
         }
 
-        if (payload.peaks && Array.isArray(payload.peaks)) {
-            const maxStrength = payload.peaks.reduce(
-                (max, item) => (item.strength > (max?.strength ?? -Infinity) ? item : max),
-                null
-            );
-
-            if (maxStrength) {
-                // convert to feats
-                let ft = maxStrength.distance_mm * 0.00328084;
-                // round
-                ft = Math.round(ft * 100) / 100;
-                // show
-                this.showOverlayText(deviceId, ft + ' ft');
-
-                setTimeout(() => {
-                    this.hideOverlayText(deviceId);
-                }, 2000);
-            }
+        if (payload.strongest_distance && payload.strongest_distance.distance_mm) {
+            // convert to feats
+            let ft = payload.strongest_distance.distance_mm * 0.00328084;
+            // round
+            ft = Math.round(ft * 100) / 100;
+            // show
+            this.showOverlayText(deviceId, ft + ' ft');
         }
-        //}
     }
 }
 

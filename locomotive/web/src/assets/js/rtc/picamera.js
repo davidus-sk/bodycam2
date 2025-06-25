@@ -47,6 +47,7 @@ export class PiCamera {
     localStream = undefined;
     remoteStream = undefined;
     mediaElement = undefined;
+    transformFn = undefined;
 
     _iceCandidateList = [];
     receivedLength = 0;
@@ -66,7 +67,7 @@ export class PiCamera {
             this.debug = function (message) {};
         }
 
-        this.debug('[picamera] initializing...', this.options);
+        this.debug('[picamera] %s | initializing...', this.cameraId, this.options);
 
         // mqtt
         this.initMqtt(app?.getMqttClient());
@@ -256,8 +257,11 @@ export class PiCamera {
         peer.addTransceiver('audio', { direction: 'recvonly' });
 
         peer.ontrack = e => {
-            this.debug('[picamera] ' + this.cameraId + ' | %cnew track added', self.bgRed);
-            this.debug('[picamera] enable AI: ' + (this.options.enableAi ? 'yes' : 'no'));
+            this.debug('[picamera] ' + this.cameraId + ' | %cnew track added', ConsoleColors.red);
+            this.debug(
+                '[picamera] %s | enable AI: ' + (this.options.enableAi ? 'yes' : 'no'),
+                this.cameraId
+            );
 
             this.remoteStream = new MediaStream();
 
@@ -279,9 +283,13 @@ export class PiCamera {
             }
 
             if (this.mediaElement) {
-                // enable Ai
-                // start the video processing pipeline
+                // our "clean" transform factory
+                this.transformFn = TrackUtils.cleanStream();
+
                 if (this.options.enableAi === true) {
+                    // enable Ai
+                    // start the video processing pipeline
+
                     // create a transform function and assign it to transformFn variable
                     let transformFn = TrackUtils.detectPersonsBoundingBox({
                         stream: this.mediaElement,

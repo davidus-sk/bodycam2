@@ -863,7 +863,8 @@ export class Debug {
                 //     'ts': int(time.time()),
                 // };
 
-                const peaks = [{ id: 0, distance_mm: 339, strength: -26437 }];
+                const d = Math.floor(Math.random() * (5000 - 100 + 1)) + 100;
+                const peaks = [{ index: 0, distance_mm: d, strength: -26437 }];
                 this.debug('[debug] device distance | ' + topic);
 
                 this.mqtt.publish(
@@ -879,6 +880,11 @@ export class Debug {
                         num_peaks: peaks.length,
                         near_start_edge: false,
                         calibration_needed: false,
+                        strongest_distance: {
+                            index: 0,
+                            distance_mm: d,
+                            strength: -8075,
+                        },
                         peaks: peaks,
                     })
                 );
