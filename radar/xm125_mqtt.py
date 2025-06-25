@@ -21,15 +21,15 @@ CONFIG_PATH = "/app/bodycam2/camera/conf/config.json"
 # ==============================
 #         CONFIGURATION
 # ==============================
-START_MM = 250
+START_MM = 500
 END_MM = 6000
 THRESHOLD_SENS = 500        # Lower = less sensitive (1–1000)
 THRESHOLD_METHOD = 3        # 1 = FIXED AMPLITUDE, 2 = RECORDED, 3 = CFAR, 4 = FIXED STRENGTH
 MAX_STEP_LENGTH = 1         # 0 = auto (default/profile-based), or set for speed/precision
-SIGNAL_QUALITY = 10000      # Higher = better SNR (and more power). Default 15000
+SIGNAL_QUALITY = 15000      # Higher = better SNR (and more power). Default 15000
 NUM_FRAMES_RECORDED = 100   # Used only if Threshold Method is RECORDED
 REFLECTOR_SHAPE = 1         # 1 = GENERIC, 2 = PLANAR
-MEASUREMENT_INTERVAL = 0.5  # (seconds)
+MEASUREMENT_INTERVAL = 1  # (seconds)
 
 # ==============================
 #      XM125 I2C Registers
