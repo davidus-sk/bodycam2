@@ -14,7 +14,7 @@ export class MapView {
 
     DEFAULT_GPS_POSITION = [30.672026, -92.260802];
     DEFAULT_ZOOM = 16;
-    MARKER_TIMEOUT = 120;
+    MARKER_TIMEOUT = 60;
 
     mqtt = null;
 
@@ -223,9 +223,7 @@ export class MapView {
 
                     // remove old map object
                     if (delta > this.MARKER_TIMEOUT) {
-                        this.debug('[map] removing map object...');
-
-                        this.removeMapMapObject(device.device_id);
+                        this.removeMapObject(device.device_id);
                     }
                 }
             }
@@ -415,6 +413,7 @@ export class MapView {
             const objectType = data.type ?? 'camera';
             let icon = objectType;
 
+            console.log(this._mapObjects);
             if (this._mapObjects[deviceId] === undefined) {
                 // new map object
 
@@ -426,8 +425,7 @@ export class MapView {
                 });
 
                 marker.on('contextmenu', function (e) {
-                    self.removeMapMapObject(e.target.options.camera.device_id);
-                    //self.removeMapObject(e.target.options.camera.device_id);
+                    self.removeMapObject(e.target.options.camera.device_id);
                 });
 
                 // markers - feature group (markers are added to separate groups)
@@ -461,21 +459,6 @@ export class MapView {
         this.emit('map_objects_refresh', data);
     }
 
-    removeMapObject(deviceId) {
-        if (deviceId && deviceId.length) {
-            this.debug('[map] removing map object - device id: ' + deviceId);
-
-            for (const group in this._markersGroup) {
-                this._markersRef[deviceId].removeFrom(this._markersGroup[group]);
-            }
-
-            this._markersRef[deviceId].removeFrom(this.map);
-
-            delete this._markersRef[deviceId];
-            delete this._mapObjects[deviceId];
-        }
-    }
-
     initPiCamera(deviceId, connect) {
         if (deviceId && deviceId.length) {
             if (this._piCameraRefs[deviceId] === undefined) {
@@ -500,8 +483,10 @@ export class MapView {
         }
     }
 
-    removeMapMapObject(deviceId) {
+    removeMapObject(deviceId) {
         if (deviceId && deviceId.length) {
+            this.debug('[map] removing map object ...', deviceId);
+
             // camera
             if (this._piCameraRefs[deviceId] !== undefined) {
                 this._piCameraRefs[deviceId].terminate();
@@ -512,6 +497,16 @@ export class MapView {
             if (this._modalRefs[deviceId] !== undefined) {
                 this._modalRefs[deviceId].destroy();
                 delete this._modalRefs[deviceId];
+            }
+
+            // marker
+            if (this._markersRef[deviceId] !== undefined) {
+                for (const group in this._markersGroup) {
+                    this._markersRef[deviceId].removeFrom(this._markersGroup[group]);
+                }
+
+                this._markersRef[deviceId].removeFrom(this.map);
+                delete this._markersRef[deviceId];
             }
 
             // map object reference
