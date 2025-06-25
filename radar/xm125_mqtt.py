@@ -23,10 +23,10 @@ CONFIG_PATH = "/app/bodycam2/camera/conf/config.json"
 # ==============================
 START_MM = 250
 END_MM = 6000
-THRESHOLD_SENS = 100        # Lower = more sensitive (1–1000)
+THRESHOLD_SENS = 500        # Lower = less sensitive (1–1000)
 THRESHOLD_METHOD = 3        # 1 = FIXED AMPLITUDE, 2 = RECORDED, 3 = CFAR, 4 = FIXED STRENGTH
 MAX_STEP_LENGTH = 1         # 0 = auto (default/profile-based), or set for speed/precision
-SIGNAL_QUALITY = 15000      # Higher = better SNR (and more power). Default 15000
+SIGNAL_QUALITY = 10000      # Higher = better SNR (and more power). Default 15000
 NUM_FRAMES_RECORDED = 100   # Used only if Threshold Method is RECORDED
 REFLECTOR_SHAPE = 1         # 1 = GENERIC, 2 = PLANAR
 MEASUREMENT_INTERVAL = 0.5  # (seconds)
@@ -129,7 +129,7 @@ def build_mqtt_settings(cfg):
     mqtt_topic = f"device-{base_id}"     # topic (not a path, just the device ID)
     rand_num = random.randint(10, 99)    # Always 2-digit
     mqtt_client_id = f"{mqtt_topic}-{rand_num}"
-    mqtt_topic = f"device/{mqtt_topic}/fall"  # final topic with path
+    mqtt_topic = f"device/{mqtt_topic}/distance"  # final topic with path
     print(f"[MQTT] INFO: MQTT_TOPIC: {mqtt_topic}.")
     print(f"[MQTT] INFO: MQTT_CLIENT_ID: {mqtt_client_id}.")
 
@@ -421,6 +421,14 @@ def main():
                     for i, (dist_mm, strength) in enumerate(peaks):
                         print(f"  Peak {i}: {dist_mm} mm, Strength: {strength}")
 
+                    # --- Find strongest peak ---
+                    strongest = None
+                    if peaks and all(x is not None for x in peaks):
+                        valid = [(i, d, s) for i, (d, s) in enumerate(peaks) if d is not None and s is not None]
+                        if valid:
+                            i_best, d_best, s_best = min(valid, key=lambda x: abs(x[2]))
+                            strongest = {"index": i_best, "distance_mm": d_best, "strength": s_best}
+
                     # Compose payload and publish only if peaks exist
                     msg = {
                         'device_id': mqtt_settings["client_id"][:-3],
@@ -435,6 +443,7 @@ def main():
                             {"index": i, "distance_mm": d, "strength": s}
                             for i, (d, s) in enumerate(peaks)
                         ],
+                        'strongest_distance': strongest,
                         'ts': int(time.time()),
                     }
                     mqtt_pub.publish(msg)
