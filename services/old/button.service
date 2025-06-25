@@ -1,0 +1,11 @@
+[Unit]
+Description=E-STOP Messaging Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/app/bodycam2/camera/scripts/button.php
+Restart=always
+RestartSec=1
+User=root
+WorkingDirectory=/app/bodycam2/camera/scripts/

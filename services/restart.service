@@ -1,0 +1,11 @@
+[Unit]
+Description=Restart Stream Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/app/bodycam2/camera/scripts/restart.php
+Restart=always
+RestartSec=1
+User=root
+WorkingDirectory=/app/bodycam2/camera/scripts/

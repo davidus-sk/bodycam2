@@ -1,0 +1,14 @@
+[Unit]
+Description=IMU Fall Detection to MQTT Publisher Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/app/bodycam2/imu/
+ExecStart=/app/bodycam2/venv/bin/python3 /app/bodycam2/imu/imu_fall_detect.py
+Restart=always
+RestartSec=1
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
