@@ -37,9 +37,12 @@ export class Video {
 
         // debug
         if (
-            (this.options.debug === true ||
-                this.options.video.debug === true ||
-                this.options.app.debug === true) &&
+            (!this.options.hasOwnProperty('app') ||
+                !this.options.app.hasOwnProperty('debug') ||
+                this.options.app.debug !== false) &&
+            (!this.options.hasOwnProperty('video') ||
+                !this.options.video.hasOwnProperty('debug') ||
+                this.options.video.debug !== false) &&
             typeof console != 'undefined'
         ) {
             this.debug = console.log.bind(console);
@@ -88,12 +91,23 @@ export class Video {
             this.debug('[video][mqtt] connected');
 
             // received camera status
-            this.debug('[video][mqtt] subscribe: device/#');
+            this.debug('[video][mqtt] subscribe: device/# - client id: %s', this.mqttId);
             this.mqtt.subscribe('device/#');
 
             // got the message
             this.mqtt.on('message', (topic, message) => {
-                let payload = JSON.parse(message?.toString());
+                let payload;
+                try {
+                    payload = JSON.parse(message?.toString());
+                } catch (e) {
+                    this.debug(
+                        '[video] %s | %cmessage parsing error: %s',
+                        this.mqttId,
+                        ConsoleColors.error,
+                        e
+                    );
+                }
+
                 if (payload) {
                     // camera status
                     if (topic.match(this.topicRegex['device_status'])) {
@@ -116,7 +130,8 @@ export class Video {
         const deviceId = payload.device_id ?? null;
 
         this.debug(
-            '[video][mqtt] %cmqtt message:',
+            '[video][mqtt] %s | %cmqtt message:',
+            deviceId || '???',
             ConsoleColors.purple,
             'device/+/status',
             payload
@@ -141,13 +156,13 @@ export class Video {
 
                 // device disconnected
             } else {
-                this.debug('[video] %s camera not connected - reconnect', deviceId);
+                this.debug('[video] %s | camera not connected - reconnect', deviceId);
 
                 // reconnect picamera
                 this.getDeviceData(deviceId)?.picamera?.reconnect();
             }
         } else {
-            this.debug('[video] %c!!! new device', ConsoleColors.red, deviceId);
+            this.debug('[video] %s | %c!!! new device', deviceId || '???', ConsoleColors.turquoise);
 
             let device = payload;
 
@@ -288,10 +303,9 @@ export class Video {
                     // remove old map object
                     if (delta > this.VIDEO_TIMEOUT) {
                         this.debug(
-                            '[video] removing device from the grid - deviceId: ' +
-                                deviceId +
-                                ', delta: ' +
-                                delta
+                            '[video] %s | removing device from the grid - delta %s',
+                            deviceId || '???',
+                            delta
                         );
 
                         this.removeDevice(device.device_id);
@@ -428,7 +442,8 @@ export class Video {
         const deviceId = payload.device_id ?? null;
 
         this.debug(
-            '[video][mqtt] %cmqtt message:',
+            '[video][mqtt] %s | %cmqtt message:',
+            deviceId || '???',
             ConsoleColors.purple,
             'device/+/distance',
             payload

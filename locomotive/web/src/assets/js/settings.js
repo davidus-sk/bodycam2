@@ -13,7 +13,12 @@ export class Settings {
 
         // debug
         if (
-            (this.options.debug === true || this.options.app.debug === true) &&
+            (!this.options.hasOwnProperty('app') ||
+                !this.options.app.hasOwnProperty('debug') ||
+                this.options.app.debug !== false) &&
+            (!this.options.hasOwnProperty('settings') ||
+                !this.options.settings.hasOwnProperty('debug') ||
+                this.options.settings.debug !== false) &&
             typeof console != 'undefined'
         ) {
             this.debug = console.log.bind(console);

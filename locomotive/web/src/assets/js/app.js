@@ -19,7 +19,12 @@ export class App {
         EventDispatcher.attach(this);
 
         // debug
-        if (this.options.debug === true && typeof console != 'undefined') {
+        if (
+            (!this.options.hasOwnProperty('app') ||
+                !this.options.app.hasOwnProperty('debug') ||
+                this.options.app.debug !== false) &&
+            typeof console != 'undefined'
+        ) {
             this.debug = console.log.bind(console);
         } else {
             this.debug = function (message) {};
@@ -85,9 +90,18 @@ export class App {
         this.mqtt.subscribe('device/+/status');
 
         this.mqtt.on('message', (topic, message) => {
-            const data = JSON.parse(message);
-            if (data && data.device_id) {
-                this._connectedDevices[data.device_id] = data.ts;
+            try {
+                const data = JSON.parse(message);
+
+                if (data && data.device_id) {
+                    this._connectedDevices[data.device_id] = data.ts;
+                }
+            } catch (e) {
+                this.debug(
+                    '[app] %s | mqtt message parsing error: %s',
+                    this.mqtt.client.options.clientId,
+                    e
+                );
             }
 
             this.updateLiveDevicesCount();

@@ -16,9 +16,12 @@ export class Debug {
 
         // debug
         if (
-            (this.options.debug === true ||
-                this.options.video.debug === true ||
-                this.options.app.debug === true) &&
+            (!this.options.hasOwnProperty('app') ||
+                !this.options.app.hasOwnProperty('debug') ||
+                this.options.app.debug !== false) &&
+            (!this.options.hasOwnProperty('debug') ||
+                !this.options.debug.hasOwnProperty('debug') ||
+                this.options.debug.debug !== false) &&
             typeof console != 'undefined'
         ) {
             this.debug = console.log.bind(console);
@@ -103,13 +106,13 @@ export class Debug {
     }
 
     mqttConnected() {
-        this.debug('[debug] mqtt connected - client id: ' + this.mqtt.client.options.clientId);
+        this.debug('[debug] mqtt connected - client id: %s', this.mqtt.client.options.clientId);
 
         $('[data-mqtt=1]').attr('disabled', false);
     }
 
     mqttDisconnected() {
-        this.debug('[debug] mqtt disconnected');
+        this.debug('[debug] mqtt disconnected - client id: %s', this.mqtt.client.options.clientId);
 
         $('[data-mqtt=1]').attr('disabled', 'disabled');
     }
@@ -126,7 +129,10 @@ export class Debug {
 
     checkMqttConnection() {
         if (!this.mqtt || !this.mqtt.isConnected()) {
-            this.debug('! mqtt is not connected');
+            this.debug(
+                '[debug] ! mqtt is not connected - client id: %s',
+                this.mqtt.client.options.clientId
+            );
             return false;
         }
 
@@ -212,7 +218,7 @@ export class Debug {
     sendDeviceStatus(deviceId, enableAi) {
         if (this.mqtt && this.mqtt.isConnected()) {
             const topic = `device/${deviceId}/status`;
-            this.debug('[debug] device status | ' + topic);
+            this.debug('[debug] %s | device status - %s', deviceId, topic);
 
             this.mqtt.publish(
                 topic,
@@ -229,7 +235,7 @@ export class Debug {
 
     mqttButtonStatus(deviceId, status, active) {
         if (this.mqtt && this.mqtt.isConnected()) {
-            this.debug('[debug] status button pressed: ' + status);
+            this.debug('[debug] %s | status button pressed - %s', deviceId, status);
 
             const topic = `device/${deviceId}/button`;
             this.mqtt.publish(
@@ -242,7 +248,7 @@ export class Debug {
                 })
             );
 
-            this.debug('[debug] mqtt publish | ' + topic);
+            this.debug('[debug] %s | mqtt publish | %s', deviceId, topic);
         }
     }
 
@@ -261,7 +267,7 @@ export class Debug {
             const deviceId = this.getSelectedDeviceId();
             const topic = `device/${deviceId}/restart`;
 
-            this.debug('[debug] camera restart | ' + topic);
+            this.debug('[debug] %s | camera restart | %s', deviceId, topic);
 
             this.mqtt.publish(
                 topic,
@@ -300,7 +306,11 @@ export class Debug {
             if (e.candidate) {
                 const topic = `${deviceId}/ice/${clientId}`;
 
-                this.debug('[debug] sending ICE candidate to the remote peer | ' + topic);
+                this.debug(
+                    '[debug] %s | sending ICE candidate to the remote peer | %s',
+                    deviceId,
+                    topic
+                );
 
                 this.mqtt.publish(topic, JSON.stringify(e.candidate));
             }
@@ -340,12 +350,17 @@ export class Debug {
             }
 
             this.debug('[debug]');
-            this.debug('[debug] %cgot remote SDP (' + sdp.type + ')', ConsoleColors.green);
+            this.debug(
+                '[debug] %s | %cgot remote SDP (%s)',
+                deviceId,
+                ConsoleColors.green,
+                sdp.type
+            );
 
             // this.mqtt.unsubscribe(`${deviceId}/sdp/+/offer`);
             // this.debug('[mqtt_service] unsubscribe: ' + `${deviceId}/sdp/+/offer`);
 
-            this.debug('[debug] initializing webrtc connection');
+            this.debug('[debug] %s | initializing webrtc connection', clientId);
 
             const key = deviceId + '___' + clientId;
             const webrtcConfig = this.getRtcConfig();
@@ -444,7 +459,11 @@ export class Debug {
         // console so you can see what's going on when playing with the sample.
 
         const onicegatheringstatechangeCallback = (event, clientId, deviceId) => {
-            this.debug('[debug] ICE gathering state changed to: ' + event.target.iceGatheringState);
+            this.debug(
+                '[debug] %s | ICE gathering state changed to: %s',
+                deviceId,
+                event.target.iceGatheringState
+            );
 
             if (event.target.iceGatheringState === 'complete') {
                 const key = deviceId + '___' + clientId;
@@ -476,7 +495,9 @@ export class Debug {
 
         const oniceconnectionstatechangeCallback = (event, clientId, deviceId) => {
             this.debug(
-                '[debug] webrtc oniceconnectionstatechange: ' + event.target.iceConnectionState
+                '[debug] %s | webrtc oniceconnectionstatechange: %s',
+                deviceId,
+                event.target.iceConnectionState
             );
 
             switch (event.target.iceConnectionState) {
@@ -524,7 +545,7 @@ export class Debug {
         };
 
         const stopStream = deviceId => {
-            this.debug('[debug] stop stream');
+            this.debug('[debug] %s | stop stream', deviceId);
 
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
@@ -627,8 +648,16 @@ export class Debug {
                     this.mqtt.subscribe(`${deviceId}/sdp/+/offer`);
                     this.mqtt.subscribe(`${deviceId}/ice/+/offer`);
 
-                    this.debug('[debug] mqtt subscribe: ' + `${deviceId}/sdp/+/offer`);
-                    this.debug('[debug] mqtt subscribe: ' + `${deviceId}/ice/+/offer`);
+                    this.debug(
+                        '[debug] %s | mqtt subscribe: %s',
+                        deviceId,
+                        `${deviceId}/sdp/+/offer`
+                    );
+                    this.debug(
+                        '[debug] %s | mqtt subscribe: %s',
+                        deviceId,
+                        `${deviceId}/ice/+/offer`
+                    );
 
                     this.mqtt.on('message', (topic, message) => {
                         const msg = message ? message.toString() : null;

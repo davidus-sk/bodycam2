@@ -61,7 +61,15 @@ export class PiCamera {
         this.cameraId = cameraId;
 
         // debug
-        if (this.options.debug === true && typeof console != 'undefined') {
+        if (
+            (!this.options.hasOwnProperty('app') ||
+                !this.options.app.hasOwnProperty('debug') ||
+                this.options.app.debug !== false) &&
+            (!this.options.hasOwnProperty('camera') ||
+                !this.options.camera.hasOwnProperty('debug') ||
+                this.options.camera.debug !== false) &&
+            typeof console != 'undefined'
+        ) {
             this.debug = console.log.bind(console);
         } else {
             this.debug = function (message) {};

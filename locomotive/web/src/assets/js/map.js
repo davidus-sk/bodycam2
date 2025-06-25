@@ -36,7 +36,12 @@ export class MapView {
 
         // debug
         if (
-            (this.options.debug === true || this.options.app.debug === true) &&
+            (!this.options.hasOwnProperty('app') ||
+                !this.options.app.hasOwnProperty('debug') ||
+                this.options.app.debug !== false) &&
+            (!this.options.hasOwnProperty('map') ||
+                !this.options.map.hasOwnProperty('debug') ||
+                this.options.map.debug !== false) &&
             typeof console != 'undefined'
         ) {
             this.debug = console.log.bind(console);
