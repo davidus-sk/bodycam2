@@ -622,7 +622,20 @@ export class PiCamera {
         }
 
         if (this.rtcPeer) {
-            const sdp = JSON.parse(message);
+            let sdp;
+
+            try {
+                sdp = JSON.parse(message);
+            } catch (e) {
+                this.debug(
+                    '[picamera] %s | mqtt message parsing error: %s',
+                    this.mqtt.client.options.clientId,
+                    e
+                );
+
+                return;
+            }
+
             const topic = this.constructTopic(MQTT_SDP_TOPIC);
 
             this.debug(

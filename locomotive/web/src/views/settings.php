@@ -164,7 +164,7 @@ $networkInfo = $networkInfo ? json_decode($networkInfo, true) : [];
 
 
 <script type="module">
-import {Settings} from "./assets/js/settings.js";
+import {Settings} from "./assets/js/settings.js?v=<?= ASSETS_VERSION ?>";
 
 const config = <?= readConfig(true); ?>;
 

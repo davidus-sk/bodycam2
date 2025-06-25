@@ -418,7 +418,6 @@ export class MapView {
             const objectType = data.type ?? 'camera';
             let icon = objectType;
 
-            console.log(this._mapObjects);
             if (this._mapObjects[deviceId] === undefined) {
                 // new map object
 
