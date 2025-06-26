@@ -329,8 +329,10 @@ class MQTTPublisher:
                 if not self.connected:
                     print("[MQTT] Waiting for broker connection...")
             except Exception as e:
-                print(f"[MQTT] Connect error: {e}. Retrying in 5 sec.")
-                time.sleep(5)
+                # print(f"[MQTT] Connect error: {e}. Retrying in 5 sec.")
+                print(f"[MQTT] Connect error: {e}. Exiting.")
+                exit(-1)
+                # time.sleep(5)
 
     def publish(self, payload):
         """Publish a payload (dict or string) to the MQTT topic."""

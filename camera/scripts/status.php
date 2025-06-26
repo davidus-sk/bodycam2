@@ -59,5 +59,5 @@ while (TRUE) {
 	}//if
 
 	// rest
-	sleep(30);
+	sleep(15);
 }//while
