@@ -22,7 +22,7 @@ CONFIG_PATH = "/app/bodycam2/camera/conf/config.json"
 #         CONFIGURATION
 # ==============================
 START_MM = 500
-END_MM = 6000
+END_MM = 2000
 THRESHOLD_SENS = 500        # Lower = less sensitive (1–1000)
 THRESHOLD_METHOD = 3        # 1 = FIXED AMPLITUDE, 2 = RECORDED, 3 = CFAR, 4 = FIXED STRENGTH
 MAX_STEP_LENGTH = 1         # 0 = auto (default/profile-based), or set for speed/precision
