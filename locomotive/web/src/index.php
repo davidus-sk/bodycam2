@@ -54,6 +54,7 @@ import {App} from "AppModule";
 
 // app config
 appConfig = <?= readConfig(true, [
+    'app' => ['assetsVersion' => ASSETS_VERSION],
     'mqtt' => ['clientId' => $MQTT_CLIENT_ID],
 ]);
 ?>;
