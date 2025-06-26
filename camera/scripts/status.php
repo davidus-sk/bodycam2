@@ -39,6 +39,11 @@ while (TRUE) {
 	$mqtt = new MqttClient($config['server'], $config['port'], $clientId . '-' . mt_rand(10, 99), $mqtt_version);
 	$mqtt->connect($connection_settings, $clean_session);
 
+	if (!$mqtt->isConnected()) {
+		syslog(LOG_ERR, "MQTT not connected. Exiting...");
+		exit(-1);
+	}//if
+
 	// construct payload
 	$payload = [
 		'device_id' => $clientId,

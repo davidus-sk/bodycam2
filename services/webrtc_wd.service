@@ -1,6 +1,6 @@
 [Unit]
 Description=WebRTC Watch Dog Service
-After=network.target
+After=network-online.target
 
 [Service]
 Type=simple
