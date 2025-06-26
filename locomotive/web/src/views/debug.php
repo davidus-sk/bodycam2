@@ -30,8 +30,11 @@ $deviceList = Config::get('debug.devices', []);
 
     </div>
     <div class="d-grid gap-3 d-md-block mt-5">
+        <div class="form-check form-switch mb-2">
+            <input id="input-ai" class="form-check-input" type="checkbox" role="switch">
+            <label class="form-check-label" for="input-ai">AI Enabled</label>
+        </div>        
         <button type="button" class="btn btn-lg btn-secondary" data-mqtt="1" data-status="1" disabled>/status</button>
-        <button type="button" class="btn btn-lg btn-secondary ms-md-2" data-mqtt="1" data-status="1" data-ai="1" disabled>/status ai</button>
         <button type="button" class="btn btn-lg btn-secondary ms-md-2" data-mqtt="1" data-status="auto" disabled>/status (AUTO)</button>
     </div>
 
@@ -85,7 +88,7 @@ $deviceList = Config::get('debug.devices', []);
 
 </div>
 <script type="module">
-import {Debug} from "./assets/js/debug.js?v=<?= ASSETS_VERSION ?>";
+import {Debug} from "DebugModule";
 
 const config = <?= readConfig(true, [
     'deviceId' => $deviceId,

@@ -32,6 +32,7 @@ export class Debug {
         // dom elements
         this.$debug = $('#debug');
         this.$selectDevices = $('#select-devices');
+        this.$inputAi = $('#input-ai');
 
         // mqtt
         this.initMqtt(app?.getMqttClient());
@@ -160,8 +161,8 @@ export class Debug {
 
             const $btn = $(e.target);
             const mode = $btn.attr('data-status') || '';
-            const enableAi = (parseInt($btn.attr('data-ai')) || 0) === 1;
             const deviceId = this.getSelectedDeviceId();
+            let enableAi = this.$inputAi.is(':checked');
 
             let active = parseInt($btn.attr('data-active')) === 1;
 
@@ -180,9 +181,10 @@ export class Debug {
                 }
 
                 if (active) {
-                    this.sendDeviceStatus(deviceId);
+                    enableAi = this.$inputAi.is(':checked');
+                    this.sendDeviceStatus(deviceId, enableAi);
                     deviceStatusTimer = setInterval(() => {
-                        this.sendDeviceStatus(deviceId);
+                        this.sendDeviceStatus(deviceId, enableAi);
                     }, 15000);
                 }
             } else {
