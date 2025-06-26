@@ -1,4 +1,2 @@
 * *	* * *	root	/app/bodycam2/camera/scripts/status.php alive
-* *	* * *	root	/app/bodycam2/camera/scripts/button.php
-* *	* * *	root	/app/bodycam2/camera/scripts/restart.php
-* *	* * *	root	/app/bodycam2/camera/scripts/webrtc_wd.php >> /tmp/camera_webrtc_wd.log
+
