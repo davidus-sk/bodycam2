@@ -95,7 +95,8 @@ export class MapView {
                 this.debug('[map] mqtt connected');
 
                 // subscribe to topics
-                this.mqtt.subscribe('device/#');
+                this.mqtt.subscribe('device/+/gps');
+                this.mqtt.subscribe('device/+/button');
             });
 
             // message callback
@@ -120,8 +121,9 @@ export class MapView {
                     }
                 } catch (e) {
                     this.debug(
-                        '[map] %s | %cmessage parsing error: %s',
+                        '[video] %s | topic: %s - %cmessage parsing error: %s',
                         this.mqttId,
+                        topic,
                         ConsoleColors.error,
                         e
                     );

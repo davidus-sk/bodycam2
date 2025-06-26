@@ -101,8 +101,9 @@ export class Video {
                     payload = JSON.parse(message?.toString());
                 } catch (e) {
                     this.debug(
-                        '[video] %s | %cmessage parsing error: %s',
+                        '[video] %s | topic: %s - %cmessage parsing error: %s',
                         this.mqttId,
+                        topic,
                         ConsoleColors.error,
                         e
                     );
