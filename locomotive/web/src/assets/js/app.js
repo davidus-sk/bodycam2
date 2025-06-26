@@ -5,7 +5,7 @@ import { MqttClient } from './mqtt/client.js';
 export class App {
     options = {};
 
-    LIVE_DEVICE_TIMEOUT = 120;
+    LIVE_DEVICE_TIMEOUT = 30;
 
     mqtt = undefined;
     mqttClientId = undefined;
@@ -98,8 +98,10 @@ export class App {
                 }
             } catch (e) {
                 this.debug(
-                    '[app] %s | mqtt message parsing error: %s',
-                    this.mqtt.client.options.clientId,
+                    '[video] %s | topic: %s - %cmessage parsing error: %s',
+                    this.mqttId,
+                    topic,
+                    ConsoleColors.error,
                     e
                 );
             }
