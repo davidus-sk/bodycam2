@@ -957,3 +957,5 @@ export class Debug {
         });
     }
 }
+
+export default { Debug };

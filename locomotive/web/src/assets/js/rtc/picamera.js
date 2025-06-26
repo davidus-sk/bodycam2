@@ -405,11 +405,6 @@ export class PiCamera {
         const state = event.target.connectionState;
         let stopTimer = false;
 
-        this.debug(
-            '[picamera] ' + this.cameraId + ' | %cconnectionstatechange: ' + state,
-            ConsoleColors.yellow
-        );
-
         switch (state) {
             case 'closed':
             case 'connected':
@@ -429,6 +424,17 @@ export class PiCamera {
         if (stopTimer && this.rtcTimer) {
             clearInterval(this.rtcTimer);
             this.rtcTimer = null;
+        }
+
+        if (state === 'connected' || state === 'disconnected') {
+            this.debug(
+                '[picamera] %s | %cconnectionstatechange: %s',
+                this.cameraId,
+                ConsoleColors.yellow,
+                state
+            );
+        } else {
+            this.debug('[picamera] %s | iceconnectionstatechange: %s', this.cameraId, state);
         }
 
         // event
@@ -451,7 +457,16 @@ export class PiCamera {
     oniceconnectionstatechangeCallback(event) {
         const state = event.target.iceConnectionState;
 
-        this.debug('[picamera] ' + this.cameraId + ' | iceconnectionstatechange: ' + state);
+        if (state === 'connected' || state === 'disconnected') {
+            this.debug(
+                '[picamera] %s | %ciceconnectionstatechange: %s',
+                this.cameraId,
+                ConsoleColors.yellow,
+                state
+            );
+        } else {
+            this.debug('[picamera] %s | iceconnectionstatechange: %s', this.cameraId, state);
+        }
 
         // switch (state) {
         //     case 'connected':

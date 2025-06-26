@@ -293,6 +293,7 @@ body.sidebar-hide {
     display: none;
     position: absolute;
     z-index: 10;
+    user-select: none;
 
     .text {
         display: inline-block;

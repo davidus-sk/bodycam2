@@ -36,9 +36,21 @@ $content = render(VIEW, ['cssLastModified' => ASSETS_VERSION]);
 <script type="text/javascript">
 let app = undefined;
 let appConfig = {};
+const assetsVersion = '<?= ASSETS_VERSION; ?>';
+</script>
+<script type="importmap">
+{
+    "imports": {
+        "AppModule": "./assets/js/app.js?v=<?= ASSETS_VERSION; ?>",
+        "MapModule": "./assets/js/map.js?v=<?= ASSETS_VERSION; ?>",
+        "SettingsModule": "./assets/js/settings.js?v=<?= ASSETS_VERSION; ?>",
+        "VideoModule": "./assets/js/video.js?v=<?= ASSETS_VERSION; ?>",
+        "DebugModule": "./assets/js/debug.js?v=<?= ASSETS_VERSION; ?>"
+    }
+}
 </script>
 <script type="module">
-import {App} from "./assets/js/app.js";
+import {App} from "AppModule";
 
 // app config
 appConfig = <?= readConfig(true, [

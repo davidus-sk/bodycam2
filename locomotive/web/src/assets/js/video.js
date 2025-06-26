@@ -6,7 +6,7 @@ import { PiCamera } from './rtc/picamera.js';
 export class Video {
     options = {};
 
-    VIDEO_TIMEOUT = 120;
+    VIDEO_TIMEOUT = 60;
     TEXT_OVERLAY_TIMEOUT = 5;
 
     mqtt = undefined;
@@ -180,7 +180,7 @@ export class Video {
 
             // test
             // $(device.video_ref).on('contextmenu', e => {
-            //     this.removeDevice(deviceId);
+            //     this.removeDeviceFromGrid(deviceId);
             // });
 
             // update reference
@@ -274,19 +274,24 @@ export class Video {
         this.$grid.attr('class', className);
     }
 
-    removeDevice(deviceId) {
-        if (this._devices[deviceId] !== undefined) {
-            // picamera
-            if (this._devices[deviceId].picamera) {
-                this._devices[deviceId].picamera.terminate();
+    removeDeviceFromGrid(deviceId) {
+        if (deviceId.length) {
+            if (this._devices[deviceId] !== undefined) {
+                // picamera
+                if (this._devices[deviceId].picamera) {
+                    this._devices[deviceId].picamera.terminate();
+                }
+
+                // overlays
+                this.hideOverlayText(deviceId);
+
+                // dom
+                $('#' + this._devices[deviceId].video_id).remove();
+                $('#' + this._devices[deviceId].dom_id).remove();
+
+                this._devices[deviceId] = null;
+                delete this._devices[deviceId];
             }
-
-            // dom
-            $('#' + this._devices[deviceId].video_id).remove();
-            $('#' + this._devices[deviceId].dom_id).remove();
-
-            this._devices[deviceId] = null;
-            delete this._devices[deviceId];
         }
 
         this.updateGrid();
@@ -308,7 +313,7 @@ export class Video {
                             delta
                         );
 
-                        this.removeDevice(device.device_id);
+                        this.removeDeviceFromGrid(device.device_id);
                     }
                 }
             }
@@ -441,13 +446,7 @@ export class Video {
     handleDeviceDistanceMessage(payload) {
         const deviceId = payload.device_id ?? null;
 
-        this.debug(
-            '[video][mqtt] %s | %cmqtt message:',
-            deviceId || '???',
-            ConsoleColors.purple,
-            'device/+/distance',
-            payload
-        );
+        this.debug('[video][mqtt] %s | message:', deviceId || '???', 'device/+/distance', payload);
 
         if (!deviceId || !deviceId.length) {
             return;
