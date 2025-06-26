@@ -1,6 +1,6 @@
 import { getTimestamp, worker, isObjectEmpty } from './functions.js';
 import { EventDispatcher } from './EventDispatcher.js';
-import { MqttClient } from './mqtt/client.js';
+import { ConsoleColors } from './utils.js';
 import { PiCamera } from './rtc/picamera.js';
 import { Modal } from './modal.js';
 
@@ -100,18 +100,31 @@ export class MapView {
 
             // message callback
             this.mqtt.on('message', (topic, msg) => {
-                const payload = msg ? JSON.parse(msg.toString()) : null;
+                let payload;
 
-                this.debug('[map] mqtt message: ' + topic, msg.toString().substring(0, 50) + '...');
+                try {
+                    payload = msg ? JSON.parse(msg.toString()) : null;
+                    this.debug(
+                        '[map] mqtt message: ' + topic,
+                        msg.toString().substring(0, 50) + '...'
+                    );
 
-                // camera gps
-                if (topic.match(gpsRegex)) {
-                    this.devicGpsHandler(payload);
-                }
+                    // camera gps
+                    if (topic.match(gpsRegex)) {
+                        this.devicGpsHandler(payload);
+                    }
 
-                // panic button
-                if (topic.match(buttonRegex)) {
-                    this.deviceButton(payload);
+                    // panic button
+                    if (topic.match(buttonRegex)) {
+                        this.deviceButton(payload);
+                    }
+                } catch (e) {
+                    this.debug(
+                        '[map] %s | %cmessage parsing error: %s',
+                        this.mqttId,
+                        ConsoleColors.error,
+                        e
+                    );
                 }
             });
         }

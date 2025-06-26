@@ -5,7 +5,7 @@ import { MqttClient } from './mqtt/client.js';
 export class App {
     options = {};
 
-    LIVE_DEVICE_TIMEOUT = 120;
+    LIVE_DEVICE_TIMEOUT = 30;
 
     mqtt = undefined;
     mqttClientId = undefined;
