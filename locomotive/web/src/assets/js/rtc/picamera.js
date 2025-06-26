@@ -75,7 +75,7 @@ export class PiCamera {
             this.debug = function (message) {};
         }
 
-        this.debug('[picamera] %s | initializing...', this.cameraId, this.options);
+        this.debug('[picamera] %s | initializing camera ...', this.cameraId, this.options);
 
         // mqtt
         this.initMqtt(app?.getMqttClient());
@@ -169,7 +169,7 @@ export class PiCamera {
 
         this.debug('[picamera] %s -----------------------------------', this.cameraId);
         this.debug('[picamera] %s -----------------------------------', this.cameraId);
-        this.debug('[picamera] %s | connect', this.cameraId);
+        this.debug('[picamera][webrtc] %s | creating offer', this.cameraId);
 
         // new offer
         offer = await this.rtcPeer.createOffer({
@@ -718,7 +718,7 @@ export class PiCamera {
     };
 
     handleIceMessage = message => {
-        if (!this.isConnected()) {
+        if (!this.isConnected() && this.rtcPeer) {
             const candidate = JSON.parse(message);
             if (this.remoteDescriptionSet === true) {
                 //console.log(this.rtcPeer);
