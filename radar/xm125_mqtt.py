@@ -22,7 +22,7 @@ CONFIG_PATH = "/app/bodycam2/camera/conf/config.json"
 #         CONFIGURATION
 # ==============================
 START_MM = 500
-END_MM = 2000
+END_MM = 6000
 THRESHOLD_SENS = 500        # Lower = less sensitive (1–1000)
 THRESHOLD_METHOD = 3        # 1 = FIXED AMPLITUDE, 2 = RECORDED, 3 = CFAR, 4 = FIXED STRENGTH
 MAX_STEP_LENGTH = 1         # 0 = auto (default/profile-based), or set for speed/precision
@@ -329,8 +329,10 @@ class MQTTPublisher:
                 if not self.connected:
                     print("[MQTT] Waiting for broker connection...")
             except Exception as e:
-                print(f"[MQTT] Connect error: {e}. Retrying in 5 sec.")
-                time.sleep(5)
+                # print(f"[MQTT] Connect error: {e}. Retrying in 5 sec.")
+                print(f"[MQTT] Connect error: {e}. Exiting.")
+                exit(-1)
+                # time.sleep(5)
 
     def publish(self, payload):
         """Publish a payload (dict or string) to the MQTT topic."""
