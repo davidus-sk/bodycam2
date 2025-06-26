@@ -11,7 +11,7 @@
 <!-- <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation"></script> -->
 
 <script type="module">
-import {Video} from "./assets/js/video.js?v=<?= ASSETS_VERSION ?>";
+import {Video} from "VideoModule";
 
 $(function() {
     const v = new Video(appConfig, app);

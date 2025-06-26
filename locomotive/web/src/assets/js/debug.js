@@ -681,12 +681,16 @@ export class Debug {
                         deviceStatusTimer = null;
                     }
 
+                    let enableAi;
+
                     setTimeout(() => {
-                        this.sendDeviceStatus(deviceId);
+                        enableAi = this.$inputAi.is(':checked');
+                        this.sendDeviceStatus(deviceId, enableAi);
                     }, 1000);
 
                     deviceStatusTimer = setInterval(() => {
-                        this.sendDeviceStatus(deviceId);
+                        enableAi = this.$inputAi.is(':checked');
+                        this.sendDeviceStatus(deviceId, enableAi);
                     }, 15000);
                 })
                 .catch(e => {

@@ -37,7 +37,7 @@
 <script src="./assets/vendor/leaflet/leaflet.js"></script>
 
 <script type="module">
-import {MapView} from "./assets/js/map.js?v=<?= ASSETS_VERSION ?>";
+import {MapView} from "MapModule";
 
 $(function() {
     const mapView = new MapView(appConfig, app);
