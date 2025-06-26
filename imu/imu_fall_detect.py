@@ -177,7 +177,7 @@ class MQTTPublisher:
                     print("[MQTT] Waiting for broker connection...")
             except Exception as e:
                 print(f"[MQTT] Connect error: {e}. Retrying in 5 sec.")
-                time.sleep(5)
+                exit(-1)
 
     def publish(self, payload):
         if not self.connected and not exit_event.is_set():
