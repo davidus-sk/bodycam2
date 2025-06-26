@@ -1,6 +1,7 @@
 import { getTimestamp, worker } from './functions.js';
 import { EventDispatcher } from './EventDispatcher.js';
 import { MqttClient } from './mqtt/client.js';
+import { ConsoleColors } from './utils.js';
 
 export class App {
     options = {};
