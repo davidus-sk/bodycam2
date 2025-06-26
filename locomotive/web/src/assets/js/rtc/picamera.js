@@ -89,7 +89,7 @@ export class PiCamera {
             turnUrls: [],
             turnUsername: '',
             turnPassword: '',
-            enableAi: false,
+            ai: false,
         };
 
         let opt = { ...defaultOptions, ...options };
@@ -255,7 +255,7 @@ export class PiCamera {
             this.debug(
                 '[picamera] %s | enable AI: %s',
                 this.cameraId,
-                this.options.enableAi ? 'yes' : 'no'
+                this.options.ai ? 'yes' : 'no'
             );
 
             this.remoteStream = new MediaStream();
@@ -281,7 +281,7 @@ export class PiCamera {
                 // our "clean" transform factory
                 this.transformFn = TrackUtils.cleanStream();
 
-                if (this.options.enableAi === true) {
+                if (this.options.ai === true) {
                     // enable Ai
                     // start the video processing pipeline
 
@@ -710,6 +710,16 @@ export class PiCamera {
                     this.cameraId
                 );
             }
+        }
+    };
+
+    aiStatus = status => {
+        if (status === true) {
+            this.transformFn = TrackUtils.detectPersonsBoundingBox({
+                stream: this.mediaElement,
+            });
+        } else {
+            this.transformFn = TrackUtils.cleanStream();
         }
     };
 }

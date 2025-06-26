@@ -151,16 +151,23 @@ export class Video {
             this._devices[deviceId].status = payload.status;
             this._devices[deviceId].ai = payload.ai === true;
 
+            const cam = this.getDeviceData(deviceId)?.picamera;
+
             // device connected
             if (this.isDeviceConnected(deviceId)) {
-                this.getDeviceData(deviceId)?.picamera?.setOptions(this._devices[deviceId]);
+                if (cam) {
+                    cam.setOptions(this._devices[deviceId]);
+                    //cam.aiStatus(this._devices[deviceId].ai);
+                }
 
                 // device disconnected
             } else {
                 this.debug('[video] %s | camera not connected - reconnect', deviceId);
 
                 // reconnect picamera
-                this.getDeviceData(deviceId)?.picamera?.reconnect();
+                if (cam) {
+                    cam.reconnect();
+                }
             }
         } else {
             this.debug('[video] %s | %c!!! new device', deviceId || '???', ConsoleColors.turquoise);
