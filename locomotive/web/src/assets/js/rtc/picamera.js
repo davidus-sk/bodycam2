@@ -378,7 +378,8 @@ export class PiCamera {
     onicecandidateCallback(event) {
         if (event.candidate) {
             this.debug(
-                '[picamera][webrtc]: onicecandidate - %s',
+                '[picamera][webrtc] %s | onicecandidate - %s',
+                this.cameraId,
                 event.candidate ? event.candidate.candidate : '???'
             );
 
