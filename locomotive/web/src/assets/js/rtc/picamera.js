@@ -210,7 +210,9 @@ export class PiCamera {
 
         // STUN servers
         if (this.options.stunUrls && this.options.stunUrls.length > 0) {
-            config.iceServers.push({ urls: this.options.stunUrls });
+            this.options.stunUrls.forEach(url => {
+                config.iceServers.push({ urls: url });
+            });
         }
 
         // TURN servers
