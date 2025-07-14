@@ -691,7 +691,7 @@ export class Debug {
                     deviceStatusTimer = setInterval(() => {
                         enableAi = this.$inputAi.is(':checked');
                         this.sendDeviceStatus(deviceId, enableAi);
-                    }, 15000);
+                    }, 25000);
                 })
                 .catch(e => {
                     this.debug('[debug] error opening camera: ' + e.message);
