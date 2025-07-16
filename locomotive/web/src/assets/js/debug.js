@@ -5,6 +5,7 @@ export class Debug {
     options = {};
 
     deviceId = undefined;
+    deviceStatusInterval = 15000;
 
     mqtt = undefined;
 
@@ -161,9 +162,9 @@ export class Debug {
 
             const $btn = $(e.target);
             const mode = $btn.attr('data-status') || '';
-            const deviceId = this.getSelectedDeviceId();
-            let enableAi = this.$inputAi.is(':checked');
 
+            let deviceId = this.getSelectedDeviceId();
+            let enableAi = this.$inputAi.is(':checked');
             let active = parseInt($btn.attr('data-active')) === 1;
 
             if (deviceStatusTimer) {
@@ -172,6 +173,7 @@ export class Debug {
             }
 
             if (mode === 'auto') {
+                // auto status
                 if (active) {
                     active = false;
                     $btn.attr('data-active', 0).removeClass('btn-success');
@@ -181,14 +183,38 @@ export class Debug {
                 }
 
                 if (active) {
-                    enableAi = this.$inputAi.is(':checked');
                     this.sendDeviceStatus(deviceId, enableAi);
+
                     deviceStatusTimer = setInterval(() => {
+                        deviceId = this.getSelectedDeviceId();
+                        enableAi = this.$inputAi.is(':checked');
+
                         this.sendDeviceStatus(deviceId, enableAi);
-                    }, 15000);
+                    }, this.deviceStatusInterval);
                 }
             } else {
+                // single status message
                 this.sendDeviceStatus(deviceId, enableAi);
+
+                // is auto mode active?
+                let autoMode = parseInt(
+                    this.$debug.find('[data-status="auto"]').attr('data-active')
+                );
+
+                if (autoMode === 1) {
+                    if (deviceStatusTimer) {
+                        // reset current timer
+                        clearInterval(deviceStatusTimer);
+                    }
+
+                    deviceStatusTimer = setInterval(() => {
+                        // set new timer
+                        deviceId = this.getSelectedDeviceId();
+                        enableAi = this.$inputAi.is(':checked');
+
+                        this.sendDeviceStatus(this.getSelectedDeviceId(), enableAi);
+                    }, this.deviceStatusInterval);
+                }
             }
         });
 
@@ -305,7 +331,7 @@ export class Debug {
         };
 
         const onicecandidateCallback = (e, clientId, deviceId) => {
-            if (e.candidate) {
+            if (e.candidate !== null && e.candidate.candidate !== null) {
                 const topic = `${deviceId}/ice/${clientId}`;
 
                 this.debug(
@@ -314,7 +340,7 @@ export class Debug {
                     topic
                 );
 
-                this.mqtt.publish(topic, JSON.stringify(e.candidate));
+                this.mqtt.publish(topic, JSON.stringify(e.candidate.candidate));
             }
         };
 
@@ -616,8 +642,6 @@ export class Debug {
                 return;
             }
 
-            const deviceId = this.getSelectedDeviceId();
-
             _pc = {};
             _remoteDescriptionSet = {};
             _iceCandidateList = {};
@@ -633,6 +657,20 @@ export class Debug {
                     },
                 })
                 .then(stream => {
+                    this.mqtt.subscribe(`${this.deviceId}/sdp/+/offer`);
+                    this.mqtt.subscribe(`${this.deviceId}/ice/+/offer`);
+
+                    this.debug(
+                        '[debug] %s | mqtt subscribe: %s',
+                        this.deviceId,
+                        `${this.deviceId}/sdp/+/offer`
+                    );
+                    this.debug(
+                        '[debug] %s | mqtt subscribe: %s',
+                        this.deviceId,
+                        `${this.deviceId}/ice/+/offer`
+                    );
+
                     this.debug(
                         '[debug] %ccamera initialized, waiting for signaling',
                         ConsoleColors.red
@@ -646,20 +684,6 @@ export class Debug {
                     localStream = stream;
                     localVideo.srcObject = localStream;
                     $localVideo.show();
-
-                    this.mqtt.subscribe(`${deviceId}/sdp/+/offer`);
-                    this.mqtt.subscribe(`${deviceId}/ice/+/offer`);
-
-                    this.debug(
-                        '[debug] %s | mqtt subscribe: %s',
-                        deviceId,
-                        `${deviceId}/sdp/+/offer`
-                    );
-                    this.debug(
-                        '[debug] %s | mqtt subscribe: %s',
-                        deviceId,
-                        `${deviceId}/ice/+/offer`
-                    );
 
                     this.mqtt.on('message', (topic, message) => {
                         const msg = message ? message.toString() : null;
@@ -681,17 +705,13 @@ export class Debug {
                         deviceStatusTimer = null;
                     }
 
-                    let enableAi;
-
-                    setTimeout(() => {
-                        enableAi = this.$inputAi.is(':checked');
-                        this.sendDeviceStatus(deviceId, enableAi);
-                    }, 1000);
+                    let enableAi = this.$inputAi.is(':checked');
+                    this.sendDeviceStatus(this.deviceId, enableAi);
 
                     deviceStatusTimer = setInterval(() => {
                         enableAi = this.$inputAi.is(':checked');
-                        this.sendDeviceStatus(deviceId, enableAi);
-                    }, 25000);
+                        this.sendDeviceStatus(this.deviceId, enableAi);
+                    }, this.deviceStatusInterval);
                 })
                 .catch(e => {
                     this.debug('[debug] error opening camera: ' + e.message);

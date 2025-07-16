@@ -162,15 +162,23 @@ export class Video {
 
                 // device disconnected
             } else {
-                this.debug('[video] %s | camera not connected - reconnect', deviceId);
-
                 // reconnect picamera
                 if (cam) {
+                    this.debug(
+                        '[video] %s | %ccamera not connected - reconnecting',
+                        deviceId,
+                        ConsoleColors.error
+                    );
+
                     cam.reconnect();
                 }
             }
         } else {
-            this.debug('[video] %s | %c!!! new device', deviceId || '???', ConsoleColors.turquoise);
+            this.debug(
+                '[video] %s | %c!!! new device connected',
+                deviceId || '???',
+                ConsoleColors.turquoise
+            );
 
             let device = payload;
 
@@ -201,6 +209,7 @@ export class Video {
             this.initPiCamera(deviceId, true, {
                 enableAi: device.ai,
             });
+
             //this.demoMp4(deviceId, true);
         }
     }
@@ -285,8 +294,15 @@ export class Video {
     removeDeviceFromGrid(deviceId) {
         if (deviceId.length) {
             if (this._devices[deviceId] !== undefined) {
+                this.debug(
+                    '[video] %s | removing device from the grid (no /status message received more than %ss)',
+                    deviceId || '???',
+                    delta
+                );
+
                 // picamera
                 if (this._devices[deviceId].picamera) {
+                    this.debug('[video] %s | calling picamera.terminate()', deviceId || '???');
                     this._devices[deviceId].picamera.terminate();
                 }
 
@@ -315,12 +331,6 @@ export class Video {
 
                     // remove old map object
                     if (delta > this.VIDEO_TIMEOUT) {
-                        this.debug(
-                            '[video] %s | removing device from the grid - delta %s',
-                            deviceId || '???',
-                            delta
-                        );
-
                         this.removeDeviceFromGrid(device.device_id);
                     }
                 }
