@@ -222,52 +222,153 @@ body.sidebar-hide {
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center;
+
+    & > div {
+        background-color: #00bcff;
+        width: 100%;
+        height: 100%;
+        font-size: 5rem;
+        padding: 15px;
+    }
 }
-.grid-1x1 {
+
+// Landscape mode
+.grid-landscape.grid-1 {
     grid-template-columns: 1fr;
     grid-template-rows: 1fr;
 }
-.grid-2x1 {
+.grid-landscape.grid-2 {
     grid-template-columns: repeat(2, 1fr);
     grid-template-rows: 1fr;
 }
-.grid-3x1 {
+.grid-landscape.grid-3 {
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: 1fr;
 }
-.grid-1x2 {
-    grid-template-columns: 1fr;
-    grid-template-rows: repeat(2, 1fr);
-}
-.grid-1x3 {
-    grid-template-columns: 1fr;
-    grid-template-rows: repeat(3, 1fr);
-}
-.grid-2x2 {
+.grid-landscape.grid-4 {
     grid-template-columns: repeat(2, 1fr);
     grid-template-rows: repeat(2, 1fr);
 }
-.grid-2x2-1 {
+.grid-landscape.grid-5 {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    & > div:nth-child(1) {
+        grid-column: span 2 / span 2;
+    }
+}
+.grid-landscape.grid-6 {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+}
+.grid-landscape.grid-7 {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    & > div:nth-child(1) {
+        grid-column: span 2 / span 2;
+    }
     & > div:nth-child(3) {
         grid-column: span 2 / span 2;
     }
 }
-.grid-2x3 {
-    grid-template-columns: repeat(2, 1fr);
+.grid-landscape.grid-8 {
+    grid-template-columns: repeat(3, 1fr);
     grid-template-rows: repeat(3, 1fr);
-}
-.grid-2x3-1 {
-    & > div:nth-child(5) {
+    & > div:nth-child(1) {
         grid-column: span 2 / span 2;
     }
 }
-.grid-3x2 {
-    grid-template-columns: repeat(3, 1fr);
+.grid-landscape.grid-9 {
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    & > div:nth-child(1) {
+        grid-column: span 2 / span 2;
+    }
+    & > div:nth-child(2) {
+        grid-column: span 2 / span 2;
+    }
+    & > div:nth-child(3) {
+        grid-column: span 2 / span 2;
+    }
+}
+.grid-landscape.grid-10 {
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    & > div:nth-child(1) {
+        grid-column: span 2 / span 2;
+    }
+    & > div:nth-child(2) {
+        grid-column: span 2 / span 2;
+    }
+}
+.grid-landscape.grid-11 {
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    & > div:nth-child(1) {
+        grid-column: span 2 / span 2;
+    }
+}
+.grid-landscape.grid-12 {
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+}
+
+// Portrait mode
+.grid-portrait.grid-1 {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+}
+.grid-portrait.grid-2 {
+    grid-template-columns: 1fr;
     grid-template-rows: repeat(2, 1fr);
 }
-.grid-3x3 {
-    grid-template-columns: repeat(3, 1fr);
+.grid-portrait.grid-3 {
+    grid-template-columns: 1fr;
     grid-template-rows: repeat(3, 1fr);
+}
+.grid-portrait.grid-4 {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(4, 1fr);
+}
+.grid-portrait.grid-5 {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(5, 1fr);
+}
+.grid-portrait.grid-6 {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+}
+.grid-portrait.grid-7 {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    & > div:nth-child(1) {
+        grid-column: span 2 / span 2;
+    }
+}
+.grid-portrait.grid-8 {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+}
+.grid-portrait.grid-9 {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    & > div:nth-child(1) {
+        grid-column: span 2 / span 2;
+    }
+}
+.grid-portrait.grid-10 {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+}
+.grid-portrait.grid-11 {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(6, 1fr);
+    & > div:nth-child(1) {
+        grid-column: span 2 / span 2;
+    }
+}
+.grid-portrait.grid-12 {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(6, 1fr);
 }
 
 .video-wrapper {

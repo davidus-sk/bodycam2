@@ -1,4 +1,4 @@
-<div id="video-grid" class="grid-1x1"></div>
+<div id="video-grid" class="grid-landscape grid-1"></div>
 
 <script src="./assets/js/vendor/tf.min.js"></script>
 <script src="./assets/js/vendor/coco-ssd.js"></script>

@@ -12,6 +12,7 @@ export class Video {
     mqtt = undefined;
     _devices = {};
     topicRegex = {};
+    orientation = 'landscape';
 
     constructor(options, app) {
         this.options = this.initializeOptions(options);
@@ -21,19 +22,6 @@ export class Video {
 
         // events dispatcher
         EventDispatcher.attach(this);
-
-        // attach events
-        window.onbeforeunload = () => {
-            console.log('[video] window reload');
-
-            for (const deviceId in this._devices) {
-                const val = this._devices[deviceId];
-
-                if (val && val.picamera) {
-                    val.picamera.terminate();
-                }
-            }
-        };
 
         // debug
         if (
@@ -50,7 +38,7 @@ export class Video {
             this.debug = function (message) {};
         }
 
-        console.log(this.options);
+        this.debug('[video] options', this.options);
 
         // dom elements
         this.$grid = $('#video-grid');
@@ -60,6 +48,23 @@ export class Video {
         this.topicRegex['device_status'] = new RegExp(`^device\/${deviceIdPattern}\/status$`);
         this.topicRegex['device_gps'] = new RegExp(`^device\/${deviceIdPattern}\/gps$`);
         this.topicRegex['device_distance'] = new RegExp(`^device\/${deviceIdPattern}\/distance$`);
+
+        // attach events
+        window.onbeforeunload = () => {
+            this.debug('[video] window reload');
+
+            for (const deviceId in this._devices) {
+                const val = this._devices[deviceId];
+
+                if (val && val.picamera) {
+                    val.picamera.terminate();
+                }
+            }
+        };
+
+        // resize
+        window.addEventListener('resize', event => this.handleResize(event), true);
+        this.handleResize();
 
         // mqtt
         this.initMqtt(app?.getMqttClient());
@@ -74,6 +79,11 @@ export class Video {
         };
 
         return { ...defaultOptions, ...userOptions };
+    }
+
+    handleResize(event) {
+        this.orientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+        this.$grid.removeClass('grid-landscape grid-portrait').addClass('grid-' + this.orientation);
     }
 
     initMqtt(mqttClient) {
@@ -260,34 +270,7 @@ export class Video {
 
     updateGrid() {
         const deviceCount = Object.values(this._devices).length;
-        let className = 'grid-1x1';
-
-        switch (deviceCount) {
-            case 1:
-                className = 'grid-1x1';
-                break;
-            case 2:
-                className = 'grid-2x1';
-                break;
-            case 3:
-                className = 'grid-2x2 grid-2x2-1';
-                break;
-            case 4:
-                className = 'grid-2x2';
-                break;
-            case 5:
-                className = 'grid-2x3 grid-2x3-1';
-                break;
-            case 6:
-                className = 'grid-2x3';
-                break;
-            case 7:
-            case 8:
-            case 9:
-                className = 'grid-3x3';
-                break;
-        }
-
+        let className = 'grid-' + this.orientation + ' grid-' + deviceCount;
         this.$grid.attr('class', className);
     }
 
