@@ -280,7 +280,7 @@ export class Video {
                 this.debug(
                     '[video] %s | removing device from the grid (no /status message received more than %ss)',
                     deviceId || '???',
-                    delta
+                    this.VIDEO_TIMEOUT
                 );
 
                 // picamera
