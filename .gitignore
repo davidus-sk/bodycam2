@@ -1,7 +1,12 @@
 camera/conf/config.json
 locomotive/conf/config.json
 venv/
+.venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# php
+composer.phar
+vendor/

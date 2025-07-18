@@ -1,0 +1,6 @@
+{
+    "name": "pi/bodycam2",
+    "require": {
+        "php-mqtt/client": "^2.2"
+    }
+}
