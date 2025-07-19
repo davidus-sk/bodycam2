@@ -7,6 +7,7 @@ require(dirname(__FILE__) . '/../../common/functions.php');
 
 use PhpMqtt\Client\MqttClient;
 use PhpMqtt\Client\ConnectionSettings;
+use Exception;
 
 // run once
 run_once('/tmp/camera_status.pid', $fh);
@@ -35,28 +36,35 @@ $connection_settings = (new ConnectionSettings())
     ->setLastWillQualityOfService(0);
 
 while (true) {
-    // connect to the server
-    $mqtt = new MqttClient($config['server'], $config['port'], $clientId . '-' . mt_rand(10, 99), $mqtt_version);
-    $mqtt->connect($connection_settings, $clean_session);
 
-    if (!$mqtt->isConnected()) {
-        syslog(LOG_ERR, "MQTT not connected. Exiting...");
-        exit(-1);
-    }//if
+    try {
 
-    // construct payload
-    $payload = [
-        'device_id' => $clientId,
-        'device_type' => 'camera',
-        'ts' => time(),
-        'status' => $status
-    ];
+        // connect to the server
+        $mqtt = new MqttClient($config['server'], $config['port'], $clientId . '-' . mt_rand(10, 99), $mqtt_version);
+        $mqtt->connect($connection_settings, $clean_session);
 
-    // publish and disconnect
-    $mqtt->publish("device/{$clientId}/status", json_encode($payload), 0, false);
-    $mqtt->disconnect();
+        if (!$mqtt->isConnected()) {
+            syslog(LOG_ERR, "MQTT not connected. Exiting...");
+            exit(-1);
+        }//if
 
-    syslog(LOG_INFO, "Camera status '{$status}' message sent.");
+        // construct payload
+        $payload = [
+            'device_id' => $clientId,
+            'device_type' => 'camera',
+            'ts' => time(),
+            'status' => $status
+        ];
+
+        // publish and disconnect
+        $mqtt->publish("device/{$clientId}/status", json_encode($payload), 0, false);
+        $mqtt->disconnect();
+
+        syslog(LOG_INFO, "Camera status '{$status}' message sent.");
+
+    } catch (Exception $e) {
+        syslog(LOG_ERR, "Error '{$e->getMessage()}'");
+    }
 
     // send this only once
     if ($status == 'bootup') {
