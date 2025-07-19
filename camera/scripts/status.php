@@ -36,6 +36,8 @@ $connection_settings = (new ConnectionSettings())
 
 while (true) {
 
+    $date = date("d.m.Y H:i:s");
+
     try {
 
         // connect to the server
@@ -59,10 +61,10 @@ while (true) {
         $mqtt->publish("device/{$clientId}/status", json_encode($payload), 0, false);
         $mqtt->disconnect();
 
-        syslog(LOG_INFO, "Camera status '{$status}' message sent.");
+        syslog(LOG_INFO, "{$date} Camera status '{$status}' message sent.");
 
     } catch (Exception $e) {
-        syslog(LOG_ERR, "Error '{$e->getMessage()}'");
+        syslog(LOG_ERR, "{$date} Error: '{$e->getMessage()}'");
     }
 
     // send this only once
