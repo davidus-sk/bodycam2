@@ -7,7 +7,6 @@ require(dirname(__FILE__) . '/../../common/functions.php');
 
 use PhpMqtt\Client\MqttClient;
 use PhpMqtt\Client\ConnectionSettings;
-use Exception;
 
 // run once
 run_once('/tmp/camera_status.pid', $fh);
