@@ -40,6 +40,7 @@ export class App {
         };
 
         // dom elements
+        this.$content = $('#content');
         this.$mqttStatus = $('#mqtt-status');
         this.$mqttStatusCount = $('#mqtt-status-count');
 
@@ -95,7 +96,7 @@ export class App {
                 const data = JSON.parse(message);
 
                 if (data && data.device_id) {
-                    this._connectedDevices[data.device_id] = data.ts;
+                    this._connectedDevices[data.device_id] = data;
                 }
             } catch (e) {
                 this.debug(
@@ -125,7 +126,7 @@ export class App {
             let now = getTimestamp();
 
             for (const deviceId in this._connectedDevices) {
-                const deviceTs = this._connectedDevices[deviceId];
+                const deviceTs = this._connectedDevices[deviceId]['ts'];
                 const delta = now - deviceTs;
 
                 // remove old map object
@@ -151,6 +152,73 @@ export class App {
             } else {
                 $body.addClass('sidebar-hide');
                 sidebarHide = true;
+            }
+        });
+
+        let mqttDebugTimer = null;
+        let $mqttDebug = null;
+
+        // mqtt /status debug info
+        this.$mqttStatus.on('dblclick', e => {
+            if (mqttDebugTimer) {
+                clearInterval(mqttDebugTimer);
+            }
+
+            if ($('#mqtt-debug').length) {
+                $('#mqtt-debug').remove();
+            } else {
+                this.$content.append('<div id="mqtt-debug"></div>');
+                $mqttDebug = $('#mqtt-debug');
+
+                const debugRefresh = () => {
+                    var html = '<div style="margin-bottom: 5px;">Mqtt /status:</div>';
+                    html += '<table>';
+                    var idx = 1;
+                    var added = {};
+                    var self = this;
+
+                    if ($('#video-grid').length) {
+                        $('#video-grid')
+                            .find('.video-wrapper')
+                            .each(function () {
+                                const deviceId = $(this).attr('data-device-id');
+                                if (self._connectedDevices[deviceId]) {
+                                    const _d = self._connectedDevices[deviceId];
+
+                                    html += '<tr>';
+                                    html += '<td>' + idx + '</td>';
+                                    html += '<td>' + _d['device_id'] + '</td>';
+                                    html += '</tr>';
+
+                                    added[deviceId] = 1;
+                                    idx++;
+                                }
+                            });
+                    }
+
+                    for (let deviceId in this._connectedDevices) {
+                        if (added[deviceId]) {
+                            continue;
+                        }
+
+                        const _d = this._connectedDevices[deviceId];
+
+                        html += '<tr>';
+                        html += '<td>' + idx + '</td>';
+                        html += '<td>' + _d['device_id'] + '</td>';
+                        html += '</tr>';
+
+                        idx++;
+                    }
+
+                    html += '</table>';
+
+                    $mqttDebug.html(html);
+                };
+
+                debugRefresh();
+
+                setInterval(() => debugRefresh(), 2500);
             }
         });
     }

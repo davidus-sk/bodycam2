@@ -6,7 +6,7 @@ import { PiCamera } from './rtc/picamera.js';
 export class Video {
     options = {};
 
-    VIDEO_TIMEOUT = 60;
+    VIDEO_TIMEOUT = 30;
     TEXT_OVERLAY_TIMEOUT = 5;
 
     mqtt = undefined;
@@ -198,7 +198,7 @@ export class Video {
 
             // append html to the video matrix
             this.$grid.append(
-                `<div id="${device.dom_id}" class="video-wrapper"><video id="${device.video_id}" autoplay playsinline muted></video></div>`
+                `<div id="${device.dom_id}" class="video-wrapper" data-device-id="${deviceId}"><video id="${device.video_id}" autoplay playsinline muted></video></div>`
             );
 
             // video element reference
