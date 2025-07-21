@@ -160,8 +160,6 @@ export class PiCamera {
             await this.peer.setLocalDescription(this.offer);
         }
 
-        console.log(this.offer);
-
         // send offer
         const topic = this.constructTopic(MQTT_SDP_TOPIC, '/offer');
         this.debug(
@@ -214,9 +212,8 @@ export class PiCamera {
 
     reconnect(terminate) {
         this.debug(
-            '[picamera] %s | %creconnect > ',
+            '[picamera] %s | reconnect() > ',
             this.cameraId,
-            ConsoleColors.red,
             'connection status: ' + this.getStatus()
         );
 
@@ -235,8 +232,12 @@ export class PiCamera {
     }
 
     disconnect() {
+        if (this.rtcTimer) {
+            clearTimeout(this.rtcTimer);
+        }
+
         if (this.peer) {
-            this.debug('[picamera][webrtc] %s | %cdisconnect', this.cameraId, ConsoleColors.red);
+            this.debug('[picamera][webrtc] %s | disconnect()', this.cameraId);
             this.peer.close();
         }
 
@@ -462,6 +463,7 @@ export class PiCamera {
 
         switch (this.peer.signalingState) {
             case 'stable':
+                //case 'have-remote-offer':
                 this.debug('[picamera][webrtc] %s | ICE negotiation complete', this.cameraId);
 
                 while (this._iceCandidateList.length > 0) {
@@ -681,7 +683,8 @@ export class PiCamera {
         if (this.peer) {
             const candidate = JSON.parse(message);
 
-            if (this.peer.remoteDescription && this.peer.signalingState === 'stable') {
+            //  && this.peer.signalingState === 'stable'
+            if (this.peer.remoteDescription) {
                 this.debug(
                     '[picamera][webrtc] %s | %creceived remote ICE candidate (set)',
                     this.cameraId,
@@ -703,7 +706,7 @@ export class PiCamera {
                     '[picamera][webrtc] %s | %creceived remote ICE candidate (queue)',
                     this.cameraId,
                     ConsoleColors.green,
-                    '< ' + candidate.candidate
+                    '< ' + candidate
                 );
             }
         }

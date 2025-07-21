@@ -87,8 +87,8 @@ export class Debug {
         let config = {};
 
         config.iceServers = [];
-        config.iceCandidatePoolSize = 1;
-        config.bundlePolicy = 'max-bundle';
+        config.iceCandidatePoolSize = 10;
+        //config.bundlePolicy = 'max-bundle';
 
         // STUN servers
         if (this.options.camera.stunUrls && this.options.camera.stunUrls.length > 0) {
@@ -330,17 +330,18 @@ export class Debug {
             stopStream();
         };
 
-        const onicecandidateCallback = (e, clientId, deviceId) => {
-            if (e.candidate !== null && e.candidate.candidate !== null) {
+        const onicecandidateCallback = (event, clientId, deviceId) => {
+            if (event.candidate !== null && event.candidate.candidate !== null) {
                 const topic = `${deviceId}/ice/${clientId}`;
 
                 this.debug(
                     '[debug] %s | sending ICE candidate to the remote peer | %s',
                     deviceId,
-                    topic
+                    topic,
+                    event.candidate
                 );
 
-                this.mqtt.publish(topic, JSON.stringify(e.candidate.candidate));
+                this.mqtt.publish(topic, JSON.stringify(event.candidate));
             }
         };
 
