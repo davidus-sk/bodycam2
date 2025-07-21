@@ -177,7 +177,8 @@ export class Video {
                     this.debug(
                         '[video] %s | %ccamera not connected - reconnecting',
                         deviceId,
-                        ConsoleColors.error
+                        ConsoleColors.error,
+                        '| camera status: ' + this.getDeviceStatus(deviceId)
                     );
 
                     cam.reconnect();
