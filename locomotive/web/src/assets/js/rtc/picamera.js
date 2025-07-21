@@ -706,7 +706,8 @@ export class PiCamera {
                     '[picamera][webrtc] %s | %creceived remote ICE candidate (queue)',
                     this.cameraId,
                     ConsoleColors.green,
-                    '< ' + candidate
+                    '< ',
+                    candidate
                 );
             }
         }
