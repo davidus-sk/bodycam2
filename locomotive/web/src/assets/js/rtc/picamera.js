@@ -238,17 +238,13 @@ export class PiCamera {
             '[picamera][webrtc] %s | %cdisconnect()',
             this.cameraId,
             ConsoleColors.pink,
-            '| connectionState: ' + this.peer.connectionState,
-            '| signalingState: ' + this.peer.signalingState
+            '| connectionState: ' + (this.peer ? this.peer.connectionState : 'unknown'),
+            '| signalingState: ' + (this.peer ? this.peer.signalingState : 'unknown')
         );
 
         if (this.rtcTimer) {
             clearTimeout(this.rtcTimer);
             this.rtcTimer = null;
-        }
-
-        if (this.peer) {
-            this.peer.close();
         }
 
         if (this.remoteStream) {
