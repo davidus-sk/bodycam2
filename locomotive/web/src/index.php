@@ -65,9 +65,9 @@ app = new App(appConfig);
 <body>
 
     <div id="wrapper">
-        <div id="sidebar-toggle"><span></span></div>
-        <aside id="sidebar" aria-label="Sidebar">            
-            <div class="h-full overflow-y-auto">                            
+        <aside id="sidebar" aria-label="Sidebar">
+            <div class="h-full overflow-y-auto position-relative">
+                <div id="sidebar-toggle"><span></span></div>
                 <ul class="sidebar-menu">
                     <li>
                         <a href="<?= url('/'); ?>" class="sidebar-menu-item<?=(VIEW === 'video' ? ' active' : ''); ?>">
@@ -97,12 +97,12 @@ app = new App(appConfig);
             </div>
         </aside>
         <div id="content" class="h-screen">
-            
+
             <?php echo $content; ?>
 
         </div>
     </div>
-    
+
 
 </body>
 </html>

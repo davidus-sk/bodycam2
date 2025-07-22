@@ -41,6 +41,7 @@ export class Video {
         this.debug('[video] options', this.options);
 
         // dom elements
+        this.$content = $('#content');
         this.$grid = $('#video-grid');
 
         // regex map
@@ -64,7 +65,7 @@ export class Video {
 
         // resize
         window.addEventListener('resize', event => this.handleResize(event), true);
-        this.handleResize();
+        window.dispatchEvent(new Event('resize'));
 
         // mqtt
         this.initMqtt(app?.getMqttClient());
@@ -82,6 +83,10 @@ export class Video {
     }
 
     handleResize(event) {
+        // this.$content.append(screen.height + ' - ');
+        // this.$content.append(window.innerHeight + ' - ');
+        // this.$content.append(screen.availHeight);
+        this.$content.height(window.innerHeight);
         this.orientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
         this.$grid.removeClass('grid-landscape grid-portrait').addClass('grid-' + this.orientation);
     }

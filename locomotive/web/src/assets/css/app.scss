@@ -1,5 +1,9 @@
 $sidebarWidth: 90px;
 
+html {
+    min-height: -webkit-fill-available;
+}
+
 body {
     padding: 0;
     margin: 0;
@@ -9,6 +13,9 @@ body {
         sans-serif;
     -webkit-font-smoothing: antialiased;
     color: #e9e9e9;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    overflow: auto;
 }
 
 a {
@@ -29,7 +36,7 @@ a {
     bottom: 0;
     z-index: 50;
     background-color: #111112;
-    overflow-y: auto;
+    overflow-y: hidden;
     border-style: solid;
     border-color: #0b0b0c;
     border-width: 0px 1px 0px 0px;
@@ -43,10 +50,10 @@ a {
     }
 }
 .sidebar-menu {
+    list-style: none;
+    padding: 0 10px;
     margin-top: 80px;
     margin-bottom: 10px;
-    padding: 0 10px;
-    list-style: none;
 
     li + li {
         margin-top: 8px;
@@ -84,7 +91,7 @@ a {
 }
 
 #sidebar-toggle {
-    position: fixed;
+    position: absolute;
     top: 0px;
     left: 0px;
     z-index: 100;
@@ -126,6 +133,7 @@ body.sidebar-hide {
     }
 
     #sidebar-toggle {
+        position: fixed;
         background-color: rgba(0, 0, 0, 0.5);
 
         span {

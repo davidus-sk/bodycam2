@@ -1,5 +1,8 @@
 <div id="video-grid" class="grid-landscape grid-1"></div>
 
+<style>
+#content { overflow: hidden; }
+</style>
 <script src="./assets/js/vendor/tf.min.js"></script>
 <script src="./assets/js/vendor/coco-ssd.js"></script>
 <!-- <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
