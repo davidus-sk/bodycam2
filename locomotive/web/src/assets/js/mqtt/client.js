@@ -68,9 +68,10 @@ export class MqttClient {
         };
 
         this.client = mqtt.connect(connectionOptions);
-        this.debug('[mqtt] connect', connectionOptions);
 
         this.attachClientListeners();
+
+        this.debug('[mqtt] mqtt.connect()', connectionOptions);
         this.client.connect();
     }
 
@@ -113,7 +114,7 @@ export class MqttClient {
 
         // emitted on successful (re)connection
         this.client.on('connect', () => {
-            this.debug(`[mqtt][event] connect - client id: ${this.getClientId()}`);
+            this.debug(`[mqtt][event] connected - client id: ${this.getClientId()}`);
 
             this.emit('connect', this);
             this.onConnect?.(this);
@@ -121,7 +122,7 @@ export class MqttClient {
 
         // emitted on successful (re)connection
         this.client.on('close', () => {
-            this.debug(`[mqtt][event] close - client id: ${this.getClientId()}`);
+            this.debug('[mqtt][event] disconnected - client id: %s', this.getClientId());
 
             this.emit('disconnect', this);
             this.onDisconnect?.(this);

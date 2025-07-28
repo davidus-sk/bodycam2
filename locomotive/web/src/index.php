@@ -4,8 +4,7 @@ include_once 'bootstrap.php';
 include_once 'class/Config.php';
 
 // assets
-$assetsTime = isset($_GET['dev']) ? time() : @filemtime('assets');
-define('ASSETS_VERSION', ($assetsTime ? date('YmdHis', $assetsTime) : date('YmdH')));
+define('ASSETS_VERSION', (isset($_GET['dev']) ? date('YmdHis', time()) : date('YmdHi', @filemtime('assets'))));
 
 // views
 define('VIEW', !empty($_GET['r']) ? $_GET['r'] : 'video');
@@ -15,7 +14,7 @@ $MQTT_CLIENT_ID = (VIEW === 'debug' && $_SERVER['HTTP_HOST'] === 'localhost')
     ? 'mqttjs_debug' : MQTT_CLIENT_ID;
 
 // content
-$content = render(VIEW, ['cssLastModified' => ASSETS_VERSION]);
+$content = render(VIEW);
 ?>
 <!doctype html>
 <html class="no-js" lang="">
