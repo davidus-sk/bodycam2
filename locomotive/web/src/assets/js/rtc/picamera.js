@@ -84,7 +84,9 @@ export class PiCamera {
             isMicOn: false,
             isSpeakerOn: false,
             showClock: false,
+            stunUrl: '',
             stunUrls: [],
+            turnUrl: '',
             turnUrls: [],
             turnUsername: '',
             turnPassword: '',
@@ -303,23 +305,56 @@ export class PiCamera {
 
         config.iceServers = [];
         config.iceCandidatePoolSize = 10;
-        //config.bundlePolicy = 'max-bundle';
 
+        // ICE stun, turn configuration:
+        // iceServers (optional)
+        // An array of objects, each describing one server which may be used by
+        // the ICE agent; these are typically STUN and/or TURN servers. If this isn't
+        // specified, the connection attempt will be made with no STUN or TURN server
+        // available, which limits the connection to local peers.
+
+        // 'urls':
+        // This required property is either a single string or an array of strings,
+        // each specifying a URL which can be used to connect to the server.
+        //
+        // 'credential' (optional)
+        // The credential to use when logging into the server.
+        // This is only used if the object represents a TURN server
+
+        // ---------------------------------------------
         // STUN servers
-        if (this.options.stunUrls && this.options.stunUrls.length > 0) {
-            this.options.stunUrls.forEach(url => {
-                config.iceServers.push({ urls: url });
+        // ---------------------------------------------
+        if (
+            this.options.stunUrl &&
+            typeof this.options.stunUrl === 'string' &&
+            this.options.stunUrl.length
+        ) {
+            // string
+            config.iceServers.push({
+                urls: [this.options.stunUrl],
             });
         }
 
+        if (
+            this.options.stunUrls &&
+            typeof this.options.stunUrls === 'object' &&
+            this.options.stunUrls.length
+        ) {
+            // array
+            config.iceServers.push({
+                urls: this.options.stunUrls,
+            });
+        }
+
+        // ---------------------------------------------
         // TURN servers
-        // 'urls': This required property is either a single string or an array of strings,
-        // each specifying a URL which can be used to connect to the server.
+        // ---------------------------------------------
         if (
             this.options.turnUrl &&
             typeof this.options.turnUrl === 'string' &&
             this.options.turnUrl.length
         ) {
+            // string
             config.iceServers.push({
                 urls: this.options.turnUrl,
                 username: this.options.turnUsername,
@@ -332,6 +367,7 @@ export class PiCamera {
             typeof this.options.turnUrls === 'object' &&
             this.options.turnUrls.length
         ) {
+            // array
             config.iceServers.push({
                 urls: this.options.turnUrls,
                 username: this.options.turnUsername,
@@ -343,7 +379,11 @@ export class PiCamera {
     }
 
     createPeer = async () => {
-        const peer = new RTCPeerConnection(this.getRtcConfig());
+        const webrtcConfig = this.getRtcConfig();
+
+        this.debug('[picamera][webrtc] %s | createPeer()', this.cameraId, webrtcConfig);
+
+        const peer = new RTCPeerConnection(webrtcConfig);
 
         //this.remoteDescriptionSet = false;
         this._iceCandidates_local = new Array();
