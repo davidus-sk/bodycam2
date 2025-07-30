@@ -27,7 +27,7 @@ while (true) {
 
         // launch
         syslog(LOG_INFO, "Starting pi_webrtc for {$clientId}.");
-        `/app/bodycam2/camera/stream/pi_webrtc --camera=libcamera:0 --fps={$config['fps']} --width={$config['width']} --height={$config['height']} --hw-accel --no-audio --use-mqtt --mqtt-host={$config['server']} --mqtt-port={$config['port']} --mqtt-username={$config['username']} --mqtt-password={$config['password']} --uid={$clientId} --stun-url=stun:34.200.4.20:3478 --turn-url=turn:34.200.4.20:3478 --turn-username=1753215312 --turn-password=3T86pHSPA88MaLd6zXaAzADylqo= >> /tmp/pi_webrtc.log 2>&1 &`;
+        `/app/bodycam2/camera/stream/pi_webrtc --camera=libcamera:0 --fps={$config['fps']} --width={$config['width']} --height={$config['height']} --hw-accel --no-audio --use-mqtt --mqtt-host={$config['server']} --mqtt-port={$config['port']} --mqtt-username={$config['username']} --mqtt-password={$config['password']} --uid={$clientId} --stun-url=stun:34.200.4.20:3478 --turn-url=turn:34.200.4.20:3478 --turn-username=marek --turn-password=337caaf1d2 >> /tmp/pi_webrtc.log 2>&1 &`;
 
         // reset kill counter
         $k = 0;
