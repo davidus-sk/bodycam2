@@ -79,7 +79,7 @@ export class PiCamera {
     initializeOptions(options) {
         const defaultOptions = {
             debug: false,
-            timeout: 5000,
+            timeout: 15000,
             datachannelOnly: false,
             isMicOn: false,
             isSpeakerOn: false,
@@ -180,9 +180,9 @@ export class PiCamera {
         this.mqtt.publish(topic, JSON.stringify(this.offer));
 
         this.debug(
-            '[picamera] %s | setting connection timeout (%ss)',
+            '[picamera] %s | setting connection timeout (%s ms)',
             this.cameraId,
-            this.options.timeout / 1000
+            this.options.timeout
         );
 
         this.rtcTimer = setTimeout(() => {
@@ -200,6 +200,7 @@ export class PiCamera {
             if (this.onTimeout) {
                 this.onTimeout?.('closed');
             }
+
             //     this.terminate();
         }, this.options.timeout);
     }
