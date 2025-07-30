@@ -46,7 +46,7 @@ while (true) {
             if ($k > 5) {
                 // no dice, we have to reboot
                 syslog(LOG_INFO, "Unable to kill zombie process. Rebooting...");
-                `/usr/bin/reboot`;
+                `/usr/sbin/reboot`;
             }//if
         }//if
     }//if
