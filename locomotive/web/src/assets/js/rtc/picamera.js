@@ -305,7 +305,9 @@ export class PiCamera {
         let config = {};
 
         config.iceServers = [];
-        config.iceCandidatePoolSize = 10;
+        config.iceCandidatePoolSize = 1;
+        // config.icetransportpolicy = 'relay';
+        // config.rtcpmuxpolicy = 'negotiate';
 
         // ICE stun, turn configuration:
         // iceServers (optional)
@@ -332,7 +334,7 @@ export class PiCamera {
         ) {
             // string
             config.iceServers.push({
-                urls: [this.options.stunUrl],
+                urls: this.options.stunUrl,
             });
         }
 
@@ -342,9 +344,11 @@ export class PiCamera {
             this.options.stunUrls.length
         ) {
             // array
-            config.iceServers.push({
-                urls: this.options.stunUrls,
-            });
+            for (const url of this.options.stunUrls) {
+                config.iceServers.push({
+                    urls: url,
+                });
+            }
         }
 
         // ---------------------------------------------
@@ -369,11 +373,13 @@ export class PiCamera {
             this.options.turnUrls.length
         ) {
             // array
-            config.iceServers.push({
-                urls: this.options.turnUrls,
-                username: this.options.turnUsername,
-                credential: this.options.turnPassword,
-            });
+            for (const url of this.options.turnUrls) {
+                config.iceServers.push({
+                    urls: url,
+                    username: this.options.turnUsername,
+                    credential: this.options.turnPassword,
+                });
+            }
         }
 
         return config;
