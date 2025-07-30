@@ -27,7 +27,7 @@ while (true) {
 
         // launch
         syslog(LOG_INFO, "Starting pi_webrtc for {$clientId}.");
-        `/app/bodycam2/camera/stream/pi_webrtc_1.0.5 --use_libcamera --fps={$config['fps']} --width={$config['width']} --height={$config['height']} --hw_accel --no_audio --mqtt_host={$config['server']} --mqtt_port={$config['port']} --mqtt_username={$config['username']} --mqtt_password={$config['password']} --uid={$clientId}  >> /tmp/pi_webrtc.log 2>&1 &`;
+        `/app/bodycam2/camera/stream/pi_webrtc --camera=libcamera:0 --fps={$config['fps']} --width={$config['width']} --height={$config['height']} --hw-accel --no-audio --use-mqtt --mqtt-host={$config['server']} --mqtt-port={$config['port']} --mqtt-username={$config['username']} --mqtt-password={$config['password']} --uid={$clientId} --stun-url=stun:34.200.4.20:3478 --turn-url=turn:34.200.4.20:3478 --turn-username=1753215312 --turn-password=3T86pHSPA88MaLd6zXaAzADylqo= >> /tmp/pi_webrtc.log 2>&1 &`;
 
         // reset kill counter
         $k = 0;
@@ -46,7 +46,7 @@ while (true) {
             if ($k > 5) {
                 // no dice, we have to reboot
                 syslog(LOG_INFO, "Unable to kill zombie process. Rebooting...");
-                `/usr/bin/reboot`;
+                `/usr/sbin/reboot`;
             }//if
         }//if
     }//if
