@@ -313,6 +313,8 @@ export class PiCamera {
         }
 
         // TURN servers
+        // 'urls': This required property is either a single string or an array of strings,
+        // each specifying a URL which can be used to connect to the server.
         if (
             this.options.turnUrl &&
             typeof this.options.turnUrl === 'string' &&
