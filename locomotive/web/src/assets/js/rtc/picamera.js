@@ -382,9 +382,9 @@ export class PiCamera {
     createPeer = async () => {
         const webrtcConfig = this.getRtcConfig();
 
-        this.debug('[picamera][webrtc] %s | createPeer()', this.cameraId, webrtcConfig);
-
         const peer = new RTCPeerConnection(webrtcConfig);
+
+        this.debug('[picamera][webrtc] %s | createPeer()', this.cameraId, webrtcConfig, peer);
 
         //this.remoteDescriptionSet = false;
         this._iceCandidates_local = new Array();
@@ -398,6 +398,7 @@ export class PiCamera {
         peer.oniceconnectionstatechange = event => this.oniceconnectionstatechange(event);
         peer.onconnectionstatechange = event => this.onconnectionstatechange(event);
         peer.ontrack = event => this.ontrack(event);
+        peer.addEventListener('icecandidateerror', event => this.onicecandidateerror(event));
 
         /*
         this.dataChannel = peer.createDataChannel(generateClientId(10), {
@@ -568,6 +569,29 @@ export class PiCamera {
                 state
             );
         }
+    }
+
+    onicecandidateerror(event) {
+        // -----
+        // event.errorCode >= 300 && event.errorCode <= 699
+        // -----
+        // STUN errors are in the range 300-699. See RFC 5389, section 15.6
+        // for a list of codes. TURN adds a few more error codes; see
+        // RFC 5766, section 15 for details.
+
+        // -----
+        // event.errorCode >= 700 && event.errorCode <= 799
+        // -----
+        // Server could not be reached; a specific error number is
+        // provided but these are not yet specified.
+
+        this.debug(
+            '[picamera][webrtc] %s | %conicecandidateerror (error code: %s)',
+            this.cameraId,
+            ConsoleColors.orange,
+            event.errorCode,
+            event
+        );
     }
 
     ontrack(event) {
