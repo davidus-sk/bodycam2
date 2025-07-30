@@ -187,7 +187,7 @@ $connection_settings = (new ConnectionSettings())
   ->setUseTls(true)
   ->setLastWillQualityOfService(0);
 
-$serialPort = '/dev/ttyUSB3';
+$serialPort = '/dev/ttyUSB1';
 $baudRate = 115200;
 $loopDelaySeconds = 2; // Delay between command cycles
 
