@@ -1,11 +1,11 @@
 [Unit]
-Description=E-STOP MQTT Monitoring Service (locomotive listener)
+Description=E-STOP MQTT Monitoring Service (locomotive receiver)
 After=multi-user.target
 Wants=multi-user.target
 
 [Service]
 Type=simple
-ExecStart=/app/bodycam2/locomotive/scripts/button.php
+ExecStart=/app/bodycam2/locomotive/scripts/estop_receiver.php
 Restart=always
 RestartSec=1
 User=root
