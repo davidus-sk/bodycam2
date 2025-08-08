@@ -28,8 +28,8 @@ LSB_SIZE = 4.096 / 32768  # V/bit
 # --------- BUTTON/THRESHOLD CONFIG (EDIT HERE) ---------
 BUTTON_CHANNEL = 3
 MOVING_AVG_WINDOW = 5        # Number of readings for moving average (tuneable)
-PRESS_THRESHOLD_V = 1.25       # Below this = pressed
-RELEASE_THRESHOLD_V = 3.0     # Above this = released (hysteresis)
+PRESS_THRESHOLD_V = 1.0       # Below this = pressed
+RELEASE_THRESHOLD_V = 1.5     # Above this = released (hysteresis)
 BUTTON_HOLD_TIME_SEC = 0.25    # Required "held" time (seconds)
 POLL_INTERVAL_SEC = 0.05      # ADC poll interval (seconds)
 I2C_ERROR_COOLDOWN_SEC = 1.0

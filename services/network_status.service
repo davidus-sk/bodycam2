@@ -1,0 +1,14 @@
+[Unit]
+Description=Camera Status Service
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/app/bodycam2/common/network_status.php alive
+Restart=always
+RestartSec=1
+User=root
+WorkingDirectory=/app/bodycam2/common/
+
+[Install]
+WantedBy=multi-user.target
