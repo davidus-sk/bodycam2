@@ -72,9 +72,10 @@ while (true) {
             exit(-1);
         }//if
 
+	$battery_level = 0;
         if (file_exists('/tmp/battery.dat')) {
             $voltage = (float)file_get_contents('/tmp/battery.dat');
-            $battery_level = round(($voltage * 100) / 3.5);
+            $battery_level = round(($voltage * 100) / 3.7);
         }//if
 
         // construct payload

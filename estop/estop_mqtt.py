@@ -25,13 +25,27 @@ MUX_CH2 = 0x6000
 MUX_CH3 = 0x7000
 
 CONFIG_OS_SINGLE         = 0x8000
+# PGA bits (FSR): 6.144=0x0000, 4.096=0x0200, 2.048=0x0400, 1.024=0x0600, 0.512=0x0800, 0.256=0x0A00
+CONFIG_PGA_6_144V        = 0x0000
 CONFIG_PGA_4_096V        = 0x0200
+CONFIG_PGA_2_048V        = 0x0400
+CONFIG_PGA_1_024V        = 0x0600
+CONFIG_PGA_0_512V        = 0x0800
+CONFIG_PGA_0_256V        = 0x0A00
+
 CONFIG_MODE_SINGLE       = 0x0100
 CONFIG_DR_128SPS         = 0x0080
 CONFIG_COMP_QUE_DISABLE  = 0x0003
 
-# Using 4.096V full-scale
-LSB_SIZE = 4.096 / 32768  # V/bit
+# Map PGA bits -> FSR volts for proper V/bit per-channel math
+PGA_TO_FSR = {
+    CONFIG_PGA_6_144V: 6.144,
+    CONFIG_PGA_4_096V: 4.096,
+    CONFIG_PGA_2_048V: 2.048,
+    CONFIG_PGA_1_024V: 1.024,
+    CONFIG_PGA_0_512V: 0.512,
+    CONFIG_PGA_0_256V: 0.256,
+}
 
 # --------- BUTTON/THRESHOLD CONFIG (EXISTING) ---------
 BUTTON_CHANNEL = 3  # Existing logic reads CH3 via MUX_CH3
@@ -45,14 +59,35 @@ MIN_EVENT_INTERVAL = 5.0      # Minimum seconds between events to avoid spam
 
 CONFIG_PATH = "/app/bodycam2/camera/conf/config.json"
 
-# --------- BATTERY MONITOR CONFIG (NEW) ---------
-BATTERY_CHANNEL = 0               # Read battery on CH0
-BATTERY_SAMPLE_INTERVAL_SEC = 1.0 # Read every second
-BATTERY_AVG_WINDOW = 10           # 10 samples (≈10 s)
-BATTERY_WRITE_PERIOD_SEC = 10.0   # Write every 10 s
+# --------- BATTERY MONITOR CONFIG ---------
+BATTERY_CHANNEL = 0                 # Read battery on CH0
+BATTERY_SAMPLE_INTERVAL_SEC = 1.0   # One burst per second
+BATTERY_BURST_SAMPLES = 10          # N samples per burst (median used)
+BATTERY_AVG_WINDOW = 30             # 30 bursts (~30 s) for steady output
+BATTERY_WRITE_PERIOD_SEC = 10.0     # Write every 10 s
 BATTERY_OUTPUT_PATH = "/tmp/battery.dat"
-# Format requirement "3.1150", i.e., 4 decimal places.
-BATTERY_DECIMAL_PLACES = 4
+BATTERY_DECIMAL_PLACES = 4          # e.g. "3.1150"
+
+# Divider is currently reversed on hardware:
+# Rtop = 4.7k (battery -> AIN0), Rbottom = 30k (AIN0 -> GND)
+RTOP_OHMS = 4700.0
+RBOT_OHMS = 30000.0
+
+# Calibrated scale: true_battery_volts = node_volts * DIVIDER_SCALE
+# (Replace this with V_fluke / node for re-calibrate later.)
+DIVIDER_SCALE = 1.158241
+
+# Per-channel PGA selections:
+# - Battery on CH0: keep ±4.096 V for headroom (reversed divider can put node ~3.6V at 4.2V battery)
+# - Pressure pad on CH3: ±4.096 V as before
+PGA_CH0 = CONFIG_PGA_4_096V
+PGA_CH3 = CONFIG_PGA_4_096V
+
+# ADS1115 timing
+CONVERSION_DELAY_SEC = 0.012  # generous settle + conversion time at 128 SPS
+
+# Absolute input warning threshold: with VDD=3.3V, abs max ≈ VDD + 0.3 ≈ 3.6V
+AIN_ABSMAX_WARN = 3.55
 
 exit_event = threading.Event()
 
@@ -172,7 +207,7 @@ class MQTTPublisher:
                         break
                     time.sleep(0.1)
                 if not self.connected:
-                    print("[MQTT] Waiting for broker connection...")
+                    print("[MQTT] Waiting for broker connection...]")
             except Exception as e:
                 print(f"[MQTT] Connect error: {e}. Retrying in 5 sec.")
                 sys.exit(-1)
@@ -205,44 +240,84 @@ def handle_exit_signal(signum, frame):
     print(f"[Main] Received exit signal {signum}, shutting down gracefully.")
     exit_event.set()
 
-# ---------- ADS1115 Helpers (thread-safe) ----------
-def _ads1115_single_ended_voltage(bus, mux_bits, bus_lock):
+# ---------- ADS1115 Helpers (thread-safe, per-channel PGA, dummy-read to settle) ----------
+def _ads1115_single_ended_voltage(bus, mux_bits, pga_bits, bus_lock):
     """
-    Perform a single-shot conversion on the given single-ended channel (via mux_bits),
-    return voltage (float). Uses 4.096V range and 128SPS.
+    Single-shot conversion on the given single-ended channel with the specified PGA.
+    We perform a dummy conversion after a mux/PGA change to allow the input cap to
+    settle when source impedance is a few kΩ, then read a second time and return it.
+    Returns voltage at the ADC pin (not scaled for any external divider).
     """
-    config = (CONFIG_OS_SINGLE |
-              mux_bits |
-              CONFIG_PGA_4_096V |
-              CONFIG_MODE_SINGLE |
-              CONFIG_DR_128SPS |
-              CONFIG_COMP_QUE_DISABLE)
-    config_bytes = config.to_bytes(2, 'big')
-    try:
+    fsr = PGA_TO_FSR.get(pga_bits, 4.096)
+    lsb = fsr / 32768.0
+
+    def _convert_once():
+        config = (CONFIG_OS_SINGLE |
+                  mux_bits |
+                  pga_bits |
+                  CONFIG_MODE_SINGLE |
+                  CONFIG_DR_128SPS |
+                  CONFIG_COMP_QUE_DISABLE)
+        cfg_bytes = config.to_bytes(2, 'big')
         with bus_lock:
-            bus.write_i2c_block_data(ADS1115_ADDR, REG_CONFIG, list(config_bytes))
-        # 128 SPS -> ~7.8 ms; we’ll give it 8–10 ms
-        time.sleep(0.010)
+            bus.write_i2c_block_data(ADS1115_ADDR, REG_CONFIG, list(cfg_bytes))
+        time.sleep(CONVERSION_DELAY_SEC)  # settle + conversion
         with bus_lock:
             data = bus.read_i2c_block_data(ADS1115_ADDR, REG_CONVERSION, 2)
-    except Exception as e:
-        # Propagate so callers can handle/log and back off
-        raise e
+        raw = (data[0] << 8) | data[1]
+        if raw > 0x7FFF:
+            raw -= 0x10000
+        v = raw * lsb
+        return 0.0 if v < 0 else v
 
-    raw_adc = (data[0] << 8) | data[1]
-    if raw_adc > 0x7FFF:
-        raw_adc -= 0x10000
-    voltage = raw_adc * LSB_SIZE
-    # For single-ended, negative is unexpected; clamp to 0 just in case.
-    if voltage < 0:
-        voltage = 0.0
-    return voltage
+    # Dummy then real conversion
+    _ = _convert_once()
+    return _convert_once()
 
 def read_ads1115_ch3(bus, bus_lock):
-    return _ads1115_single_ended_voltage(bus, MUX_CH3, bus_lock)
+    # Pressure pad: keep original ±4.096 V headroom
+    return _ads1115_single_ended_voltage(bus, MUX_CH3, PGA_CH3, bus_lock)
 
 def read_ads1115_ch0(bus, bus_lock):
-    return _ads1115_single_ended_voltage(bus, MUX_CH0, bus_lock)
+    # Battery (current reversed divider): use ±4.096 V for headroom
+    return _ads1115_single_ended_voltage(bus, MUX_CH0, PGA_CH0, bus_lock)
+
+def read_ads1115_ch0_burst(bus, bus_lock, n=10):
+    """
+    Burst-read CH0 at the SAME mux/PGA without switching channels between samples.
+    Uses one dummy+real via helper (to settle), then triggers (n-1) more conversions
+    at the same settings and returns the BURST MEDIAN (robust to outliers).
+    """
+    samples = []
+
+    # First sample path (includes dummy read via helper)
+    first = read_ads1115_ch0(bus, bus_lock)
+    samples.append(first)
+
+    # Now stay on CH0 at same PGA; repeatedly trigger conversions
+    fsr = PGA_TO_FSR[PGA_CH0]
+    lsb = fsr / 32768.0
+    config = (CONFIG_OS_SINGLE | MUX_CH0 | PGA_CH0 |
+              CONFIG_MODE_SINGLE | CONFIG_DR_128SPS | CONFIG_COMP_QUE_DISABLE)
+    cfg_bytes = config.to_bytes(2, 'big')
+
+    for _ in range(max(1, n) - 1):
+        with bus_lock:
+            bus.write_i2c_block_data(ADS1115_ADDR, REG_CONFIG, list(cfg_bytes))
+        time.sleep(CONVERSION_DELAY_SEC)
+        with bus_lock:
+            data = bus.read_i2c_block_data(ADS1115_ADDR, REG_CONVERSION, 2)
+        raw = (data[0] << 8) | data[1]
+        if raw > 0x7FFF:
+            raw -= 0x10000
+        v = raw * lsb
+        samples.append(0.0 if v < 0 else v)
+
+    # Median-of-burst
+    samples.sort()
+    m = samples[len(samples)//2] if len(samples) % 2 == 1 else \
+        0.5 * (samples[len(samples)//2 - 1] + samples[len(samples)//2])
+    return m
 
 # =================== BUTTON DETECTOR WITH MOVING AVERAGE + HYSTERESIS ===================
 class ButtonMonitor:
@@ -306,12 +381,13 @@ class ButtonMonitor:
                 traceback.print_exc()
                 time.sleep(I2C_ERROR_COOLDOWN_SEC)
 
-# =================== BATTERY MONITOR (NEW) ===================
+# =================== BATTERY MONITOR ===================
 class BatteryMonitor(threading.Thread):
     """
-    Reads CH0 once per second, keeps a moving average over the last 10 readings,
-    and every 10 seconds writes the current moving average to /tmp/battery.dat
-    as a single number with 4 decimal places (no units), atomically.
+    Once per second, take a short burst on CH0 (median) to reduce noise/outliers.
+    Keep a 30-sample moving average for a steady battery figure.
+    Write to /tmp/battery.dat every 10 s with 4 decimals, reporting TRUE battery volts.
+    Includes a guardrail warning if AIN0 approaches VDD + 0.3 (~3.6 V at 3.3 V supply).
     """
     def __init__(self, bus, bus_lock):
         super().__init__(daemon=True)
@@ -339,31 +415,38 @@ class BatteryMonitor(threading.Thread):
             # Sample once per second cadence
             if now >= next_sample_ts:
                 try:
-                    v = read_ads1115_ch0(self.bus, self.bus_lock)
-                    # Sanity clamp: the ADS1115 at 4.096V FS shouldn't exceed ~4.096
-                    if v < 0.0:
-                        v = 0.0
-                    elif v > 4.2:  # slight cushion if battery can be a hair above 4.096
-                        v = 4.2
-                    self.window.append(v)
+                    v_node = read_ads1115_ch0_burst(self.bus, self.bus_lock, n=BATTERY_BURST_SAMPLES)
+                    if v_node < 0.0:
+                        v_node = 0.0
+
+                    # Simple outlier guard vs previous sample (rare after median, but cheap)
+                    if self.window:
+                        last = self.window[-1]
+                        if abs(v_node - last) > 0.3:  # clamp crazy jumps at the node
+                            v_node = last
+
+                    self.window.append(v_node)
                     if len(self.window) > BATTERY_AVG_WINDOW:
                         self.window.pop(0)
+
+                    # Warn if near absolute input limit
+                    if v_node > AIN_ABSMAX_WARN:
+                        print(f"[Battery] WARNING: AIN0 high ({v_node:.3f}V) near abs max (~3.6V). Check divider / supply.")
                 except Exception as e:
                     print(f"[Battery] I2C read error: {e}")
                     # keep going; just skip this sample
                 next_sample_ts += BATTERY_SAMPLE_INTERVAL_SEC
 
-            # Every 10 seconds, write current moving average
+            # Every 10 seconds, write current moving average (scaled to true battery volts)
             if (now - self.last_write_ts) >= BATTERY_WRITE_PERIOD_SEC:
                 if self.window:
-                    avg_v = sum(self.window) / len(self.window)
-                    # Format with 4 decimal places to match example like 3.1150
-                    out = f"{avg_v:.{BATTERY_DECIMAL_PLACES}f}\n"
+                    avg_v_node = sum(self.window) / len(self.window)
+                    avg_v_batt = avg_v_node * DIVIDER_SCALE  # node -> true battery voltage
+                    out = f"{avg_v_batt:.{BATTERY_DECIMAL_PLACES}f}\n"
                     self.safe_write_atomic(BATTERY_OUTPUT_PATH, out)
                     # Optional: print for visibility
-                    print(f"[Battery] Wrote {BATTERY_OUTPUT_PATH}: {out.strip()}")
+                    print(f"[Battery] Wrote {BATTERY_OUTPUT_PATH}: {out.strip()} (node={avg_v_node:.4f}V, scale={DIVIDER_SCALE:.6f})")
                 else:
-                    # No data yet; write 0.0000 to indicate 'unknown' safely
                     out = f"{0.0:.{BATTERY_DECIMAL_PLACES}f}\n"
                     self.safe_write_atomic(BATTERY_OUTPUT_PATH, out)
                     print(f"[Battery] Wrote {BATTERY_OUTPUT_PATH}: {out.strip()} (no samples yet)")
