@@ -50,6 +50,7 @@ export class Debug {
         this.buttons();
         this.stream();
         this.cameraRestart();
+        this.osd();
         this.gps();
         this.distance();
     }
@@ -781,6 +782,28 @@ export class Debug {
         const newLongitude = (newLonRad * 180) / Math.PI;
 
         return { lat: newLatitude, lng: newLongitude };
+    }
+
+    osd() {
+        const $btn = $('#btn-network-status');
+        // locomotive gps
+        $btn.on('click', () => {
+            const deviceId = this.getSelectedDeviceId();
+            const topic = `device/${deviceId}/osd`;
+
+            this.debug('[debug] %s | osd message | %s', deviceId, topic);
+            const signal = Math.floor(Math.random() * 101);
+
+            this.mqtt.publish(
+                topic,
+                JSON.stringify({
+                    device_id: deviceId,
+                    device_type: 'camera',
+                    ts: getTimestamp(),
+                    status: { signal: signal },
+                })
+            );
+        });
     }
 
     gps() {
