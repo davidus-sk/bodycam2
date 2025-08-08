@@ -509,7 +509,7 @@ export class Video {
                     batClass = 'low';
                 }
 
-                html += `<span class="text battery ${batClass} ms-1">${bat} ${payload.status.battery}%</span>`;
+                html += `<span class="text battery ${batClass}">${bat} ${payload.status.battery}%</span>`;
             }
 
             // Network Signal
