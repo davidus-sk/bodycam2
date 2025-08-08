@@ -40,20 +40,18 @@ $modem_string = `/usr/bin/mmcli -L`;
 if (preg_match("@/Modem/([0-9]+)@", $modem_string, $m)) {
     $modem_id = (int)$m[1];
 
-    syslog(LOG_INFO, date("d.m.Y H:i:s") . " Modem ID {$modem_id} found.");
+    syslog(LOG_INFO, "Modem ID {$modem_id} found.");
 
     // start signal collection
     `/usr/bin/mmcli -m {$modem_id} --signal-setup=15`;
 }
 
 if ($modem_id === false) {
-    syslog(LOG_ERR, date("d.m.Y H:i:s") . " No modem found. Exiting...");
+    syslog(LOG_ERR, "No modem found. Exiting...");
     exit(-1);
 }//if
 
 while (true) {
-
-    $date = date("d.m.Y H:i:s");
 
     // get signal status - rssi: -58.00 dBm
     $signal_level = 0;
@@ -86,10 +84,10 @@ while (true) {
         $mqtt->publish("device/{$clientId}/osd", json_encode($payload), 0, false);
         $mqtt->disconnect();
 
-        syslog(LOG_INFO, "{$date} Network status '{$signal_level}%' message sent.");
+        syslog(LOG_INFO, "Network status '{$signal_level}%' message sent.");
 
     } catch (Exception $e) {
-        syslog(LOG_ERR, "{$date} Error: '{$e->getMessage()}'");
+        syslog(LOG_ERR, "Error: '{$e->getMessage()}'");
     }
 
     // rest

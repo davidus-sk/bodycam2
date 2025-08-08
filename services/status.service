@@ -1,6 +1,7 @@
 [Unit]
 Description=Camera Status Service
 After=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple

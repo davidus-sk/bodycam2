@@ -1,10 +1,11 @@
 [Unit]
-Description=Camera Status Service
+Description=Network Status Service
 After=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStart=/app/bodycam2/common/network_status.php alive
+ExecStart=/app/bodycam2/common/network_status.php camera
 Restart=always
 RestartSec=1
 User=root

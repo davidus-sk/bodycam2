@@ -8,6 +8,7 @@ function run_once($lock_file, &$fh)
     if ($fh === false || (!$got_lock && !$would_block)) {
         throw new Exception("Can't obtain lock.");
     } elseif (!$got_lock && $would_block) {
+        echo date('r') . "> Already running. Exiting...\n";
         exit();
     }//if
 
