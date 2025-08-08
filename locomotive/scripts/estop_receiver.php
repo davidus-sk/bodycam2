@@ -1,7 +1,7 @@
 #!/usr/bin/php
 <?php
 
-// Monitor BUTTON topic, if message was received, trigger relay.
+// Monitor ESTOP BUTTON topic, if message was received, trigger relay.
 // Messages come from body worn units and trigger relay on the loco unit.
 
 // load libraries
@@ -19,6 +19,10 @@ $config = read_config();
 
 // log
 openlog("locomotive_button", LOG_PID | LOG_PERROR, LOG_LOCAL0);
+
+// pull relay low first
+$command = dirname(__FILE__) . '/setup_relay.py';
+`$command`;
 
 // MQTT settings
 $clientId = 'device-' . trim(`{$config['client_id']}`);
@@ -38,14 +42,23 @@ $connection_settings = (new ConnectionSettings())
     ->setLastWillQualityOfService(0);
 
 // connect to the server
+syslog(LOG_INFO, "Connecting to server {$config['server']}:{$config['port']} as {$clientId}.");
 $mqtt = new MqttClient($config['server'], $config['port'], $clientId . '-' . mt_rand(10, 99), $mqtt_version);
-$mqtt->connect($connectionSettings, $clean_session);
+$mqtt->connect($connection_settings, $clean_session);
+syslog(LOG_INFO, "Connection " . ($mqtt->isConnected() ? "established": "failed") . ".");
 
 $mqtt->subscribe('device/+/button', function ($topic, $message) {
-    syslog(LOG_INFO, "Received message on topic [{$topic}]: {$message}.");
+    syslog(LOG_INFO, "Received ESTOP message: {$message}.");
 
-    $command = dirname(__FILE__) . '/relay.py';
-    `$command`;
+    $data = json_decode($message, TRUE);
+
+var_dump(time() - $data['ts']);
+
+    if ($data && (time() - $data['ts'] < 5)) {
+      syslog(LOG_INFO, "Activated relay.");
+      $command = dirname(__FILE__) . '/relay.py';
+      `$command`;
+    }//if
 }, 0);
 
 $mqtt->loop(true);
