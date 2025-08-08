@@ -49,6 +49,7 @@ export class Video {
         this.topicRegex['device_status'] = new RegExp(`^device\/${deviceIdPattern}\/status$`);
         this.topicRegex['device_gps'] = new RegExp(`^device\/${deviceIdPattern}\/gps$`);
         this.topicRegex['device_distance'] = new RegExp(`^device\/${deviceIdPattern}\/distance$`);
+        this.topicRegex['device_osd'] = new RegExp(`^device\/${deviceIdPattern}\/osd$`);
 
         // attach events
         window.onbeforeunload = () => {
@@ -133,6 +134,10 @@ export class Video {
                     if (topic.match(this.topicRegex['device_distance'])) {
                         this.handleDeviceDistanceMessage(payload);
                     }
+                    // network
+                    if (topic.match(this.topicRegex['device_osd'])) {
+                        this.handleDeviceOsdMessage(payload);
+                    }
                 }
             });
         }
@@ -204,7 +209,12 @@ export class Video {
 
             // append html to the video matrix
             this.$grid.append(
-                `<div id="${device.dom_id}" class="video-wrapper" data-device-id="${deviceId}"><video id="${device.video_id}" autoplay playsinline muted></video></div>`
+                `<div id="${device.dom_id}" class="video-wrapper" data-device-id="${deviceId}">` +
+                    `<video id="${device.video_id}" autoplay playsinline muted></video>` +
+                    '<div class="osd">' +
+                    `<span id="${device.dom_id}_hw" class="hw-status"></span>` +
+                    '</div>' +
+                    '</div>'
             );
 
             // video element reference
@@ -466,6 +476,64 @@ export class Video {
             ft = Math.round(ft * 100) / 100;
             // show
             this.showOverlayText(deviceId, ft + ' ft');
+        }
+    }
+
+    handleDeviceOsdMessage(payload) {
+        const deviceId = payload.device_id ?? null;
+
+        this.debug('[video][mqtt] %s | message:', deviceId || '???', 'device/+/osd', payload);
+
+        if (!deviceId || !deviceId.length || !this.isDeviceInGrid(deviceId)) {
+            return;
+        }
+
+        const domId = `device_${deviceId}_hw`,
+            $elm = $('#' + domId);
+
+        // show
+        if (payload.status !== 'undefined') {
+            let html = '';
+
+            // Battery
+            if (typeof payload.status.battery !== 'undefined') {
+                let bat, batClass;
+                if (payload.status.battery >= 85) {
+                    bat = '<i class="ri-battery-fill"></i>';
+                    batClass = 'high';
+                } else if (payload.status.signal >= 35) {
+                    bat = '<i class="ri-battery-low-line"></i>';
+                    batClass = 'medium';
+                } else {
+                    bat = '<i class="ri-battery-line"></i>';
+                    batClass = 'low';
+                }
+
+                html += `<span class="text battery ${batClass}">${bat} ${payload.status.battery}%</span>`;
+            }
+
+            // Network Signal
+            if (typeof payload.status.signal !== 'undefined') {
+                let sig;
+                if (payload.status.signal >= 75) {
+                    sig = 'high';
+                } else if (payload.status.signal >= 50) {
+                    sig = 'medium';
+                } else if (payload.status.signal >= 0) {
+                    sig = 'low';
+                } else {
+                    sig = 'offline';
+                }
+
+                html +=
+                    `<span class="text signal ${sig}">` +
+                    `<i class="ri-base-station-line"></i> ${payload.status.signal}` +
+                    '</span>';
+            }
+
+            $elm.html(html).show();
+        } else {
+            $elm.hide();
         }
     }
 }

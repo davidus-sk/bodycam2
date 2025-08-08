@@ -305,7 +305,7 @@ export class PiCamera {
         let config = {};
 
         config.iceServers = [];
-        config.iceCandidatePoolSize = 1;
+        // config.iceCandidatePoolSize = 1;
         // config.icetransportpolicy = 'relay';
         // config.rtcpmuxpolicy = 'negotiate';
 

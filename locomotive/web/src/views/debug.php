@@ -53,6 +53,13 @@ $deviceList = Config::get('debug.devices', []);
 
     <hr class="my-4" />
 
+    <!-- OSD -->
+    <div class="d-grid gap-3 d-md-block">
+        <button id="btn-network-status" type="button" class="btn btn-lg btn-secondary" data-mqtt="1" disabled>/osd Network Status</button>
+    </div>
+
+    <hr class="my-4" />
+
     <!-- ESTOP -->
     <div class="d-grid gap-3 d-md-block">
         <button type="button" class="btn btn-lg btn-secondary" data-mqtt="1" 
@@ -82,7 +89,7 @@ $deviceList = Config::get('debug.devices', []);
     <hr class="my-4" />
 
     <div class="d-grid gap-3 d-md-block">
-        <button id="btn-cam-restart" type="button" class="btn btn-lg btn-secondary" data-mqtt="1"   disabled>Camera restart</button>
+        <button id="btn-cam-restart" type="button" class="btn btn-lg btn-secondary" data-mqtt="1" disabled>Camera restart</button>
     </div>
 
 
