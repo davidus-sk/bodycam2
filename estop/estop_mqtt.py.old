@@ -6,7 +6,6 @@ import random
 import subprocess
 import threading
 import signal
-import os
 from smbus2 import SMBus
 import paho.mqtt.client as mqtt
 
@@ -16,52 +15,34 @@ ADS1115_ADDR = 0x48
 
 REG_CONVERSION = 0x00
 REG_CONFIG = 0x01
-
-# ADS1115 single-ended MUX values:
-# AIN0=0x4000, AIN1=0x5000, AIN2=0x6000, AIN3=0x7000
-MUX_CH0 = 0x4000
-MUX_CH1 = 0x5000
-MUX_CH2 = 0x6000
 MUX_CH3 = 0x7000
 
-CONFIG_OS_SINGLE         = 0x8000
-CONFIG_PGA_4_096V        = 0x0200
-CONFIG_MODE_SINGLE       = 0x0100
-CONFIG_DR_128SPS         = 0x0080
-CONFIG_COMP_QUE_DISABLE  = 0x0003
+CONFIG_OS_SINGLE      = 0x8000
+CONFIG_PGA_4_096V     = 0x0200
+CONFIG_MODE_SINGLE    = 0x0100
+CONFIG_DR_128SPS      = 0x0080
+CONFIG_COMP_QUE_DISABLE = 0x0003
 
-# Using 4.096V full-scale
 LSB_SIZE = 4.096 / 32768  # V/bit
 
-# --------- BUTTON/THRESHOLD CONFIG (EXISTING) ---------
-BUTTON_CHANNEL = 3  # Existing logic reads CH3 via MUX_CH3
-MOVING_AVG_WINDOW = 5         # Number of readings for moving average (tuneable)
+# --------- BUTTON/THRESHOLD CONFIG (EDIT HERE) ---------
+BUTTON_CHANNEL = 3
+MOVING_AVG_WINDOW = 5        # Number of readings for moving average (tuneable)
 PRESS_THRESHOLD_V = 0.4       # Below this = pressed
 RELEASE_THRESHOLD_V = 0.7     # Above this = released (hysteresis)
-BUTTON_HOLD_TIME_SEC = 0.25   # Required "held" time (seconds)
+BUTTON_HOLD_TIME_SEC = 0.25    # Required "held" time (seconds)
 POLL_INTERVAL_SEC = 0.05      # ADC poll interval (seconds)
 I2C_ERROR_COOLDOWN_SEC = 1.0
 MIN_EVENT_INTERVAL = 5.0      # Minimum seconds between events to avoid spam
 
 CONFIG_PATH = "/app/bodycam2/camera/conf/config.json"
 
-# --------- BATTERY MONITOR CONFIG (NEW) ---------
-BATTERY_CHANNEL = 0               # Read battery on CH0
-BATTERY_SAMPLE_INTERVAL_SEC = 1.0 # Read every second
-BATTERY_AVG_WINDOW = 10           # 10 samples (≈10 s)
-BATTERY_WRITE_PERIOD_SEC = 10.0   # Write every 10 s
-BATTERY_OUTPUT_PATH = "/tmp/battery.dat"
-# Format requirement "3.1150", i.e., 4 decimal places.
-BATTERY_DECIMAL_PLACES = 4
-
 exit_event = threading.Event()
 
 # =================== UTILITY/MQTT (MATCHES IMU) ===================
 def get_shell_output(command):
     try:
-        output = subprocess.check_output(
-            command, shell=True, stderr=subprocess.STDOUT, universal_newlines=True
-        )
+        output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT, universal_newlines=True)
         return output.strip()
     except Exception as e:
         print(f"[CONFIG] ERROR: Failed to run shell command for client_id: '{command}' -> {e}")
@@ -100,7 +81,7 @@ def build_mqtt_settings(cfg):
     if not base_id:
         print("[CONFIG] ERROR: Could not determine base client_id, exiting.")
         sys.exit(104)
-    # NOTE: topic ends with /button
+    # NOTE: topic ends with /button, not /fall
     mqtt_topic = f"device-{base_id}"
     rand_num = random.randint(10, 99)
     mqtt_client_id = f"{mqtt_topic}-{rand_num}"
@@ -175,7 +156,7 @@ class MQTTPublisher:
                     print("[MQTT] Waiting for broker connection...")
             except Exception as e:
                 print(f"[MQTT] Connect error: {e}. Retrying in 5 sec.")
-                sys.exit(-1)
+                exit(-1)
 
     def publish(self, payload):
         if not self.connected and not exit_event.is_set():
@@ -191,64 +172,35 @@ class MQTTPublisher:
 
     def close(self):
         if not self._closed:
-            try:
-                self.client.loop_stop()
-            except Exception:
-                pass
-            try:
-                self.client.disconnect()
-            except Exception:
-                pass
+            self.client.loop_stop()
+            self.client.disconnect()
             self._closed = True
 
 def handle_exit_signal(signum, frame):
     print(f"[Main] Received exit signal {signum}, shutting down gracefully.")
     exit_event.set()
 
-# ---------- ADS1115 Helpers (thread-safe) ----------
-def _ads1115_single_ended_voltage(bus, mux_bits, bus_lock):
-    """
-    Perform a single-shot conversion on the given single-ended channel (via mux_bits),
-    return voltage (float). Uses 4.096V range and 128SPS.
-    """
+def read_ads1115_ch3(bus):
     config = (CONFIG_OS_SINGLE |
-              mux_bits |
+              MUX_CH3 |
               CONFIG_PGA_4_096V |
               CONFIG_MODE_SINGLE |
               CONFIG_DR_128SPS |
               CONFIG_COMP_QUE_DISABLE)
     config_bytes = config.to_bytes(2, 'big')
-    try:
-        with bus_lock:
-            bus.write_i2c_block_data(ADS1115_ADDR, REG_CONFIG, list(config_bytes))
-        # 128 SPS -> ~7.8 ms; we’ll give it 8–10 ms
-        time.sleep(0.010)
-        with bus_lock:
-            data = bus.read_i2c_block_data(ADS1115_ADDR, REG_CONVERSION, 2)
-    except Exception as e:
-        # Propagate so callers can handle/log and back off
-        raise e
-
+    bus.write_i2c_block_data(ADS1115_ADDR, REG_CONFIG, list(config_bytes))
+    time.sleep(0.008)  # Conversion delay
+    data = bus.read_i2c_block_data(ADS1115_ADDR, REG_CONVERSION, 2)
     raw_adc = (data[0] << 8) | data[1]
     if raw_adc > 0x7FFF:
         raw_adc -= 0x10000
     voltage = raw_adc * LSB_SIZE
-    # For single-ended, negative is unexpected; clamp to 0 just in case.
-    if voltage < 0:
-        voltage = 0.0
     return voltage
-
-def read_ads1115_ch3(bus, bus_lock):
-    return _ads1115_single_ended_voltage(bus, MUX_CH3, bus_lock)
-
-def read_ads1115_ch0(bus, bus_lock):
-    return _ads1115_single_ended_voltage(bus, MUX_CH0, bus_lock)
 
 # =================== BUTTON DETECTOR WITH MOVING AVERAGE + HYSTERESIS ===================
 class ButtonMonitor:
-    def __init__(self, bus, bus_lock, mqtt_pub, mqtt_settings):
+    def __init__(self, bus, mqtt_pub, mqtt_settings):
         self.bus = bus
-        self.bus_lock = bus_lock
         self.mqtt_pub = mqtt_pub
         self.mqtt_settings = mqtt_settings
         self.last_press_time = 0
@@ -262,7 +214,7 @@ class ButtonMonitor:
     def run(self):
         while not exit_event.is_set():
             try:
-                voltage = read_ads1115_ch3(self.bus, self.bus_lock)
+                voltage = read_ads1115_ch3(self.bus)
                 # Update moving average window
                 self.moving_window.append(voltage)
                 if len(self.moving_window) > MOVING_AVG_WINDOW:
@@ -297,80 +249,15 @@ class ButtonMonitor:
                                 self.last_press_time = now
                             except Exception as e:
                                 self.log(f"MQTT publish error: {e}", important=True)
-
+                            # Only send ONCE per press (until released)
                 # (Optional: log average voltage in debug)
                 # self.log(f"avg_voltage={avg_voltage:.3f} V, raw={voltage:.3f} V")
+
                 time.sleep(POLL_INTERVAL_SEC)
             except Exception as e:
                 self.log(f"Error in main loop: {e}", important=True)
                 traceback.print_exc()
                 time.sleep(I2C_ERROR_COOLDOWN_SEC)
-
-# =================== BATTERY MONITOR (NEW) ===================
-class BatteryMonitor(threading.Thread):
-    """
-    Reads CH0 once per second, keeps a moving average over the last 10 readings,
-    and every 10 seconds writes the current moving average to /tmp/battery.dat
-    as a single number with 4 decimal places (no units), atomically.
-    """
-    def __init__(self, bus, bus_lock):
-        super().__init__(daemon=True)
-        self.bus = bus
-        self.bus_lock = bus_lock
-        self.window = []
-        self.last_write_ts = 0.0
-
-    def safe_write_atomic(self, path, content):
-        tmp_path = f"{path}.tmp"
-        try:
-            with open(tmp_path, "w") as f:
-                f.write(content)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp_path, path)  # atomic on POSIX
-        except Exception as e:
-            print(f"[Battery] ERROR writing file '{path}': {e}")
-
-    def run(self):
-        next_sample_ts = time.time()
-        self.last_write_ts = time.time()
-        while not exit_event.is_set():
-            now = time.time()
-            # Sample once per second cadence
-            if now >= next_sample_ts:
-                try:
-                    v = read_ads1115_ch0(self.bus, self.bus_lock)
-                    # Sanity clamp: the ADS1115 at 4.096V FS shouldn't exceed ~4.096
-                    if v < 0.0:
-                        v = 0.0
-                    elif v > 4.2:  # slight cushion if battery can be a hair above 4.096
-                        v = 4.2
-                    self.window.append(v)
-                    if len(self.window) > BATTERY_AVG_WINDOW:
-                        self.window.pop(0)
-                except Exception as e:
-                    print(f"[Battery] I2C read error: {e}")
-                    # keep going; just skip this sample
-                next_sample_ts += BATTERY_SAMPLE_INTERVAL_SEC
-
-            # Every 10 seconds, write current moving average
-            if (now - self.last_write_ts) >= BATTERY_WRITE_PERIOD_SEC:
-                if self.window:
-                    avg_v = sum(self.window) / len(self.window)
-                    # Format with 4 decimal places to match example like 3.1150
-                    out = f"{avg_v:.{BATTERY_DECIMAL_PLACES}f}\n"
-                    self.safe_write_atomic(BATTERY_OUTPUT_PATH, out)
-                    # Optional: print for visibility
-                    print(f"[Battery] Wrote {BATTERY_OUTPUT_PATH}: {out.strip()}")
-                else:
-                    # No data yet; write 0.0000 to indicate 'unknown' safely
-                    out = f"{0.0:.{BATTERY_DECIMAL_PLACES}f}\n"
-                    self.safe_write_atomic(BATTERY_OUTPUT_PATH, out)
-                    print(f"[Battery] Wrote {BATTERY_OUTPUT_PATH}: {out.strip()} (no samples yet)")
-                self.last_write_ts = now
-
-            # Sleep a bit to avoid tight loop; wake early if exit_event set
-            exit_event.wait(0.05)
 
 # =================== MAIN ===================
 def main():
@@ -384,24 +271,11 @@ def main():
     mqtt_settings = build_mqtt_settings(cfg)
     mqtt_pub = MQTTPublisher(mqtt_settings)
 
-    bus_lock = threading.Lock()
-
     try:
         with SMBus(I2C_BUS) as bus:
             mqtt_pub.connect()
-
-            # Start battery monitor thread
-            battery_monitor = BatteryMonitor(bus, bus_lock)
-            battery_monitor.start()
-
-            # Run button monitor (blocking loop)
-            monitor = ButtonMonitor(bus, bus_lock, mqtt_pub, mqtt_settings)
+            monitor = ButtonMonitor(bus, mqtt_pub, mqtt_settings)
             monitor.run()
-
-            # If button monitor ever exits, ensure we stop the battery thread
-            exit_event.set()
-            battery_monitor.join(timeout=2.0)
-
     except KeyboardInterrupt:
         print("\nExiting gracefully.")
     except Exception as e:
@@ -414,4 +288,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

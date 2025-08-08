@@ -72,12 +72,17 @@ while (true) {
             exit(-1);
         }//if
 
+        if (file_exists('/tmp/battery.dat')) {
+            $voltage = (float)file_get_contents('/tmp/battery.dat');
+            $battery_level = round(($voltage * 100) / 3.5);
+        }//if
+
         // construct payload
         $payload = [
             'device_id' => $clientId,
             'device_type' => 'camera',
             'ts' => time(),
-            'status' => ['signal' => $signal_level]
+            'status' => ['signal' => $signal_level, "battery" => $battery_level]
         ];
 
         // publish and disconnect
