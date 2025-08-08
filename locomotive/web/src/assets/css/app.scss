@@ -402,37 +402,42 @@ body.sidebar-hide {
         right: 0px;
         text-align: right;
         background-color: rgba(255, 255, 255, 0.2);
-        //text-shadow: 0px 1px 0px rgba(0, 0, 0, 0.5);
-        line-height: 1;
-        font-size: 14px;
-        font-weight: 700;
     }
 
-    .network-status {
+    .hw-status {
         display: none;
-        padding: 2px 5px;
         color: #ffffff;
-        //background: url('../img/network_signal.png') center left;
 
-        &.offline {
-            color: #fff5f5;
-            background-color: #bd0000;
-            text-shadow: 0px 1px 0px #670000;
+        .text {
+            display: inline-block;
+            padding: 0px 5px;
+            line-height: 26px;
+            font-size: 14px;
+            font-weight: 700;
+            color: #ededed;
+            text-shadow: 0px 1px 0px #000000;
         }
-        &.low {
-            color: #fff5f5;
-            background-color: #bd0000;
-            text-shadow: 0px 1px 0px #670000;
-        }
-        &.medium {
-            color: #ffffff;
-            background-color: #9f6500;
-            text-shadow: 0px 1px 0px #392400;
-        }
-        &.high {
-            color: #f4fffa;
-            background-color: #007f44;
-            text-shadow: 0px 1px 0px #003d20;
+        .signal {
+            &.offline {
+                color: #fff5f5;
+                background-color: #bd0000;
+                text-shadow: 0px 1px 0px #670000;
+            }
+            &.low {
+                color: #fff5f5;
+                background-color: #bd0000;
+                text-shadow: 0px 1px 0px #670000;
+            }
+            &.medium {
+                color: #ffffff;
+                background-color: #9f6500;
+                text-shadow: 0px 1px 0px #392400;
+            }
+            &.high {
+                color: #f4fffa;
+                background-color: #007f44;
+                text-shadow: 0px 1px 0px #003d20;
+            }
         }
     }
 }

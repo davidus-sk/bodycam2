@@ -212,7 +212,7 @@ export class Video {
                 `<div id="${device.dom_id}" class="video-wrapper" data-device-id="${deviceId}">` +
                     `<video id="${device.video_id}" autoplay playsinline muted></video>` +
                     '<div class="osd">' +
-                    `<span id="${device.dom_id}_network" class="network-status"></span>` +
+                    `<span id="${device.dom_id}_hw" class="hw-status"></span>` +
                     '</div>' +
                     '</div>'
             );
@@ -488,31 +488,50 @@ export class Video {
             return;
         }
 
-        const domId = `device_${deviceId}_network`,
+        const domId = `device_${deviceId}_hw`,
             $elm = $('#' + domId);
 
         // show
-        if (payload.status !== undefined) {
-            // Network Signal
-            let c;
-            if (payload.status.signal >= 75) {
-                c = 'high';
-            } else if (payload.status.signal >= 50) {
-                c = 'medium';
-            } else if (payload.status.signal >= 0) {
-                c = 'low';
-            } else {
-                c = 'offline';
+        if (payload.status !== 'undefined') {
+            let html = '';
+
+            // Battery
+            if (typeof payload.status.battery !== 'undefined') {
+                let bat, batClass;
+                if (payload.status.battery >= 85) {
+                    bat = '<i class="ri-battery-fill"></i>';
+                    batClass = 'high';
+                } else if (payload.status.signal >= 35) {
+                    bat = '<i class="ri-battery-low-line"></i>';
+                    batClass = 'medium';
+                } else {
+                    bat = '<i class="ri-battery-line"></i>';
+                    batClass = 'low';
+                }
+
+                html += `<span class="text battery ${batClass} ms-1">${bat} ${payload.status.battery}%</span>`;
             }
 
-            $elm.removeClass('low medium high')
-                .addClass(c)
-                .html(
-                    payload.status.signal > 0
-                        ? '<i class="ri-base-station-line"></i> ' + payload.status.signal
-                        : 'No Signal'
-                )
-                .show();
+            // Network Signal
+            if (typeof payload.status.signal !== 'undefined') {
+                let sig;
+                if (payload.status.signal >= 75) {
+                    sig = 'high';
+                } else if (payload.status.signal >= 50) {
+                    sig = 'medium';
+                } else if (payload.status.signal >= 0) {
+                    sig = 'low';
+                } else {
+                    sig = 'offline';
+                }
+
+                html +=
+                    `<span class="text signal ${sig} ms-1">` +
+                    `<i class="ri-base-station-line"></i> ${payload.status.signal}` +
+                    '</span>';
+            }
+
+            $elm.html(html).show();
         } else {
             $elm.hide();
         }
