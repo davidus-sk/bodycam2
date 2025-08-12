@@ -76,6 +76,7 @@ while (true) {
         if (file_exists('/tmp/battery.dat')) {
             $voltage = (float)file_get_contents('/tmp/battery.dat');
             $battery_level = round(($voltage * 100) / 3.7);
+			$battery_level = $battery_level > 100 ? 100 : $battery_level;
         }//if
 
         // construct payload
