@@ -3,41 +3,58 @@ $networkInfo = file_exists('/dev/shm/info.json') ? file_get_contents('/dev/shm/i
 $networkInfo = $networkInfo ? json_decode($networkInfo, true) : [];
 ?>
 
-<div class="container h-full d-flex flex-column justify-content-center align-items-center">
-    <div>
-        <button 
-            id="btn-air" 
-            type="button" 
-            class="btn btn-lg btn-cool btn-h-100 mx-2" 
-            style="width: 220px;" 
-            data-bs-toggle="modal" 
-            data-bs-target="#blow-air" 
-            disabled 
-        >
-            BLOW AIR
-        </button>
-        <button
-            id="btn-restart-camera"
-            type="button"
-            class="btn btn-lg btn-cool btn-h-100 mx-2"
-            style="width: 220px;"
-            data2-bs-toggle="modal"
-            data2-bs-target="#restart" 
-            disabled 
-        >
-            RESTART CAMERA
-        </button>
-        <button
-            id="btn-restart"
-            type="button"
-            class="btn btn-lg btn-cool btn-h-100 mx-2"
-            style="width: 220px;"
-            data-bs-toggle="modal"
-            data-bs-target="#restart" 
-            disabled 
-        >
-            RESTART SYSTEM
-        </button>
+<div class="container h-full d-flex flex-column justify-content-center align-items-center" style="min-width: 450px;">
+    <div class="row">
+        <div class="col-sm-6 col-md-3">
+            <button 
+                id="btn-air" 
+                type="button" 
+                class="btn btn-lg btn-cool btn-h-100 w-100 mt-3 mt-md-0" 
+                data-bs-toggle="modal" 
+                data-bs-target="#blow-air" 
+                disabled 
+            >
+                BLOW AIR
+            </button>
+        </div>
+        
+        <div class="col-sm-6 col-md-3">
+            <button
+                id="btn-reload-ui" 
+                type="button"
+                class="btn btn-lg btn-cool btn-h-100 w-100 mt-3 mt-md-0" 
+                data-bs-toggle="modal" 
+                data-bs-target="#reload-ui" 
+            >
+                RELOAD UI
+            </button>
+        </div>
+        
+        <div class="col-sm-6 col-md-3">
+            <button
+                id="btn-restart-camera"
+                type="button"
+                class="btn btn-lg btn-cool btn-h-100 w-100 mt-3 mt-md-0"
+                data2-bs-toggle="modal"
+                data2-bs-target="#restart" 
+                disabled 
+            >
+                RESTART CAMERA
+            </button>
+        </div>
+        
+        <div class="col-sm-6 col-md-3">
+            <button
+                id="btn-restart"
+                type="button"
+                class="btn btn-lg btn-cool btn-h-100 w-100 mt-3 mt-md-0"
+                data-bs-toggle="modal"
+                data-bs-target="#restart" 
+                disabled 
+            >
+                RESTART SYSTEM
+            </button>
+        </div>
     </div>
 
     <?php if ($networkInfo) { ?>
@@ -64,6 +81,30 @@ $networkInfo = $networkInfo ? json_decode($networkInfo, true) : [];
     </div>
 
     <?php } ?>
+</div>
+
+<!-- Modal - reload ui -->
+<div
+    id="reload-ui"
+    class="modal fade absolute"
+    data-bs-theme="dark"
+    data-bs-backdrop="static" 
+    data-bs-keyboard="false" 
+    tabindex="-1"
+    aria-hidden="true"
+>
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5">Reloading UI</h1>
+            </div>
+            <div class="modal-body">
+                <div id="blow-air-content">
+                    Please wait...
+                </div>                
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Modal - blow air -->

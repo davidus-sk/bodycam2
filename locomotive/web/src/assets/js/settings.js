@@ -39,10 +39,12 @@ export class Settings {
         this.$btnRestart = $('#btn-restart');
         this.$btnRestartCamera = $('#btn-restart-camera');
         this.$btnStream = $('#btn-stream');
+        this.$btnReloadUi = $('#btn-reload-ui');
 
         this.blowAir();
         this.restartCamera();
         this.restartSystem();
+        this.reloadUi();
 
         this.initMqtt();
         //this.mqttClient.connect();
@@ -88,6 +90,16 @@ export class Settings {
 
         this.$btnBlowAir.attr('disabled', 'disabled');
         this.$btnRestartCamera.attr('disabled', 'disabled');
+    }
+
+    reloadUi() {
+        let $modal = $('#reload-ui');
+
+        $modal.on('shown.bs.modal', e => {
+            setTimeout(() => {
+                location.reload(true);
+            }, 2500);
+        });
     }
 
     blowAir() {
