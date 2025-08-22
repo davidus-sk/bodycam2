@@ -49,6 +49,13 @@ while (true) {
                 `/usr/sbin/reboot`;
             }//if
         }//if
+
+        // check of network errors
+        $status = trim(`/usr/bin/tail -n 2 /tmp/pi_webrtc.log`);
+
+        if (preg_match("/Network/")) {
+            `/usr/bin/kill -9 $pid`;
+        }//if
     }//if
 
     // sleep
