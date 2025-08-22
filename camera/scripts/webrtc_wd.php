@@ -38,7 +38,7 @@ while (true) {
 
         if (preg_match("/State:\s+Z/", $status)) {
             // try to kill zombie process
-            syslog(LOG_INFO, "Zombie process {$pid}. Killing it...");
+            syslog(LOG_INFO, "Zombie process {$pid}. Killing process {$pid}...");
             `/usr/bin/kill -9 $pid`;
 
             $k++;
@@ -53,7 +53,8 @@ while (true) {
         // check of network errors
         $status = trim(`/usr/bin/tail -n 2 /tmp/pi_webrtc.log`);
 
-        if (preg_match("/Network/")) {
+        if (preg_match("/Network/", $status)) {
+            syslog(LOG_INFO, "Network issue detected. Killing process {$pid}...");
             `/usr/bin/kill -9 $pid`;
         }//if
     }//if
