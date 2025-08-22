@@ -1,5 +1,6 @@
 camera/conf/config.json
 locomotive/conf/config.json
+camera/stream/pi_webrtc
 venv/
 .venv/
 __pycache__/
