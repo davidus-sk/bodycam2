@@ -528,7 +528,7 @@ export class Video {
                 html +=
                     `<span class="text signal ${sig}">` +
                     `<i class="ri-base-station-line"></i> ${payload.status.signal}` +
-                    '</span>';
+                    '%</span>';
             }
 
             $elm.html(html).show();
