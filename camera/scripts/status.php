@@ -9,8 +9,7 @@ use PhpMqtt\Client\MqttClient;
 use PhpMqtt\Client\ConnectionSettings;
 
 // run once
-//run_once('/tmp/camera_status.pid', $fh);
-run_once('D:/www/bodycams_app/camera/camera_status.pid', $fh);
+run_once('/tmp/camera_status.pid', $fh);
 
 // load settings
 $config = read_config();
