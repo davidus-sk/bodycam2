@@ -19,7 +19,7 @@ function run_once($lock_file, &$fh)
 function read_config()
 {
     // load up config file
-    $conf_file = '/app/bodycam2/camera/conf/config.json';
+    $conf_file = __DIR__ . '/../camera/conf/config.json';
 
     // check if config exists
     if (!file_exists($conf_file)) {

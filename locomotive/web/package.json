@@ -1,0 +1,24 @@
+{
+    "name": "bodycams_app",
+    "version": "1.0.0",
+    "description": "",
+    "homepage": "https://github.com/davidus-sk/bodycam2#readme",
+    "bugs": {
+        "url": "https://github.com/davidus-sk/bodycam2/issues"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/davidus-sk/bodycam2.git"
+    },
+    "license": "ISC",
+    "author": "",
+    "type": "commonjs",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "dependencies": {
+        "@tensorflow-models/coco-ssd": "^2.2.3",
+        "@tensorflow/tfjs": "^4.22.0"
+    }
+}

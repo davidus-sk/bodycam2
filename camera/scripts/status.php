@@ -9,16 +9,17 @@ use PhpMqtt\Client\MqttClient;
 use PhpMqtt\Client\ConnectionSettings;
 
 // run once
-run_once('/tmp/camera_status.pid', $fh);
+//run_once('/tmp/camera_status.pid', $fh);
+run_once('D:/www/bodycams_app/camera/camera_status.pid', $fh);
 
 // load settings
 $config = read_config();
 
 // log
-openlog("camera_status", LOG_PID | LOG_PERROR, LOG_LOCAL0);
+openlog("camera_status", LOG_PID | LOG_PERROR, 128);
 
 // MQTT settings
-$clientId = 'device-' . trim(`{$config['client_id']}`);
+$clientId = 'device-' . trim("{$config['client_id']}");
 $clean_session = true;
 $mqtt_version = MqttClient::MQTT_3_1;
 $status = empty($argv[1]) ? 'bootup' : 'alive';
@@ -73,5 +74,5 @@ while (true) {
     }//if
 
     // rest
-    sleep(15);
+    sleep(35);
 }//while

@@ -1,6 +1,13 @@
 {
     "name": "pi/bodycam2",
     "require": {
-        "php-mqtt/client": "^2.2"
-    }
+        "php-mqtt/client": "^2.3",
+        "symfony/cache": "^7.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "./locomotive/web/src"
+        }
+    },
+    "scripts": {}
 }
