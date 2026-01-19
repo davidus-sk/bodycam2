@@ -7,10 +7,8 @@ export class Video {
     options = {};
 
     VIDEO_TIMEOUT = 30;
-    TEXT_OVERLAY_TIMEOUT = 5;
 
     mqtt = undefined;
-    _devices = {};
     topicRegex = {};
     orientation = 'landscape';
 
@@ -18,7 +16,7 @@ export class Video {
         this.options = this.initializeOptions(options);
 
         // local variables
-        this._overlayRefs = {};
+        this._devices = new Map();
 
         // events dispatcher
         EventDispatcher.attach(this);
@@ -55,11 +53,9 @@ export class Video {
         window.onbeforeunload = () => {
             this.debug('[video] window reload');
 
-            for (const deviceId in this._devices) {
-                const val = this._devices[deviceId];
-
-                if (val && val.picamera) {
-                    val.picamera.terminate();
+            for (const [_, device] of this._devices) {
+                if (device && device.picamera) {
+                    device.picamera.terminate();
                 }
             }
         };
@@ -102,12 +98,12 @@ export class Video {
 
     mqttConnected() {
         if (this.mqtt) {
-            this.mqttId = this.mqtt.getClientId();
+            //this.mqttId = this.mqtt.getClientId();
 
-            this.debug('[video][mqtt] connected');
+            this.debug('[video] mqtt connected - client id: %s', this.mqtt.clientId);
 
             // received camera status
-            this.debug('[video][mqtt] subscribe: device/# - client id: %s', this.mqttId);
+            this.debug('[video] - mqtt subscribe: device/# - client id: %s', this.mqtt.clientId);
             this.mqtt.subscribe('device/#');
 
             // got the message
@@ -118,25 +114,25 @@ export class Video {
                 } catch (e) {
                     this.debug(
                         '[video] %s | %cerror -> topic: %s - message parsing error: %s',
-                        this.mqttId,
-                        topic,
+                        this.mqtt.clientId,
                         ConsoleColors.error,
+                        topic,
                         e
                     );
                 }
 
                 if (payload) {
                     // camera status
-                    if (topic.match(this.topicRegex['device_status'])) {
-                        this.handleDeviceStatusMessage(payload);
+                    if (this.topicRegex['device_status'].test(topic)) {
+                        this.handleDeviceStatusMessage(topic, payload);
                     }
                     // distance
-                    if (topic.match(this.topicRegex['device_distance'])) {
-                        this.handleDeviceDistanceMessage(payload);
+                    if (this.topicRegex['device_distance'].test(topic)) {
+                        this.handleDeviceDistanceMessage(topic, payload);
                     }
                     // network
-                    if (topic.match(this.topicRegex['device_osd'])) {
-                        this.handleDeviceOsdMessage(payload);
+                    if (this.topicRegex['device_osd'].test(topic)) {
+                        this.handleDeviceOsdMessage(topic, payload);
                     }
                 }
             });
@@ -144,126 +140,134 @@ export class Video {
     }
 
     mqttDisconnected() {
-        this.debug('[video][mqtt] mqtt disconnected');
+        this.debug('[video] mqtt disconnected - client id: %s', this.mqtt?.clientId);
     }
 
-    handleDeviceStatusMessage(payload) {
+    handleDeviceStatusMessage(topic, payload) {
         const deviceId = payload.device_id ?? null;
 
-        this.debug(
-            '[video][mqtt] %s | %cmqtt message:',
-            deviceId || '???',
-            ConsoleColors.purple,
-            'device/+/status',
-            payload
-        );
-
         if (!deviceId || !deviceId.length) {
+            this.debug(
+                '[video] %cstatus - ' + topic,
+                ConsoleColors.error,
+                'unknown deviceId - ignoring'
+            );
             return;
         }
 
-        // camera is already in reference list, check time
-        if (this.isDeviceInGrid(deviceId)) {
-            //this.debug('[video] camera already in the grid');
+        this.debug('[video] %s | status - %s', deviceId, topic, payload);
 
-            // update timestamp
-            this._devices[deviceId].ts = payload.ts;
-            this._devices[deviceId].status = payload.status;
-            this._devices[deviceId].ai = payload.ai === true;
+        // get device data (only if is already in the video grid)
+        const device = this.getDeviceData(deviceId);
 
-            const cam = this.getDeviceData(deviceId)?.picamera;
+        // camera is in the grid
+        if (device) {
+            //this.debug('[video] %s | the camera is already in the grid', deviceId);
+
+            // update device data
+            device.ts = payload.ts;
+            device.status = payload.status;
+            device.ai = payload.ai === true;
+
+            const cam = device?.picamera;
+            const isConnected = this.isDeviceConnected(deviceId);
+            const status = this.getDeviceStatus(deviceId);
+
+            this.debug(
+                '[video] %s | camera status: %s, is connected: %s',
+                deviceId,
+                status,
+                isConnected ? 'yes' : 'no'
+            );
 
             // device connected
-            if (this.isDeviceConnected(deviceId)) {
+            if (isConnected) {
                 if (cam) {
-                    cam.setOptions(this._devices[deviceId]);
+                    cam.setOptions(device);
                     //cam.aiStatus(this._devices[deviceId].ai);
                 }
 
                 // device disconnected
             } else {
-                // reconnect picamera
-                if (cam) {
+                // reconnect picamera only if not already connecting
+                if (cam && ['new2', 'connecting'].includes(status) == false) {
                     this.debug(
-                        '[video] %s | %ccamera not connected - reconnecting',
+                        '[video] %s | %cthe camera is not connected - reconnecting',
                         deviceId,
-                        ConsoleColors.error,
-                        '| camera status: ' + this.getDeviceStatus(deviceId)
+                        ConsoleColors.error
                     );
 
+                    this.showOverlayText(deviceId, 'status_text', 'Connecting');
                     cam.reconnect();
                 }
             }
         } else {
-            this.debug(
-                '[video] %s | %c!!! new device connected',
-                deviceId || '???',
-                ConsoleColors.turquoise
-            );
+            this.debug('[video] %s | %cnew device connected', deviceId, ConsoleColors.turquoise);
 
             let device = payload;
 
-            // dom id
+            // additional info
             device.dom_id = 'device_' + deviceId;
             device.video_id = 'video_' + deviceId;
+            device.overlays = new Map();
+
+            // store reference
+            this._devices.set(deviceId, device);
 
             // append html to the video matrix
+            // prettier-ignore
             this.$grid.append(
-                `<div id="${device.dom_id}" class="video-wrapper" data-device-id="${deviceId}">` +
-                    `<video id="${device.video_id}" autoplay playsinline muted></video>` +
-                    '<div class="osd">' +
-                    `<span id="${device.dom_id}_hw" class="hw-status"></span>` +
-                    '</div>' +
-                    '</div>'
+                `<div id="${device.dom_id}" class="video-wrapper" data-device-id="${deviceId}">`
+                    + `<video id="${device.video_id}" autoplay playsinline muted></video>`
+                    + '<div class="osd">'
+                        + `<span id="${device.dom_id}_hw" class="hw-status"></span>`
+                    + '</div>'
+                    + '<div class="overlay-wrapper"></div>'
+                + '</div>'
             );
 
             // video element reference
             device.video_ref = document.getElementById(device.video_id);
+
+            // update grid
+            this.updateGrid();
 
             // test
             // $(device.video_ref).on('contextmenu', e => {
             //     this.removeDeviceFromGrid(deviceId);
             // });
 
-            // update reference
-            this._devices[deviceId] = device;
-
-            // update grid
-            this.updateGrid();
-
             // init pi camera
             this.initPiCamera(deviceId, true, {
-                enableAi: device.ai,
+                ai: device.ai,
             });
+
+            this.showOverlayText(deviceId, 'status_text', 'Connecting');
 
             //this.demoMp4(deviceId, true);
         }
     }
 
     getDeviceData(deviceId) {
-        return this._devices[deviceId] || null;
+        return this._devices.get(deviceId);
     }
 
     isDeviceInGrid(deviceId) {
-        return this._devices[deviceId] !== undefined;
+        return this._devices.has(deviceId) && this._devices.get(deviceId) !== undefined;
     }
 
     isDeviceConnected(deviceId) {
-        return (
-            this._devices[deviceId] !== undefined &&
-            this._devices[deviceId].picamera &&
-            this._devices[deviceId].picamera?.isConnected()
-        );
+        const d = this.getDeviceData(deviceId);
+        return d && d.picamera ? d.picamera.isConnected() : false;
     }
 
     getDeviceStatus(deviceId) {
-        return this._devices[deviceId] !== undefined && this._devices[deviceId].picamera
-            ? this._devices[deviceId].picamera.getStatus()
-            : 'unknown';
+        const device = this._devices.get(deviceId);
+        return device && device.picamera ? device.picamera.getStatus() : 'unknown';
     }
 
     initPiCamera(deviceId, connect, options) {
-        var device = this.getDeviceData(deviceId);
+        const device = this.getDeviceData(deviceId);
         if (device) {
             // override camera options
             const camOptions = { ...this.options.camera, ...options };
@@ -281,40 +285,45 @@ export class Video {
 
             // update reference
             //this._devices[deviceId] = device;
+
+            // events
+            device.picamera.onConnectionState = state => {
+                console.log('-------------------------------------------------', state);
+                switch (state) {
+                    case 'connecting':
+                        this.showOverlayText(deviceId, 'status_text', 'Connecting');
+                        break;
+                    case 'connected':
+                        this.hideOverlayText(deviceId, 'status_text');
+                        break;
+                }
+            };
         }
     }
 
     updateGrid() {
-        const deviceCount = Object.values(this._devices).length;
-        let className = 'grid-' + this.orientation + ' grid-' + deviceCount;
+        let className = 'grid-' + this.orientation + ' grid-' + this._devices.size;
         this.$grid.attr('class', className);
     }
 
     removeDeviceFromGrid(deviceId) {
-        if (deviceId.length) {
-            if (this._devices[deviceId] !== undefined) {
-                this.debug(
-                    '[video] %s | removing device from the grid (no /status message received more than %ss)',
-                    deviceId || '???',
-                    this.VIDEO_TIMEOUT
-                );
+        const device = this.getDeviceData(deviceId);
 
-                // picamera
-                if (this._devices[deviceId].picamera) {
-                    this.debug('[video] %s | calling picamera.terminate()', deviceId || '???');
-                    this._devices[deviceId].picamera.terminate();
-                }
-
-                // overlays
-                this.hideOverlayText(deviceId);
-
-                // dom
-                $('#' + this._devices[deviceId].video_id).remove();
-                $('#' + this._devices[deviceId].dom_id).remove();
-
-                this._devices[deviceId] = null;
-                delete this._devices[deviceId];
+        if (device) {
+            // picamera
+            if (device.picamera) {
+                this.debug('[video] %s | calling picamera.terminate()', deviceId);
+                device.picamera.terminate();
             }
+
+            // overlays
+            this.hideOverlayText(deviceId);
+
+            // dom
+            $('#' + device.video_id).remove();
+            $('#' + device.dom_id).remove();
+
+            this._devices.delete(deviceId);
         }
 
         this.updateGrid();
@@ -323,23 +332,32 @@ export class Video {
     initWorkers() {
         worker('video_grid', 5000, () => {
             let now = getTimestamp();
-            for (const deviceId in this._devices) {
-                const device = this._devices[deviceId];
-                if (device && device.ts) {
-                    const delta = now - device.ts;
+            for (const [deviceId, device] of this._devices) {
+                if (device) {
+                    if (device.ts) {
+                        const delta = now - device.ts;
 
-                    // remove old map object
-                    if (delta > this.VIDEO_TIMEOUT) {
-                        this.removeDeviceFromGrid(device.device_id);
+                        // remove old map object
+                        if (delta > this.VIDEO_TIMEOUT) {
+                            this.debug(
+                                '[video] %s | removing device from the grid (no /status message received more than %ss)',
+                                deviceId || '???',
+                                this.VIDEO_TIMEOUT
+                            );
+
+                            this.removeDeviceFromGrid(device.device_id);
+                        }
                     }
-                }
-            }
 
-            for (const deviceId in this._overlayRefs) {
-                const ref = this._overlayRefs[deviceId];
-                if (ref && ref.time) {
-                    if (now - ref.time > this.TEXT_OVERLAY_TIMEOUT) {
-                        this.hideOverlayText(deviceId);
+                    // overlays
+                    if (device.overlays.size) {
+                        for (const [id, o] of device.overlays) {
+                            if (typeof o.timeout !== 'number' || o.timeout === 0) continue;
+
+                            if (now - o._time > o.timeout) {
+                                this.hideOverlayText(o.deviceId, o.overlayId);
+                            }
+                        }
                     }
                 }
             }
@@ -369,8 +387,10 @@ export class Video {
             });
     }
 
-    showOverlayText(deviceId, text, options) {
-        if (!deviceId) {
+    showOverlayText(deviceId, overlayId, text, options) {
+        const device = this._devices.get(deviceId);
+
+        if (!device || !overlayId || overlayId === '') {
             return;
         }
 
@@ -378,89 +398,138 @@ export class Video {
             options = {};
         }
 
-        let opt = {
-            ...{
-                x: 'center',
-                y: 'top',
-                padding: 15,
-                fontSize: undefined,
-                color: undefined,
-                bgColor: undefined,
-            },
-            ...options,
+        const defaults = {
+            deviceId: deviceId,
+            overlayId: overlayId,
+            element: undefined,
+            x: 'center',
+            y: 'center',
+            padding: 15,
+            class: undefined,
+            fontSize: undefined,
+            color: undefined,
+            bgColor: undefined,
+            text: undefined,
+            timeout: false,
         };
 
-        if (this._overlayRefs[deviceId] === undefined) {
+        // reference id
+        const ref = deviceId + '_' + overlayId;
+
+        // data
+        const overlay = device.overlays.get(ref);
+
+        // overlay wrapper
+        const $wrapper = $('#device_' + deviceId + ' .overlay-wrapper');
+
+        // css class
+        let cssClass = null;
+        if (options.class) {
+            cssClass = options.class;
+            delete options.class;
+        }
+
+        let opt;
+        if (overlay === undefined) {
             // new overlay
-            let $videoWrapper = $('#device_' + deviceId);
-            if ($videoWrapper.length) {
-                //  new div
-                let $div = $(
-                    '<div class="overlay-text"><div class="text">' + text + '</div></div>'
-                );
+            opt = { ...defaults, ...options };
 
-                let css = { fontSize: opt.fontSize };
+            // reference
+            opt.element = $('<div class="overlay-text ' + cssClass + '">' + text + '</div>');
 
-                if (opt.x === 'left') {
-                    css.left = opt.padding;
-                } else if (opt.x === 'right') {
-                    css.right = opt.padding;
-                    css.textAlign = 'right';
-                } else if (opt.x === 'center') {
-                    css.textAlign = 'center';
-                    css.width = '100%';
-                } else {
-                    css.left = parseInt(opt.x);
+            // update dom
+            opt.element.appendTo($wrapper);
+            $wrapper.css('display', 'block');
+        } else {
+            // update
+            opt = { ...overlay, ...options };
+        }
+
+        let css = {};
+
+        if (opt.color) {
+            css.color = opt.color;
+        }
+
+        if (opt.bgColor) {
+            css.backgroundColor = opt.bgColor;
+        }
+
+        if (opt.fontSize) {
+            css.fontSize = opt.fontSize;
+        }
+
+        // props
+        opt.text = text;
+        opt._time = getTimestamp();
+
+        // store reference
+        device.overlays.set(ref, opt);
+
+        // text
+        const $text = opt.element;
+
+        if (opt.x === 'left') {
+            css.left = opt.padding;
+        } else if (opt.x === 'right') {
+            css.right = opt.padding;
+        } else if (opt.x === 'center') {
+            const w = $text.innerWidth();
+            css.width = w;
+            css.left = '50%';
+            css.marginLeft = '-' + w / 2 + 'px';
+        } else {
+            css.marginLeft = parseInt(opt.x);
+        }
+
+        if (opt.y === 'top') {
+            css.top = opt.padding;
+        } else if (opt.y === 'bottom') {
+            css.bottom = opt.padding;
+        } else if (opt.y === 'center') {
+            const h = $text.innerHeight();
+            css.top = '50%';
+            css.marginTop = '-' + h / 2 + 'px';
+        } else {
+            css.top = parseInt(opt.y);
+        }
+
+        // apply styles + show
+        $text.css(css).html(opt.text);
+    }
+
+    hideOverlayText(deviceId, overlayId) {
+        const device = this._devices.get(deviceId);
+
+        if (!device) {
+            return;
+        }
+
+        if (overlayId === undefined) {
+            // remove all device overlays
+            for (const [ref, o] of device.overlays) {
+                if (ref.startsWith(deviceId + '_')) {
+                    if (o.element) {
+                        o.element.remove();
+                    }
+
+                    device.overlays.delete(ref);
                 }
-
-                if (opt.y === 'top') {
-                    css.top = opt.padding;
-                } else if (opt.y === 'bottom') {
-                    css.bottom = opt.padding;
-                } else if (opt.y === 'center') {
-                    css.top = '50%';
-                } else {
-                    css.top = parseInt(opt.y);
-                }
-
-                if (opt.color) {
-                    css.color = color;
-                }
-
-                if (opt.bgColor) {
-                    css.bgColor = bgColor;
-                }
-
-                if (opt.fontSize) {
-                    css.fontSize = fontSize;
-                }
-
-                $div.appendTo($videoWrapper);
-                $div.css(css).show();
-
-                this._overlayRefs[deviceId] = {
-                    time: getTimestamp(),
-                    element: $div,
-                };
             }
         } else {
-            // update reference
-            this._overlayRefs[deviceId].time = getTimestamp();
-            this._overlayRefs[deviceId].element.find('.text').html(text);
-        }
-    }
+            // remove single overlay
+            let ref = deviceId + '_' + overlayId;
+            const o = device.overlays.get(ref);
 
-    hideOverlayText(deviceId) {
-        if (deviceId && this._overlayRefs[deviceId]) {
-            if (this._overlayRefs[deviceId].element) {
-                this._overlayRefs[deviceId].element.remove();
+            if (o && o.element) {
+                o.element.remove();
             }
 
-            delete this._overlayRefs[deviceId];
+            device.overlays.delete(ref);
         }
     }
 
-    handleDeviceDistanceMessage(payload) {
+    handleDeviceDistanceMessage(topic, payload) {
         const deviceId = payload.device_id ?? null;
 
         this.debug('[video][mqtt] %s | message:', deviceId || '???', 'device/+/distance', payload);
@@ -472,14 +541,21 @@ export class Video {
         if (payload.strongest_distance && payload.strongest_distance.distance_mm) {
             // convert to feats
             let ft = payload.strongest_distance.distance_mm * 0.00328084;
+
             // round
             ft = Math.round(ft * 100) / 100;
+
             // show
-            this.showOverlayText(deviceId, ft + ' ft');
+            this.showOverlayText(deviceId, 'distance', ft + ' ft', {
+                timeout: 5,
+                class: 'text-distance',
+                x: 'center',
+                y: 'top',
+            });
         }
     }
 
-    handleDeviceOsdMessage(payload) {
+    handleDeviceOsdMessage(topic, payload) {
         const deviceId = payload.device_id ?? null;
 
         this.debug('[video][mqtt] %s | message:', deviceId || '???', 'device/+/osd', payload);
@@ -492,7 +568,7 @@ export class Video {
             $elm = $('#' + domId);
 
         // show
-        if (payload.status !== 'undefined') {
+        if (typeof payload.status !== 'undefined') {
             let html = '';
 
             // Battery
@@ -501,7 +577,7 @@ export class Video {
                 if (payload.status.battery >= 85) {
                     bat = '<i class="ri-battery-fill"></i>';
                     batClass = 'high';
-                } else if (payload.status.signal >= 35) {
+                } else if (payload.status.battery >= 35) {
                     bat = '<i class="ri-battery-low-line"></i>';
                     batClass = 'medium';
                 } else {

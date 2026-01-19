@@ -11,13 +11,14 @@ export const Colors = {
 };
 
 export const ConsoleColors = {
-    blue: 'font-weight:500; background-color:#a6e1fa; color:#001c55;',
-    error: 'font-weight:500; background-color:#a51111; color:#fff;',
-    green: 'font-weight:500; background-color:#92e6a7; color:#10451d;',
-    orange: 'font-weight:500; background-color:#92e6a7; color:#46310c;',
-    pink: 'font-weight:500; background-color:#ff92ed; color:#740061;',
-    purple: 'font-weight:500; background-color:#3c096c; color:#fff;',
-    red: 'font-weight:500; background-color:#961010; color:#fff;',
-    turquoise: 'font-weight:500; background-color:#40E0D0; color:#031412;',
-    yellow: 'font-weight:500; background-color:#ffe45e; color:#432818;',
+    blue: 'font-weight:500; background-color: #a6e1fa; color: #001c55;',
+    warning: 'font-weight:500; background-color: #ffeea0; color: #a52f11;',
+    error: 'font-weight:500; background-color: #a51111; color: #fff;',
+    green: 'font-weight:500; background-color: #92e6a7; color: #10451d;',
+    orange: 'font-weight:500; background-color: #92e6a7; color: #46310c;',
+    pink: 'font-weight:500; background-color: #ff92ed; color: #740061;',
+    purple: 'font-weight:500; background-color: #3c096c; color: #fff;',
+    red: 'font-weight:500; background-color: #961010; color: #fff;',
+    turquoise: 'font-weight:500; background-color: #40E0D0; color: #031412;',
+    yellow: 'font-weight:500; background-color: #ffe45e; color: #432818;',
 };

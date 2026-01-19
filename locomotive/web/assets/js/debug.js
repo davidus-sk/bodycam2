@@ -213,7 +213,7 @@ export class Debug {
                         deviceId = this.getSelectedDeviceId();
                         enableAi = this.$inputAi.is(':checked');
 
-                        this.sendDeviceStatus(this.getSelectedDeviceId(), enableAi);
+                        this.sendDeviceStatus(deviceId, enableAi);
                     }, this.deviceStatusInterval);
                 }
             }
@@ -259,6 +259,9 @@ export class Debug {
                     ai: enableAi,
                 })
             );
+        } else {
+            let status = this.mqtt.isConnected() ? 'connected' : 'disconnected';
+            this.debug('[debug] %s | device status - not send, mqtt status: %s', deviceId, status);
         }
     }
 
