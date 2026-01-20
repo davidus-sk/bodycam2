@@ -58,6 +58,7 @@ export class Debug {
     initializeOptions(userOptions) {
         const defaultOptions = {
             debug: false,
+            clientId: null,
         };
 
         return { ...defaultOptions, ...userOptions };
@@ -151,7 +152,7 @@ export class Debug {
             result += chars[Math.floor(Math.random() * chars.length)];
         }
 
-        return 'device-' + result;
+        return result;
     }
 
     buttons() {

@@ -12,7 +12,13 @@ class Config
     private static $mergedConfig;
 
 
-    public static function getAll(bool $jsonEncode = false, ?array $overrideOptions = null)
+    /**
+     * Get configuration
+     * @param bool $jsonEncode
+     * @param array|null $overrideOptions
+     * @return string|array
+     */
+    public static function all(bool $jsonEncode = false, ?array $overrideOptions = null): string|array
     {
         $config = self::getMergedConfig();
 
@@ -22,7 +28,7 @@ class Config
         }
 
         if ($jsonEncode) {
-            return json_encode($config, JSON_NUMERIC_CHECK);
+            return json_encode($config);
         } else {
             return $config;
         }

@@ -36,14 +36,12 @@ export class Video {
             this.debug = function (message) {};
         }
 
-        this.debug('[video] options', this.options);
-
         // dom elements
         this.$content = $('#content');
         this.$grid = $('#video-grid');
 
         // regex map
-        const deviceIdPattern = 'device-[0-9a-fA-F]{16}';
+        const deviceIdPattern = '(device-)?[0-9a-fA-F]{16}';
         this.topicRegex['device_status'] = new RegExp(`^device\/${deviceIdPattern}\/status$`);
         this.topicRegex['device_gps'] = new RegExp(`^device\/${deviceIdPattern}\/gps$`);
         this.topicRegex['device_distance'] = new RegExp(`^device\/${deviceIdPattern}\/distance$`);
@@ -98,12 +96,8 @@ export class Video {
 
     mqttConnected() {
         if (this.mqtt) {
-            //this.mqttId = this.mqtt.getClientId();
-
-            this.debug('[video] mqtt connected - client id: %s', this.mqtt.clientId);
-
             // received camera status
-            this.debug('[video] - mqtt subscribe: device/# - client id: %s', this.mqtt.clientId);
+            this.debug('[video] %s | mqtt subscribe: device/#', this.mqtt.clientId);
             this.mqtt.subscribe('device/#');
 
             // got the message
@@ -140,7 +134,7 @@ export class Video {
     }
 
     mqttDisconnected() {
-        this.debug('[video] mqtt disconnected - client id: %s', this.mqtt?.clientId);
+        this.debug('[video] %s | mqtt disconnected', this.mqtt?.clientId);
     }
 
     handleDeviceStatusMessage(topic, payload) {
@@ -190,7 +184,7 @@ export class Video {
                 // device disconnected
             } else {
                 // reconnect picamera only if not already connecting
-                if (cam && ['new2', 'connecting'].includes(status) == false) {
+                if (cam && ['new', 'connecting'].includes(status) == false) {
                     this.debug(
                         '[video] %s | %cthe camera is not connected - reconnecting',
                         deviceId,
@@ -288,7 +282,6 @@ export class Video {
 
             // events
             device.picamera.onConnectionState = state => {
-                console.log('-------------------------------------------------', state);
                 switch (state) {
                     case 'connecting':
                         this.showOverlayText(deviceId, 'status_text', 'Connecting');
@@ -366,10 +359,10 @@ export class Video {
 
     demoMp4(deviceId, autoplay) {
         const mp4 = {
-            'device-0000000000000001': 'http://localhost/static/video2.mp4',
-            'device-100000003a0a2f6e': 'http://localhost/static/video3.mp4',
-            'device-00000000b203ade4': 'http://localhost/static/video1.mp4',
-            'device-0000000000000002': 'http://localhost/static/video4.mp4',
+            '0000000000000001': 'http://localhost/static/video2.mp4',
+            '100000003a0a2f6e': 'http://localhost/static/video3.mp4',
+            '00000000b203ade4': 'http://localhost/static/video1.mp4',
+            '0000000000000002': 'http://localhost/static/video4.mp4',
         };
 
         const elementId = '#video_' + deviceId;

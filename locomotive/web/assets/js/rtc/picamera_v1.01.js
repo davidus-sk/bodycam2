@@ -83,6 +83,7 @@ export class PiCamera {
             turnUrls: [],
             turnUsername: '',
             turnPassword: '',
+            iceTransportPolicy: 'all',
             ai: false,
         };
 
@@ -162,7 +163,7 @@ export class PiCamera {
         // send local SDP offer to the mqtt broker
         this.mqtt.publish(this.mqttTopicLocalSdp, JSON.stringify(this.offer));
         this.debug(
-            '[picam] %s | webrtc - %csending local offer',
+            '[picam] %s | webrtc - %c>>> sending local SDP (offer)',
             this.cameraId,
             ConsoleColors.green,
             '> ' + this.mqttTopicLocalSdp
@@ -383,6 +384,12 @@ export class PiCamera {
             }
         }
 
+        // ICE transport policy - use 'relay' to force TURN for cross-network connections
+        // Options: 'all' (default), 'relay' (force TURN only)
+        if (this.options.iceTransportPolicy) {
+            config.iceTransportPolicy = this.options.iceTransportPolicy;
+        }
+
         return config;
     }
 
@@ -534,15 +541,7 @@ export class PiCamera {
 
     onicegatheringstatechange(event) {
         const state = event.target.iceGatheringState;
-
         this.debug('[picam] %s | webrtc - icegatheringstatechange: %s', this.cameraId, state);
-
-        if (state === 'complete') {
-            this.peer.removeEventListener(
-                'icegatheringstatechange',
-                this.onicegatheringstatechange
-            );
-        }
     }
 
     oniceconnectionstatechange(event) {
@@ -745,7 +744,7 @@ export class PiCamera {
         }
 
         this.debug(
-            '[picam] %s | webrtc - %creceived remote SDP (%s)',
+            '[picam] %s | webrtc - %c<<< received remote SDP (%s)',
             this.cameraId,
             ConsoleColors.pink,
             sdp.type,
@@ -755,43 +754,44 @@ export class PiCamera {
             sdp
         );
 
-        // sdp answer
-        if (sdp.type === 'answer') {
-            // Check if we're in the correct state to receive an answer
-            // For the offerer, we should be in 'have-local-offer' state
-            if (this.peer.signalingState !== 'have-local-offer') {
-                this.debug(
-                    '[picam] %s | webrtc - %cignoring remote answer - wrong signaling state: %s (expected: have-local-offer)',
-                    this.cameraId,
-                    ConsoleColors.warning,
-                    this.peer.signalingState
-                );
-                return;
-            }
+        if (sdp.type !== 'answer') {
+            this.debug(
+                '[picam] %s | webrtc - %c<<< invalid SDP type: %s',
+                this.cameraId,
+                ConsoleColors.error,
+                sdp.type
+            );
 
-            this.peer
-                .setRemoteDescription(new RTCSessionDescription(sdp))
-                .then(() => {
-                    this.debug('[picam] %s | webrtc - remote description set', this.cameraId);
-
-                    // remote candidates
-                    while (this._iceCandidates_remote.length > 0) {
-                        const rc = this._iceCandidates_remote.shift();
-                        this.peer.addIceCandidate(rc).catch(() => {});
-                    }
-
-                    // send local candidates
-                    this.flushLocalIceQueue();
-                })
-                .catch(err => {
-                    this.debug(
-                        '[picam] %s | %cerror -> %s',
-                        this.cameraId,
-                        ConsoleColors.error,
-                        err
-                    );
-                });
+            return;
         }
+
+        // Check if we're in the correct state to receive an answer
+        // For the offerer, we should be in 'have-local-offer' state
+        if (this.peer.signalingState !== 'have-local-offer') {
+            this.debug(
+                '[picam] %s | webrtc - %cignoring remote answer - wrong signaling state: %s (expected: have-local-offer)',
+                this.cameraId,
+                ConsoleColors.warning,
+                this.peer.signalingState
+            );
+
+            return;
+        }
+
+        this.peer
+            .setRemoteDescription(new RTCSessionDescription(sdp))
+            .then(() => {
+                this.debug('[picam] %s | webrtc - setRemoteDescription()', this.cameraId);
+
+                // set remote candidates
+                this.setRemoteIceQueue();
+
+                // send local candidates
+                this.flushLocalIceQueue();
+            })
+            .catch(err => {
+                this.debug('[picam] %s | %cerror -> %s', this.cameraId, ConsoleColors.error, err);
+            });
     };
 
     handleIceMessage = async message => {
@@ -799,40 +799,75 @@ export class PiCamera {
         if (this.peer) {
             const candidate = JSON.parse(message);
 
-            // && this.peer.signalingState === 'stable'
-            // && this.peer.connectionState !== 'connected'
-
-            //if (this.peer.connectionState !== 'connected') {
-            if (this.peer.remoteDescription) {
+            if (typeof candidate !== 'object') {
                 this.debug(
-                    '[picam] %s | webrtc - received remote ICE candidate (set)',
-                    this.cameraId,
-                    ' | connectionState: ' + this.peer.connectionState,
-                    ' | signalingState: ' + this.peer.signalingState,
-                    candidate.candidate
-                );
-
-                try {
-                    await this.peer.addIceCandidate(candidate);
-                } catch (e) {
-                    this.debug(
-                        '[picam] %s | webrtc - error: failure during addIceCandidate(): %s',
-                        this.cameraId,
-                        e.name
-                    );
-                }
-            } else {
-                this._iceCandidates_remote.push(candidate);
-                this.debug(
-                    '[picam] %s | webrtc - received remote ICE candidate (queue)',
+                    '[picam] %s | webrtc - !!! ICE (received) - invalid format',
                     this.cameraId,
                     '| connectionState: ' + this.peer.connectionState,
-                    '| signalingState: ' + this.peer.signalingState,
-                    '| remoteDescription: ' + this.peer.remoteDescription,
-                    candidate.candidate
+                    '| signalingState: ' + this.peer.signalingState
                 );
+
+                return;
             }
-            //}
+
+            if (candidate.candidate === null) {
+                this.debug(
+                    '[picam] %s | webrtc - ICE (received) - client finished gathering',
+                    this.cameraId,
+                    '| connectionState: ' + this.peer.connectionState,
+                    '| signalingState: ' + this.peer.signalingState
+                );
+
+                return;
+            }
+
+            this.setRemoteIceQueue(candidate);
+        }
+    };
+
+    setRemoteIceQueue = candidate => {
+        if (!candidate || !this.peer) return;
+        if (this.peer.connectionState === 'connected') return;
+
+        this._iceCandidates_remote.push(candidate);
+
+        // we need answer (remote description)
+        if (this.peer.remoteDescription) {
+            this.debug(
+                '[picam] %s | webrtc - ICE (received) - set',
+                this.cameraId,
+                ' | connectionState: ' + this.peer.connectionState,
+                ' | signalingState: ' + this.peer.signalingState,
+                candidate.candidate.length > 75
+                    ? candidate.candidate.substring(0, 75) + '...'
+                    : candidate.candidate
+            );
+
+            while (this._iceCandidates_remote.length > 0) {
+                const c = this._iceCandidates_remote.shift();
+
+                try {
+                    this.peer.addIceCandidate(c);
+                } catch (e) {
+                    this.debug(
+                        '[picam] %s | webrtc - %cerror: failure during addIceCandidate(): %s',
+                        this.cameraId,
+                        ConsoleColors.warning,
+                        e
+                    );
+                }
+            }
+        } else {
+            this.debug(
+                '[picam] %s | webrtc - ICE (received) - queue',
+                this.cameraId,
+                '| connectionState: ' + this.peer.connectionState,
+                '| signalingState: ' + this.peer.signalingState,
+                '| remoteDescription: ' + this.peer.remoteDescription,
+                candidate.candidate.length > 75
+                    ? candidate.candidate.substring(0, 75) + '...'
+                    : candidate.candidate
+            );
         }
     };
 
@@ -840,13 +875,14 @@ export class PiCamera {
         if (!this.mqtt?.isConnected?.() && this.mqtt?.connected !== true) return;
         if (!this.peer) return;
         //if (!this.peer.remoteDescription) return; // we need answer (remote description)
+        if (this.peer.connectionState === 'connected') return;
 
         while (this._iceCandidates_local.length > 0) {
             const c = this._iceCandidates_local.shift();
             this.mqtt.publish(this.mqttTopicLocalIce, c);
 
             this.debug(
-                '[picam] %s | webrtc - ICE (sending local candidates) | connectionState: %s | signalingState: %s | %s',
+                '[picam] %s | webrtc - ICE sending | connectionState: %s | signalingState: %s | %s',
                 this.cameraId,
                 this.peer.connectionState,
                 this.peer.signalingState,

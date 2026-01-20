@@ -8,14 +8,10 @@ define('ASSETS_VERSION', (isset($_GET['dev']) ? date('YmdHis', time()) : date('Y
 // views
 define('VIEW', !empty($_GET['r']) ? $_GET['r'] : 'video');
 
-// mqtt
-$MQTT_CLIENT_ID = (VIEW === 'debug' && $_SERVER['HTTP_HOST'] === 'localhost')
-    ? 'mqttjs_debug' : MQTT_CLIENT_ID;
-
 // app config
 $appConfig = readConfig(true, [
     'app' => ['assetsVersion' => ASSETS_VERSION],
-    'mqtt' => ['clientId' => $MQTT_CLIENT_ID],
+    'mqtt' => ['clientId' => getDeviceId()],
     'map' => ['yardtracker_api_token' => '***'],
 ]);
 
@@ -23,8 +19,7 @@ $appConfig = readConfig(true, [
 $content = render(VIEW);
 ?>
 <!doctype html>
-<html class="no-js" lang="">
-
+<html class="no-js" lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

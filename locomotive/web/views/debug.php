@@ -2,12 +2,8 @@
 
 use App\Config;
 
-$deviceId = $_COOKIE['device_id'] ?? null;
+$deviceId = getDeviceId();
 $lastDeviceId = $_COOKIE['last_device_id'] ?? null;
-if (!$deviceId) {
-    $deviceId = randomDeviceId(true);
-    setcookie('device_id', $deviceId, time() + 3 * 24 * 3600);
-}
 
 // device list
 $deviceList = Config::get('debug.devices', []);
@@ -16,8 +12,8 @@ $deviceList = Config::get('debug.devices', []);
     
     <div class="mt-3">
         <strong>Device:</strong>
-        <select id="select-devices" class="form-control">         
-            <option value="<?=$deviceId;?>"><?=str_replace('device-', '', $deviceId);?> - Current Device</option>
+        <select id="select-devices" name="device_id" class="form-control" title="Device">         
+            <option value="<?=$deviceId;?>"><?=$deviceId;?> - Current Device</option>
             
             <?php
             foreach ($deviceList as $id => $name) {
@@ -101,7 +97,7 @@ $deviceList = Config::get('debug.devices', []);
 import {Debug} from "DebugModule";
 
 const config = <?= readConfig(true, [
-    'deviceId' => $deviceId,
+    'clientId' => $deviceId,
 ]); ?>;
 
 $(function() { 

@@ -70,23 +70,16 @@ export class MqttClient {
 
         this.attachClientListeners();
 
-        this.debug('[mqtt] mqtt.connect()', connectionOptions);
+        this.debug('[mqtt ] %s | connecting - broker: %s', this.clientId, connectionOptions.host);
         this.client.connect();
-    }
-
-    getClientId() {
-        return this.client?.options.clientId;
     }
 
     disconnect() {
         if (!this.client) return;
-        this.debug(`[mqtt] disconnect`);
+        this.debug(`[mqtt ] %s | disconnect`, this.clientId);
 
         this.client.removeAllListeners();
-        this.client.end(true);
-
-        //this.emit('disconnect', this.getClientId());
-        //this.onDisconnect?.(this.getClientId());
+        this.client.end(true, { reasonCode: 0 });
 
         this.subscribedFnMap.clear();
     }
@@ -111,7 +104,7 @@ export class MqttClient {
 
         // emitted on successful (re)connection
         this.client.on('connect', () => {
-            this.debug(`[mqtt][event] connected - client id: ${this.getClientId()}`);
+            this.debug(`[mqtt ] %s | event: connected`, this.clientId);
 
             this.emit('connect', this);
             this.onConnect?.(this);
@@ -119,7 +112,7 @@ export class MqttClient {
 
         // emitted on successful (re)connection
         this.client.on('close', () => {
-            this.debug('[mqtt][event] disconnected - client id: %s', this.getClientId());
+            this.debug(`[mqtt ] %s | event: close`, this.clientId);
 
             this.emit('disconnect', this);
             this.onDisconnect?.(this);
@@ -127,9 +120,9 @@ export class MqttClient {
 
         // emitted when the client receives a publish packet
         this.client.on('message', (topic, message) => {
-            //this.debug('[mqtt] message:', topic);
-
             const msg = message?.toString() ?? null;
+
+            //this.debug('[mqtt ] %s | message: %s', this.clientId, topic, msg);
 
             // global callback
             this.emit('message', ...[topic, message]);
@@ -149,7 +142,7 @@ export class MqttClient {
 
     subscribe(topic, callback) {
         if (!this.client) {
-            this.debug('[mqtt] Subscribe failed: client is undefined.');
+            this.debug('[mqtt ] %s | Subscribe failed: client is undefined.', this.clientId);
             return;
         }
 
@@ -160,7 +153,7 @@ export class MqttClient {
 
     unsubscribe(topic) {
         if (!this.client) {
-            console.warn('[mqtt] Unsubscribe failed: client is undefined.');
+            console.warn('[mqtt ] %s | Unsubscribe failed: client is undefined.', this.clientId);
             return;
         }
 
@@ -173,12 +166,17 @@ export class MqttClient {
 
     publish(topic, message) {
         if (!this.client) {
-            console.warn('[mqtt] Publish failed: client is undefined.');
+            console.warn('[mqtt ] %s | Publish failed: client is undefined.', this.clientId);
             return;
         }
 
         //const t = this.constructTopic(topic, "/offer");
-        this.debug('[mqtt] -> publish() %c%s', 'background-color:#151515;color:#d65cb9', topic);
+        this.debug(
+            '[mqtt ] %s | -> publish() %c%s',
+            this.clientId,
+            'background-color:#151515;color:#d65cb9',
+            topic
+        );
 
         this.client.publish(topic, message);
 

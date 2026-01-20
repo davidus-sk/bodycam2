@@ -114,7 +114,7 @@ function stdout($string): void
 
 function readConfig(bool $returnJson = false, array $overrideOptions = [])
 {
-    return Config::getAll($returnJson, $overrideOptions);
+    return Config::all($returnJson, $overrideOptions);
 }
 
 /**
@@ -242,28 +242,35 @@ function js(string $filename, bool $htmlTag = false): string
 }
 
 /**
- * Random device id (16 characters)
- * @param bool $localDevice
+ * Get device id
  * @return string
  */
-function randomDeviceId(bool $localDevice = false): string
+function getDeviceId(): string
+{
+    $clientId = $_COOKIE['device_id'] ?? null;
+    if (!$clientId) {
+        $clientId = randomDeviceId();
+        setcookie('device_id', $clientId, time() + (30 * 24 * 3600));
+    }
+
+    return $clientId;
+}
+
+/**
+ * Random device id (16 characters)
+ * format: 100000003a0a2f6e
+ * @return string
+ */
+function randomDeviceId(): string
 {
     $clientId = '';
-    $chars = '0123456789abcdefABCDEF';
+    $chars = '0123456789abcdef';
     $maxChars = 16;
-
-    // format 100000003a0a2f6e
-
-    // local devices (client id starts with zeros)
-    if ($localDevice === true) {
-        $clientId = '00000000';
-        $maxChars = 8;
-    }
 
     for ($i = 0; $i < $maxChars; $i++) {
         $index = random_int(0, strlen($chars) - 1);
         $clientId .= $chars[$index];
     }
 
-    return 'device-' . $clientId;
+    return $clientId;
 }
