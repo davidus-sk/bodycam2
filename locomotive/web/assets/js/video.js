@@ -149,7 +149,7 @@ export class Video {
             return;
         }
 
-        this.debug('[video] %s | status - %s', deviceId, topic, payload);
+        this.debug('[video] %s | status - %s', deviceId, topic);
 
         // get device data (only if is already in the video grid)
         const device = this.getDeviceData(deviceId);
@@ -165,13 +165,13 @@ export class Video {
 
             const cam = device?.picamera;
             const isConnected = this.isDeviceConnected(deviceId);
-            const status = this.getDeviceStatus(deviceId);
+            const status = this.getCameraStatus(deviceId);
 
             this.debug(
-                '[video] %s | camera status: %s, is connected: %s',
+                '[video] %s |  ^ - connected: %s (status: %s)',
                 deviceId,
-                status,
-                isConnected ? 'yes' : 'no'
+                isConnected ? 'yes' : 'no',
+                status
             );
 
             // device connected
@@ -184,13 +184,8 @@ export class Video {
                 // device disconnected
             } else {
                 // reconnect picamera only if not already connecting
-                if (cam && ['new', 'connecting'].includes(status) == false) {
-                    this.debug(
-                        '[video] %s | %cthe camera is not connected - reconnecting',
-                        deviceId,
-                        ConsoleColors.error
-                    );
-
+                if (cam && ['connecting'].indexOf(status) === -1) {
+                    this.debug('[video] %s | %creconnecting', deviceId, ConsoleColors.yellow);
                     this.showOverlayText(deviceId, 'status_text', 'Connecting');
                     cam.reconnect();
                 }
@@ -255,7 +250,7 @@ export class Video {
         return d && d.picamera ? d.picamera.isConnected() : false;
     }
 
-    getDeviceStatus(deviceId) {
+    getCameraStatus(deviceId) {
         const device = this._devices.get(deviceId);
         return device && device.picamera ? device.picamera.getStatus() : 'unknown';
     }
@@ -286,6 +281,7 @@ export class Video {
                     case 'connecting':
                         this.showOverlayText(deviceId, 'status_text', 'Connecting');
                         break;
+                    case 'closed':
                     case 'connected':
                         this.hideOverlayText(deviceId, 'status_text');
                         break;

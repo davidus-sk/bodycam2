@@ -189,12 +189,11 @@ export class PiCamera {
                 this.options.timeout
             );
 
+            // callback event
+            //this.onTimeout?.('timed_out');
+
             // stop ICE gathering by closing the peer
             this.disconnect();
-
-            if (this.onTimeout) {
-                this.onTimeout?.('closed');
-            }
         }, this.options.timeout);
     }
 
@@ -254,7 +253,7 @@ export class PiCamera {
         );
 
         // connection state event
-        //this.onConnectionState?.('connecting');
+        this.onConnectionState?.(this.peer ? this.peer.connectionState : 'closed');
 
         this.peer = null;
         this.offer = null;
