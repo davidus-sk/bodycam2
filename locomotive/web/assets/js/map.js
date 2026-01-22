@@ -2,7 +2,7 @@ import { getTimestamp, worker, isObjectEmpty } from './functions.js';
 import { EventDispatcher } from './EventDispatcher.js';
 import { ConsoleColors } from './utils.js';
 import { AppWorker } from './common/AppWorker.js';
-import { PiCamera } from './rtc/picamera_v1.01.js';
+import { PiCamera } from './rtc/picamera.js';
 import { Modal } from './modal.js';
 
 // https://codepen.io/peeke/pen/BjxXZa

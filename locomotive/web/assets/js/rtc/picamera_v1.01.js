@@ -40,7 +40,6 @@ export class PiCamera {
         this.rtcTimer = null;
         this.peer = null;
         this.offer = null;
-        this.remoteDescriptionSet = false;
         this.isFirstPacket = true;
         this.receivedLength = 0;
         this.completeFile = new Uint8Array();
@@ -136,65 +135,86 @@ export class PiCamera {
     async connect() {
         this.debug('[picam] %s | connect()', this.cameraId);
 
-        // create webrtc peer connection
-        this.peer = null;
-        this.offer = null; // always create fresh offer for new peer
-        this.peer = await this.createPeer();
+        if (!this.mqtt?.isConnected()) {
+            this.debug('[picam] %s | connect() - mqtt is not connected!', this.cameraId);
+            return;
+        }
 
-        // new offer
-        this.debug(
-            '[picam] %s | webrtc - %ccreateOffer()',
-            this.cameraId,
-            ConsoleColors.pink,
-            '| connectionState: ' + this.peer.connectionState,
-            '| signalingState: ' + this.peer.signalingState
-        );
+        try {
+            // create webrtc peer connection
+            this.peer = await this.createPeer();
 
-        this.offer = await this.peer.createOffer();
-        this.debug('[picam] %s | webrtc - offer', this.cameraId, this.offer);
-        this.debug('[picam] %s | webrtc - setLocalDescription(offer)', this.cameraId);
+            // new offer
+            this.debug(
+                '[picam] %s | webrtc - %ccreateOffer()',
+                this.cameraId,
+                ConsoleColors.pink,
+                '| connectionState: ' + this.peer.connectionState,
+                '| signalingState: ' + this.peer.signalingState
+            );
 
-        // connection state event
-        //this.onConnectionState?.('connecting');
+            // create the offer
+            this.offer = await this.peer.createOffer();
+            this.debug('[picam] %s | webrtc - offer', this.cameraId, this.offer);
+            this.debug('[picam] %s | webrtc - setLocalDescription(offer)', this.cameraId);
 
-        // set the generated SDP to be our local session description
-        await this.peer.setLocalDescription(this.offer);
+            // set the generated SDP to be our local session description
+            await this.peer.setLocalDescription(this.offer);
 
-        // send local SDP offer to the mqtt broker
-        this.mqtt.publish(this.mqttTopicLocalSdp, JSON.stringify(this.offer));
-        this.debug(
-            '[picam] %s | webrtc - %c>>> sending local SDP (offer)',
-            this.cameraId,
-            ConsoleColors.green,
-            '> ' + this.mqttTopicLocalSdp
-        );
-
-        // set connection timeout
-        this.debug(
-            '[picam] %s | webrtc - setting connection timeout (%s ms)',
-            this.cameraId,
-            this.options.timeout
-        );
-
-        // connection timeout
-        this.rtcTimer = setTimeout(() => {
-            if (this.isConnected()) {
-                return;
+            // check mqtt is still connected before publishing
+            if (!this.mqtt?.isConnected()) {
+                throw new Error('MQTT disconnected during connection setup');
             }
 
+            // send local SDP offer to the mqtt broker
+            this.mqtt.publish(this.mqttTopicLocalSdp, JSON.stringify(this.offer));
             this.debug(
-                '[picam] %s | webrtc - %cdisconnecting on timeout (%s ms)',
+                '[picam] %s | webrtc - %c>>> sending local SDP (offer)',
                 this.cameraId,
-                ConsoleColors.warning,
+                ConsoleColors.green,
+                '> ' + this.mqttTopicLocalSdp
+            );
+
+            // set connection timeout
+            this.debug(
+                '[picam] %s | webrtc - setting connection timeout (%s ms)',
+                this.cameraId,
                 this.options.timeout
             );
 
-            // callback event
-            //this.onTimeout?.('timed_out');
+            // connection timeout
+            this.rtcTimer = setTimeout(() => {
+                if (this.isConnected()) {
+                    return;
+                }
 
-            // stop ICE gathering by closing the peer
+                this.debug(
+                    '[picam] %s | webrtc - %cdisconnecting on timeout (%s ms)',
+                    this.cameraId,
+                    ConsoleColors.warning,
+                    this.options.timeout
+                );
+
+                // callback event
+                //this.onTimeout?.('timed_out');
+
+                // stop ICE gathering by closing the peer
+                this.disconnect();
+            }, this.options.timeout);
+        } catch (error) {
+            this.debug(
+                '[picam] %s | webrtc - %cerror during connect(): %s',
+                this.cameraId,
+                ConsoleColors.error,
+                error.message || error
+            );
+
+            // clean up on error
             this.disconnect();
-        }, this.options.timeout);
+
+            // notify error via callback
+            this.onConnectionState?.('failed');
+        }
     }
 
     // get connection status
@@ -211,19 +231,16 @@ export class PiCamera {
         return this.getStatus() === 'connected';
     }
 
-    reconnect(terminate) {
-        if (terminate === true) {
-            this.terminate();
+    reconnect() {
+        this.debug('[picam] %s | reconnect()', this.cameraId);
 
-            setTimeout(() => {
-                this.connect();
-            }, 1000);
-        } else {
-            this.disconnect();
-            setTimeout(() => {
-                this.connect(true);
-            }, 1000);
-        }
+        // disconnect
+        this.disconnect();
+
+        // connect
+        setTimeout(() => {
+            this.connect();
+        }, 1000);
     }
 
     disconnect() {
@@ -257,7 +274,6 @@ export class PiCamera {
 
         this.peer = null;
         this.offer = null;
-        this.remoteDescriptionSet = false;
         this._iceCandidates_local = [];
         this._iceCandidates_remote = [];
     }
@@ -288,9 +304,6 @@ export class PiCamera {
         if (this.peer) {
             this.disconnect();
         }
-
-        // // trigger event
-        // this.onConnectionState?.('disconnected');
 
         if (this.mediaElement) {
             if (!this.mediaElement.paused) {
@@ -398,20 +411,19 @@ export class PiCamera {
 
         this.debug('[picam] %s | webrtc - RTCPeerConnection()', this.cameraId, webrtcConfig, peer);
 
-        //this.remoteDescriptionSet = false;
-        this._iceCandidates_local = new Array();
-        this._iceCandidates_remote = new Array();
+        this._iceCandidates_local = [];
+        this._iceCandidates_remote = [];
 
         peer.addTransceiver('video', { direction: 'recvonly' });
-        peer.addTransceiver('audio', { direction: 'recvonly' });
+        //peer.addTransceiver('audio', { direction: 'recvonly' });
 
         this.debug('[picam] %s | webrtc - setting up the listeners', this.cameraId);
 
         peer.onicecandidate = event => this.onicecandidate(event);
+        peer.onconnectionstatechange = event => this.onconnectionstatechange(event);
         peer.onsignalingstatechange = event => this.onsignalingstatechange(event);
         peer.onicegatheringstatechange = event => this.onicegatheringstatechange(event);
         peer.oniceconnectionstatechange = event => this.oniceconnectionstatechange(event);
-        peer.onconnectionstatechange = event => this.onconnectionstatechange(event);
         peer.ontrack = event => this.ontrack(event);
         peer.addEventListener('icecandidateerror', event => this.onicecandidateerror(event));
 
@@ -459,16 +471,12 @@ export class PiCamera {
         this.flushLocalIceQueue();
     }
 
-    // The connectionState read-only property of the RTCPeerConnection interface
-    // indicates the current state of the peer connection by returning one of the
-    // following string values: new, connecting, connected, disconnected, failed,
-    // or closed.
-    //
-    // Before calling RTCPeerConnection.close(), it's crucial to ensure that the
-    // connection is either connected or failed. Closing connections in transitional
-    // states (connecting or disconnected) can lead to issues and can cause the
-    // application to become unresponsive.
+    // new, connecting, connected, disconnected, closed, failed
     onconnectionstatechange(event) {
+        if (!this.peer) {
+            return;
+        }
+
         let stopTimer = false;
         let reconnect = false;
 
@@ -480,29 +488,17 @@ export class PiCamera {
         );
 
         switch (this.peer.connectionState) {
-            // new
-            // connecting
             case 'connected':
-                stopTimer = true;
-
                 this._iceCandidates_local = [];
                 this._iceCandidates_remote = [];
-
                 break;
-
             case 'disconnected':
-                stopTimer = true;
-
-                break;
-
             case 'failed':
+            case 'closed':
+                this._iceCandidates_local = [];
+                this._iceCandidates_remote = [];
                 stopTimer = true;
                 reconnect = true;
-
-                break;
-
-            case 'closed':
-                stopTimer = true;
 
                 break;
         }
@@ -521,20 +517,21 @@ export class PiCamera {
     }
 
     onsignalingstatechange(event) {
-        if (this.peer.signalingState === 'stable') {
-            this.debug(
-                '[picam] %s | webrtc - %consignalingstatechange: %s',
-                this.cameraId,
-                ConsoleColors.blue,
-                this.peer.signalingState,
-                '> ICE negotiation complete'
-            );
-        } else {
-            this.debug(
-                '[picam] %s | webrtc - onsignalingstatechange: %s',
-                this.cameraId,
-                this.peer.signalingState
-            );
+        if (this.peer) {
+            if (this.peer.signalingState === 'stable') {
+                this.debug(
+                    '[picam] %s | webrtc - %consignalingstatechange: %s',
+                    this.cameraId,
+                    ConsoleColors.blue,
+                    this.peer.signalingState
+                );
+            } else {
+                this.debug(
+                    '[picam] %s | webrtc - onsignalingstatechange: %s',
+                    this.cameraId,
+                    this.peer.signalingState
+                );
+            }
         }
     }
 
@@ -546,15 +543,14 @@ export class PiCamera {
     oniceconnectionstatechange(event) {
         const state = event.target.iceConnectionState;
 
-        if (state === 'connected' || state === 'disconnected') {
-            this.debug('[picam] %s | webrtc - iceconnectionstatechange: %s', this.cameraId, state);
-        } else {
-            this.debug('[picam] %s | webrtc - iceconnectionstatechange: %s', this.cameraId, state);
+        this.debug('[picam] %s | webrtc - iceconnectionstatechange: %s', this.cameraId, state);
 
-            if (state === 'failed') {
-                this.peer.restartIce();
-            }
-        }
+        // if (state === 'connected' || state === 'disconnected') {
+        // } else {
+        //     if (state === 'failed') {
+        //         this.peer.restartIce();
+        //     }
+        // }
     }
 
     onicecandidateerror(event) {
@@ -588,10 +584,17 @@ export class PiCamera {
             this.options.ai ? 'yes' : 'no'
         );
 
+        // Clean up existing remote stream before reassignment to prevent memory leaks
+        if (this.remoteStream) {
+            this.remoteStream.getTracks().forEach(track => {
+                track.stop();
+            });
+        }
+
         if (event.streams && event.streams[0]) {
             this.remoteStream = event.streams[0];
         } else {
-            if (!this.remoteStream) this.remoteStream = new MediaStream();
+            this.remoteStream = new MediaStream();
             this.remoteStream.addTrack(event.track);
         }
 
@@ -749,8 +752,8 @@ export class PiCamera {
             sdp.type,
             '| connectionState: ' + this.peer.connectionState,
             '| signalingState: ' + this.peer.signalingState,
-            '| topic: ' + this.mqttTopicRemoteSdp,
-            sdp
+            '| topic: ' + this.mqttTopicRemoteSdp
+            //sdp.sdp
         );
 
         if (sdp.type !== 'answer') {
@@ -825,21 +828,24 @@ export class PiCamera {
     };
 
     setRemoteIceQueue = candidate => {
-        if (!candidate || !this.peer) return;
-        if (this.peer.connectionState === 'connected') return;
+        if (this.peer && this.peer.connectionState === 'connected') return;
 
-        this._iceCandidates_remote.push(candidate);
+        if (candidate) {
+            this._iceCandidates_remote.push(candidate);
+        }
 
         // we need answer (remote description)
-        if (this.peer.remoteDescription) {
+        if (this.peer && this.peer.remoteDescription) {
             this.debug(
                 '[picam] %s | webrtc - ICE (received) - set',
                 this.cameraId,
                 ' | connectionState: ' + this.peer.connectionState,
                 ' | signalingState: ' + this.peer.signalingState,
-                candidate.candidate.length > 75
-                    ? candidate.candidate.substring(0, 75) + '...'
-                    : candidate.candidate
+                candidate
+                    ? candidate.candidate.length > 75
+                        ? candidate.candidate.substring(0, 75) + '...'
+                        : candidate.candidate
+                    : ''
             );
 
             while (this._iceCandidates_remote.length > 0) {

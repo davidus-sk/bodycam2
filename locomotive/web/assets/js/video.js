@@ -1,7 +1,7 @@
 import { getTimestamp, worker, wait } from './functions.js';
 import { EventDispatcher } from './EventDispatcher.js';
 import { ConsoleColors } from './utils.js';
-import { PiCamera } from './rtc/picamera_v1.01.js';
+import { PiCamera } from './rtc/picamera.js';
 
 export class Video {
     options = {};
@@ -167,12 +167,12 @@ export class Video {
             const isConnected = this.isDeviceConnected(deviceId);
             const status = this.getCameraStatus(deviceId);
 
-            this.debug(
-                '[video] %s |  ^ - connected: %s (status: %s)',
-                deviceId,
-                isConnected ? 'yes' : 'no',
-                status
-            );
+            // this.debug(
+            //     '[video] %s |  ^ - connected: %s (status: %s)',
+            //     deviceId,
+            //     isConnected ? 'yes' : 'no',
+            //     status
+            // );
 
             // device connected
             if (isConnected) {
@@ -277,6 +277,8 @@ export class Video {
 
             // events
             device.picamera.onConnectionState = state => {
+                //this.debug('[video] %s | onConnectionState: %s', deviceId, state);
+
                 switch (state) {
                     case 'connecting':
                         this.showOverlayText(deviceId, 'status_text', 'Connecting');
@@ -299,19 +301,19 @@ export class Video {
         const device = this.getDeviceData(deviceId);
 
         if (device) {
-            // picamera
-            if (device.picamera) {
-                this.debug('[video] %s | calling picamera.terminate()', deviceId);
-                device.picamera.terminate();
-            }
-
             // overlays
             this.hideOverlayText(deviceId);
+
+            // picamera
+            if (device.picamera) {
+                device.picamera.terminate();
+            }
 
             // dom
             $('#' + device.video_id).remove();
             $('#' + device.dom_id).remove();
 
+            // delete reference
             this._devices.delete(deviceId);
         }
 
