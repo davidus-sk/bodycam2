@@ -135,6 +135,21 @@ export class PiCamera {
     async connect() {
         this.debug('[picam] %s | connect()', this.cameraId);
 
+        // Check if already connected
+        if (
+            this.peer &&
+            (this.peer.connectionState === 'connected' ||
+                this.peer.connectionState === 'connecting')
+        ) {
+            this.debug(
+                '[picam] %s | connect() - already connected/connecting (state: %s)',
+                this.cameraId,
+                this.peer.connectionState
+            );
+
+            return;
+        }
+
         if (!this.mqtt?.isConnected()) {
             this.debug('[picam] %s | connect() - mqtt is not connected!', this.cameraId);
             return;
@@ -158,8 +173,18 @@ export class PiCamera {
             this.debug('[picam] %s | webrtc - offer', this.cameraId, this.offer);
             this.debug('[picam] %s | webrtc - setLocalDescription(offer)', this.cameraId);
 
+            // Null check before setLocalDescription
+            if (!this.peer) {
+                throw new Error('Peer connection closed during offer creation');
+            }
+
             // set the generated SDP to be our local session description
             await this.peer.setLocalDescription(this.offer);
+
+            // Null check after setLocalDescription
+            if (!this.peer) {
+                throw new Error('Peer connection closed after setLocalDescription');
+            }
 
             // check mqtt is still connected before publishing
             if (!this.mqtt?.isConnected()) {
@@ -244,6 +269,7 @@ export class PiCamera {
     }
 
     disconnect() {
+        // clear connection timeout
         if (this.rtcTimer) {
             clearTimeout(this.rtcTimer);
             this.rtcTimer = null;
@@ -257,6 +283,7 @@ export class PiCamera {
             this.remoteStream = null;
         }
 
+        // close peer connection
         if (this.peer) {
             this.peer.close();
         }
@@ -272,6 +299,7 @@ export class PiCamera {
         // connection state event
         this.onConnectionState?.(this.peer ? this.peer.connectionState : 'closed');
 
+        // reset all connection state
         this.peer = null;
         this.offer = null;
         this._iceCandidates_local = [];

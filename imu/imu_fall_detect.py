@@ -1,17 +1,17 @@
-import smbus2
-import time
-import math
 import argparse
-from datetime import datetime
-import sys
-import traceback
-import signal
 import json
+import math
 import random
+import signal
 import subprocess
+import sys
 import threading
+import time
+import traceback
+from datetime import datetime
+
 import paho.mqtt.client as mqtt
-import os
+import smbus2
 
 # --------- CONFIGURATION ---------
 I2C_BUS = 1
@@ -21,7 +21,7 @@ ACCEL_XOUT_H = 0x3B
 GYRO_XOUT_H = 0x43
 
 ACCEL_SCALE = 16384.0  # ±2g range
-GYRO_SCALE = 131.0     # ±250°/s range
+GYRO_SCALE = 131.0  # ±250°/s range
 
 FREE_FALL_THRESHOLD_G = 0.5
 IMPACT_THRESHOLD_G = 2.0
@@ -39,12 +39,14 @@ CONFIG_PATH = "/app/bodycam2/camera/conf/config.json"
 
 exit_event = threading.Event()
 
+
 # --------- UTILITY FUNCTIONS ---------
 def read_word(bus, addr, reg):
     high = bus.read_byte_data(addr, reg)
     low = bus.read_byte_data(addr, reg + 1)
     value = (high << 8) + low
     return value if value < 0x8000 else value - 65536
+
 
 def get_mpu6050(bus):
     ax = read_word(bus, MPU6050_ADDR, ACCEL_XOUT_H) / ACCEL_SCALE
@@ -55,19 +57,27 @@ def get_mpu6050(bus):
     gz = read_word(bus, MPU6050_ADDR, GYRO_XOUT_H + 4) / GYRO_SCALE
     return ax, ay, az, gx, gy, gz
 
+
 def magnitude(x, y, z):
     return math.sqrt(x * x + y * y + z * z)
+
 
 def timestamp():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+
 def get_shell_output(command):
     try:
-        output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT, universal_newlines=True)
+        output = subprocess.check_output(
+            command, shell=True, stderr=subprocess.STDOUT, universal_newlines=True
+        )
         return output.strip()
     except Exception as e:
-        print(f"[CONFIG] ERROR: Failed to run shell command for client_id: '{command}' -> {e}")
+        print(
+            f"[CONFIG] ERROR: Failed to run shell command for client_id: '{command}' -> {e}"
+        )
         return None
+
 
 # --------- MQTT LOADING (mirrors radar code) ---------
 def load_config(path=CONFIG_PATH):
@@ -81,6 +91,7 @@ def load_config(path=CONFIG_PATH):
         print(f"[CONFIG] ERROR: Failed to read config: {e}")
         sys.exit(101)
     return cfg
+
 
 def build_mqtt_settings(cfg):
     for k in ("server", "port_s", "username", "client_id"):
@@ -103,10 +114,9 @@ def build_mqtt_settings(cfg):
     if not base_id:
         print("[CONFIG] ERROR: Could not determine base client_id, exiting.")
         sys.exit(104)
-    mqtt_topic = f"device-{base_id}"
     rand_num = random.randint(10, 99)
-    mqtt_client_id = f"{mqtt_topic}-{rand_num}"
-    mqtt_topic = f"device/{mqtt_topic}/fall"
+    mqtt_client_id = f"{base_id}-{rand_num}"
+    mqtt_topic = f"device/{base_id}/fall"
     print(f"[MQTT] INFO: MQTT_TOPIC: {mqtt_topic}.")
     print(f"[MQTT] INFO: MQTT_CLIENT_ID: {mqtt_client_id}.")
     return dict(
@@ -120,8 +130,9 @@ def build_mqtt_settings(cfg):
         protocol=mqtt_protocol,
         topic=mqtt_topic,
         client_id=mqtt_client_id,
-        device_id=mqtt_client_id
+        device_id=mqtt_client_id,
     )
+
 
 class MQTTPublisher:
     def __init__(self, mqtt_settings):
@@ -132,10 +143,12 @@ class MQTTPublisher:
             mqtt.CallbackAPIVersion.VERSION2,
             client_id=self.settings["client_id"],
             protocol=self.settings["protocol"],
-            transport="websockets" if self.settings["use_ws"] else "tcp"
+            transport="websockets" if self.settings["use_ws"] else "tcp",
         )
         if self.settings["username"]:
-            self.client.username_pw_set(self.settings["username"], self.settings["password"])
+            self.client.username_pw_set(
+                self.settings["username"], self.settings["password"]
+            )
         self._setup_callbacks()
 
     def _setup_callbacks(self):
@@ -166,7 +179,7 @@ class MQTTPublisher:
                 self.client.connect(
                     self.settings["broker"],
                     self.settings["port"],
-                    keepalive=self.settings["keepalive"]
+                    keepalive=self.settings["keepalive"],
                 )
                 self.client.loop_start()
                 for _ in range(100):
@@ -197,9 +210,11 @@ class MQTTPublisher:
             self.client.disconnect()
             self._closed = True
 
+
 def handle_exit_signal(signum, frame):
     print(f"[Main] Received exit signal {signum}, shutting down gracefully.")
     exit_event.set()
+
 
 # --------- FALL DETECTION CLASS ---------
 class FallDetector:
@@ -233,17 +248,24 @@ class FallDetector:
                 g_mag = magnitude(gx, gy, gz)
 
                 if abs(ax) + abs(ay) + abs(az) < MIN_VALID_ACCEL_SUM:
-                    self.log("Ignoring invalid accel reading (near zero).", important=True)
+                    self.log(
+                        "Ignoring invalid accel reading (near zero).", important=True
+                    )
                     time.sleep(interval)
                     continue
 
                 current_time = time.time()
 
                 if self.verbose:
-                    self.log(f"|a|={a_mag:.2f}g |gyro|={g_mag:.1f}°/s State={self.state}")
+                    self.log(
+                        f"|a|={a_mag:.2f}g |gyro|={g_mag:.1f}°/s State={self.state}"
+                    )
 
                 if self.state == "IDLE":
-                    if a_mag < FREE_FALL_THRESHOLD_G and (current_time - self.last_event_time) > MIN_EVENT_INTERVAL:
+                    if (
+                        a_mag < FREE_FALL_THRESHOLD_G
+                        and (current_time - self.last_event_time) > MIN_EVENT_INTERVAL
+                    ):
                         self.state = "FREE_FALL"
                         self.free_fall_time = current_time
                         self.log(f"Free fall detected |a|={a_mag:.2f}g", important=True)
@@ -255,8 +277,14 @@ class FallDetector:
                     elif a_mag > IMPACT_THRESHOLD_G or g_mag > IMPACT_THRESHOLD_GYRO:
                         self.state = "POST_IMPACT"
                         self.impact_time = current_time
-                        self.log(f"Impact detected |a|={a_mag:.2f}g |gyro|={g_mag:.1f}°/s", important=True)
-                        self.log(f"Stabilizing for {IMPACT_STABILIZATION_DELAY:.2f}s...", important=True)
+                        self.log(
+                            f"Impact detected |a|={a_mag:.2f}g |gyro|={g_mag:.1f}°/s",
+                            important=True,
+                        )
+                        self.log(
+                            f"Stabilizing for {IMPACT_STABILIZATION_DELAY:.2f}s...",
+                            important=True,
+                        )
                         time.sleep(IMPACT_STABILIZATION_DELAY)
                         self.inactivity_start_time = time.time()
                         self.inactivity_buffer.clear()
@@ -266,22 +294,27 @@ class FallDetector:
                     self.inactivity_buffer.append(rotation_detected)
                     inactivity_elapsed = current_time - self.inactivity_start_time
                     if inactivity_elapsed >= INACTIVITY_PERIOD_SEC:
-                        movement_ratio = sum(self.inactivity_buffer) / len(self.inactivity_buffer)
+                        movement_ratio = sum(self.inactivity_buffer) / len(
+                            self.inactivity_buffer
+                        )
                         if movement_ratio <= INACTIVITY_ALLOWED_MOVEMENT_FRAC:
                             self.log("FALL CONFIRMED!", important=True)
                             # --- MQTT PAYLOAD (only on fall confirm) ---
                             payload = {
-                                'device_id': self.mqtt_settings["client_id"][:-3],
-                                'device_type': 'camera',
-                                'ts': int(time.time()),
-                                'fall': True
+                                "device_id": self.mqtt_settings["client_id"][:-3],
+                                "device_type": "camera",
+                                "ts": int(time.time()),
+                                "fall": True,
                             }
                             try:
                                 self.mqtt_pub.publish(payload)
                             except Exception as e:
                                 self.log(f"MQTT publish error: {e}", important=True)
                         else:
-                            self.log(f"False alarm due to post-impact rotation ({movement_ratio*100:.1f}%)", important=True)
+                            self.log(
+                                f"False alarm due to post-impact rotation ({movement_ratio * 100:.1f}%)",
+                                important=True,
+                            )
                         self.last_event_time = current_time
                         self.reset_state()
             except Exception as e:
@@ -291,11 +324,16 @@ class FallDetector:
                 time.sleep(I2C_ERROR_COOLDOWN_SEC)
             time.sleep(interval)
 
+
 # --------- MAIN ENTRY POINT ---------
 def main():
-    parser = argparse.ArgumentParser(description="MPU6050 Fall Detection (Production w/ MQTT)")
-    parser.add_argument('--verbose', action='store_true', help='Verbose mode (sensor values)')
-    parser.add_argument('--rate', type=int, default=100, help='Sample rate (Hz)')
+    parser = argparse.ArgumentParser(
+        description="MPU6050 Fall Detection (Production w/ MQTT)"
+    )
+    parser.add_argument(
+        "--verbose", action="store_true", help="Verbose mode (sensor values)"
+    )
+    parser.add_argument("--rate", type=int, default=100, help="Sample rate (Hz)")
     args = parser.parse_args()
 
     # Signals
@@ -312,7 +350,9 @@ def main():
         with smbus2.SMBus(I2C_BUS) as bus:
             bus.write_byte_data(MPU6050_ADDR, PWR_MGMT_1, 0)
             mqtt_pub.connect()
-            detector = FallDetector(bus, mqtt_pub, mqtt_settings, args.rate, args.verbose)
+            detector = FallDetector(
+                bus, mqtt_pub, mqtt_settings, args.rate, args.verbose
+            )
             detector.run()
     except KeyboardInterrupt:
         print("\nExiting gracefully.")
@@ -323,6 +363,7 @@ def main():
     finally:
         mqtt_pub.close()
         print("[Main] Exiting cleanly.")
+
 
 if __name__ == "__main__":
     main()

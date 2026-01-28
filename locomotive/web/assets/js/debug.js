@@ -70,14 +70,14 @@ export class Debug {
 
             // regex map
             this.topicRegex = {};
-            this.topicRegex['camera_status'] = new RegExp('^device/device-[0-9a-fA-F]{16}/status$');
-            this.topicRegex['camera_gps'] = new RegExp('^device/device-[0-9a-fA-F]{16}/gps$');
+            this.topicRegex['camera_status'] = new RegExp('^device/[0-9a-zA-Z\-\_]+/status$');
+            this.topicRegex['camera_gps'] = new RegExp('^device/[0-9a-zA-Z\-\_]+/gps$');
 
             this.topicRegex['web_rtc_sdp_offer'] = new RegExp(
-                '^(device-[0-9a-fA-F]{16})/sdp/([^/]+)/offer$'
+                '^([0-9a-zA-Z\-\_]+)/sdp/([^/]+)/offer$'
             );
             this.topicRegex['web_rtc_ice_offer'] = new RegExp(
-                '^(device-[0-9a-fA-F]{16})/ice/([^/]+)/offer$'
+                '^([0-9a-zA-Z\-\_]+)/ice/([^/]+)/offer$'
             );
 
             this.mqtt.on('connect', () => this.mqttConnected());
@@ -834,7 +834,7 @@ export class Debug {
 
         // locomotive gps
         $btnAddLoco.on('click', () => {
-            const topic = `device/device-0000000000000000/gps`;
+            const topic = `device/0000000000000000/gps`;
             this.mqtt.publish(
                 topic,
                 JSON.stringify({

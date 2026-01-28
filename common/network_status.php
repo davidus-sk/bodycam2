@@ -18,7 +18,7 @@ $config = read_config();
 openlog("network_status", LOG_PID | LOG_PERROR, LOG_LOCAL0);
 
 // MQTT settings
-$clientId = 'device-' . trim(`{$config['client_id']}`);
+$clientId = trim(`{$config['client_id']}`);
 $clean_session = true;
 $mqtt_version = MqttClient::MQTT_3_1;
 $type = empty($argv[1]) ? 'camera' : 'locomotive';
@@ -72,11 +72,11 @@ while (true) {
             exit(-1);
         }//if
 
-	$battery_level = 0;
+        $battery_level = 0;
         if (file_exists('/tmp/battery.dat')) {
             $voltage = (float)file_get_contents('/tmp/battery.dat');
             $battery_level = round(($voltage * 100) / 3.7);
-			$battery_level = $battery_level > 100 ? 100 : $battery_level;
+            $battery_level = $battery_level > 100 ? 100 : $battery_level;
         }//if
 
         // construct payload

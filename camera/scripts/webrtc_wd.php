@@ -23,7 +23,7 @@ while (true) {
 
     // if not running, start new instance
     if (empty($pid)) {
-        $clientId = 'device-' . trim(`{$config['client_id']}`);
+        $clientId = trim(`{$config['client_id']}`);
 
         // launch
         syslog(LOG_INFO, "Starting pi_webrtc for {$clientId}.");

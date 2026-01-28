@@ -18,7 +18,7 @@ $config = read_config();
 openlog("camera_restart", LOG_PID | LOG_PERROR, LOG_LOCAL0);
 
 // MQTT settings
-$clientId = 'device-' . trim(`{$config['client_id']}`);
+$clientId = trim(`{$config['client_id']}`);
 $clean_session = true;
 $mqtt_version = MqttClient::MQTT_3_1;
 

@@ -99,8 +99,8 @@ export class MapView {
             this.debug('[map] mqtt initialized');
 
             // topics
-            const gpsRegex = new RegExp('^device/device-[0-9a-fA-F]{16}/gps$');
-            const buttonRegex = new RegExp('^device/device-[0-9a-fA-F]{16}/button$');
+            const gpsRegex = new RegExp('^device/[0-9a-zA-Z\-\_]+/gps$');
+            const buttonRegex = new RegExp('^device/[0-9a-zA-Z\-\_]+/button$');
 
             // connect callback
             this.mqtt.on('connect', () => {

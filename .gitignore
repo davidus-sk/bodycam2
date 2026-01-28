@@ -36,3 +36,5 @@ camera/stream/pi_webrtc
 locomotive/.client_id
 locomotive/.device_id
 locomotive/conf/config.json
+.client_id
+.device_id

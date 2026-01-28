@@ -25,7 +25,7 @@ $command = dirname(__FILE__) . '/setup_relay.py';
 `$command`;
 
 // MQTT settings
-$clientId = 'device-' . trim(`{$config['client_id']}`);
+$clientId = trim(`{$config['client_id']}`);
 $clean_session = true;
 $mqtt_version = MqttClient::MQTT_3_1;
 $stop_file = '/tmp/ESTOP';
@@ -45,19 +45,19 @@ $connection_settings = (new ConnectionSettings())
 syslog(LOG_INFO, "Connecting to server {$config['server']}:{$config['port']} as {$clientId}.");
 $mqtt = new MqttClient($config['server'], $config['port'], $clientId . '-' . mt_rand(10, 99), $mqtt_version);
 $mqtt->connect($connection_settings, $clean_session);
-syslog(LOG_INFO, "Connection " . ($mqtt->isConnected() ? "established": "failed") . ".");
+syslog(LOG_INFO, "Connection " . ($mqtt->isConnected() ? "established" : "failed") . ".");
 
 $mqtt->subscribe('device/+/button', function ($topic, $message) {
     syslog(LOG_INFO, "Received ESTOP message: {$message}.");
 
-    $data = json_decode($message, TRUE);
+    $data = json_decode($message, true);
 
-var_dump(time() - $data['ts']);
+    var_dump(time() - $data['ts']);
 
     if ($data && (time() - $data['ts'] < 5)) {
-      syslog(LOG_INFO, "Activated relay.");
-      $command = dirname(__FILE__) . '/relay.py';
-      `$command`;
+        syslog(LOG_INFO, "Activated relay.");
+        $command = dirname(__FILE__) . '/relay.py';
+        `$command`;
     }//if
 }, 0);
 

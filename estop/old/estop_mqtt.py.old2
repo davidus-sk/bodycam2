@@ -101,10 +101,9 @@ def build_mqtt_settings(cfg):
         print("[CONFIG] ERROR: Could not determine base client_id, exiting.")
         sys.exit(104)
     # NOTE: topic ends with /button
-    mqtt_topic = f"device-{base_id}"
     rand_num = random.randint(10, 99)
-    mqtt_client_id = f"{mqtt_topic}-{rand_num}"
-    mqtt_topic = f"device/{mqtt_topic}/button"
+    mqtt_client_id = f"{base_id}-{rand_num}"
+    mqtt_topic = f"device/{base_id}/button"
     print(f"[MQTT] INFO: MQTT_TOPIC: {mqtt_topic}.")
     print(f"[MQTT] INFO: MQTT_CLIENT_ID: {mqtt_client_id}.")
     return dict(

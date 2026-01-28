@@ -17,10 +17,9 @@ $deviceList = Config::get('debug.devices', []);
             
             <?php
             foreach ($deviceList as $id => $name) {
-                $_id = str_replace('device-', '', $id);
                 ?>
             
-            <option value="<?= $id ?>" <?= $lastDeviceId == $id ? 'selected' : '' ?>><?= "$_id - $name" ?></option>
+            <option value="<?= $id ?>" <?= $lastDeviceId == $id ? 'selected' : '' ?>><?= "$id - $name" ?></option>
             
             <?php
             }//foreach

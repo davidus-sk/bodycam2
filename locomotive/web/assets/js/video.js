@@ -41,7 +41,7 @@ export class Video {
         this.$grid = $('#video-grid');
 
         // regex map
-        const deviceIdPattern = '(device-)?[0-9a-fA-F]{16}';
+        const deviceIdPattern = '[0-9a-zA-Z\-\_]+';
         this.topicRegex['device_status'] = new RegExp(`^device\/${deviceIdPattern}\/status$`);
         this.topicRegex['device_gps'] = new RegExp(`^device\/${deviceIdPattern}\/gps$`);
         this.topicRegex['device_distance'] = new RegExp(`^device\/${deviceIdPattern}\/distance$`);
@@ -459,13 +459,14 @@ export class Video {
 
         // text
         const $text = opt.element;
+        $text.html(opt.text).css({ width: 'auto' });
 
         if (opt.x === 'left') {
             css.left = opt.padding;
         } else if (opt.x === 'right') {
             css.right = opt.padding;
         } else if (opt.x === 'center') {
-            const w = $text.innerWidth();
+            let w = Math.round($text.outerWidth()) + 4;
             css.width = w;
             css.left = '50%';
             css.marginLeft = '-' + w / 2 + 'px';
@@ -486,7 +487,7 @@ export class Video {
         }
 
         // apply styles + show
-        $text.css(css).html(opt.text);
+        $text.css(css);
     }
 
     hideOverlayText(deviceId, overlayId) {

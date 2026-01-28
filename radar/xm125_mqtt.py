@@ -4,17 +4,17 @@ Production: Only pushes/prints if peaks are detected.
 All MQTT settings, client ID, and topic are dynamically loaded from JSON config and shell command.
 """
 
-import time
-import sys
 import json
-import traceback
 import random
-import subprocess
 import signal
+import subprocess
+import sys
 import threading
-import os
-from smbus2 import SMBus, i2c_msg
+import time
+import traceback
+
 import paho.mqtt.client as mqtt
+from smbus2 import SMBus, i2c_msg
 
 CONFIG_PATH = "/app/bodycam2/camera/conf/config.json"
 
@@ -23,12 +23,12 @@ CONFIG_PATH = "/app/bodycam2/camera/conf/config.json"
 # ==============================
 START_MM = 500
 END_MM = 6000
-THRESHOLD_SENS = 500        # Lower = less sensitive (1–1000)
-THRESHOLD_METHOD = 3        # 1 = FIXED AMPLITUDE, 2 = RECORDED, 3 = CFAR, 4 = FIXED STRENGTH
-MAX_STEP_LENGTH = 1         # 0 = auto (default/profile-based), or set for speed/precision
-SIGNAL_QUALITY = 15000      # Higher = better SNR (and more power). Default 15000
-NUM_FRAMES_RECORDED = 100   # Used only if Threshold Method is RECORDED
-REFLECTOR_SHAPE = 1         # 1 = GENERIC, 2 = PLANAR
+THRESHOLD_SENS = 500  # Lower = less sensitive (1–1000)
+THRESHOLD_METHOD = 3  # 1 = FIXED AMPLITUDE, 2 = RECORDED, 3 = CFAR, 4 = FIXED STRENGTH
+MAX_STEP_LENGTH = 1  # 0 = auto (default/profile-based), or set for speed/precision
+SIGNAL_QUALITY = 15000  # Higher = better SNR (and more power). Default 15000
+NUM_FRAMES_RECORDED = 100  # Used only if Threshold Method is RECORDED
+REFLECTOR_SHAPE = 1  # 1 = GENERIC, 2 = PLANAR
 MEASUREMENT_INTERVAL = 1  # (seconds)
 
 # ==============================
@@ -36,33 +36,42 @@ MEASUREMENT_INTERVAL = 1  # (seconds)
 # ==============================
 I2C_ADDR = 0x52
 
-REG_DETECTOR_STATUS    = 0x0003
-REG_DISTANCE_RESULT    = 0x0010
-REG_START              = 0x0040
-REG_END                = 0x0041
-REG_MAX_STEP_LENGTH    = 0x0042
-REG_SIGNAL_QUALITY     = 0x0044
-REG_THRESHOLD_METHOD   = 0x0046
-REG_PEAK_SORTING       = 0x0047
-REG_NUM_FRAMES_REC     = 0x0048
+REG_DETECTOR_STATUS = 0x0003
+REG_DISTANCE_RESULT = 0x0010
+REG_START = 0x0040
+REG_END = 0x0041
+REG_MAX_STEP_LENGTH = 0x0042
+REG_SIGNAL_QUALITY = 0x0044
+REG_THRESHOLD_METHOD = 0x0046
+REG_PEAK_SORTING = 0x0047
+REG_NUM_FRAMES_REC = 0x0048
 REG_THRESHOLD_SENSITIVITY = 0x004A
-REG_REFLECTOR_SHAPE    = 0x004B
-REG_MEASURE_ON_WAKEUP  = 0x0080
-REG_COMMAND            = 0x0100
+REG_REFLECTOR_SHAPE = 0x004B
+REG_MEASURE_ON_WAKEUP = 0x0080
+REG_COMMAND = 0x0100
 
-PEAK_DIST_BASE      = 0x0011  # Peak0 Distance
-PEAK_STRENGTH_BASE  = 0x001B  # Peak0 Strength
+PEAK_DIST_BASE = 0x0011  # Peak0 Distance
+PEAK_STRENGTH_BASE = 0x001B  # Peak0 Strength
 
 CMD_APPLY_CONFIG_AND_CALIB = 1
-CMD_MEASURE_DISTANCE       = 2
-CMD_APPLY_CONFIGURATION    = 3
-CMD_CALIBRATE              = 4
-CMD_RECALIBRATE            = 5
-CMD_RESET_MODULE           = 1381192737
+CMD_MEASURE_DISTANCE = 2
+CMD_APPLY_CONFIGURATION = 3
+CMD_CALIBRATE = 4
+CMD_RECALIBRATE = 5
+CMD_RESET_MODULE = 1381192737
 
 ERROR_MASK = (
-    0x00010000 | 0x00020000 | 0x00040000 | 0x00080000 | 0x00100000 |
-    0x00200000 | 0x00400000 | 0x00800000 | 0x01000000 | 0x02000000 | 0x10000000
+    0x00010000
+    | 0x00020000
+    | 0x00040000
+    | 0x00080000
+    | 0x00100000
+    | 0x00200000
+    | 0x00400000
+    | 0x00800000
+    | 0x01000000
+    | 0x02000000
+    | 0x10000000
 )
 
 # ==============================
@@ -73,6 +82,7 @@ exit_event = threading.Event()
 # ==============================
 #   CONFIG LOADING FUNCTIONS
 # ==============================
+
 
 def load_config(path=CONFIG_PATH):
     """Load config JSON, return as dict. Exits with log if critical error."""
@@ -87,14 +97,20 @@ def load_config(path=CONFIG_PATH):
         sys.exit(101)
     return cfg
 
+
 def get_shell_output(command):
     """Runs shell command and returns stdout as string (stripped)."""
     try:
-        output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT, universal_newlines=True)
+        output = subprocess.check_output(
+            command, shell=True, stderr=subprocess.STDOUT, universal_newlines=True
+        )
         return output.strip()
     except Exception as e:
-        print(f"[CONFIG] ERROR: Failed to run shell command for client_id: '{command}' -> {e}")
+        print(
+            f"[CONFIG] ERROR: Failed to run shell command for client_id: '{command}' -> {e}"
+        )
         return None
+
 
 def build_mqtt_settings(cfg):
     """Returns dict with all required MQTT settings built from config.json and rules."""
@@ -126,10 +142,9 @@ def build_mqtt_settings(cfg):
         print("[CONFIG] ERROR: Could not determine base client_id, exiting.")
         sys.exit(104)
 
-    mqtt_topic = f"device-{base_id}"     # topic (not a path, just the device ID)
-    rand_num = random.randint(10, 99)    # Always 2-digit
-    mqtt_client_id = f"{mqtt_topic}-{rand_num}"
-    mqtt_topic = f"device/{mqtt_topic}/distance"  # final topic with path
+    rand_num = random.randint(10, 99)  # Always 2-digit
+    mqtt_client_id = f"{base_id}-{rand_num}"
+    mqtt_topic = f"device/{base_id}/distance"  # final topic with path
     print(f"[MQTT] INFO: MQTT_TOPIC: {mqtt_topic}.")
     print(f"[MQTT] INFO: MQTT_CLIENT_ID: {mqtt_client_id}.")
 
@@ -144,7 +159,7 @@ def build_mqtt_settings(cfg):
         use_ws=mqtt_use_ws,
         protocol=mqtt_protocol,
         topic=mqtt_topic,
-        client_id=mqtt_client_id
+        client_id=mqtt_client_id,
     )
 
 
@@ -153,7 +168,7 @@ def build_mqtt_settings(cfg):
 # ==============================
 def write_reg(addr, value):
     """Write a 32-bit register at the given 16-bit address (big-endian)."""
-    data = addr.to_bytes(2, 'big') + value.to_bytes(4, 'big', signed=False)
+    data = addr.to_bytes(2, "big") + value.to_bytes(4, "big", signed=False)
     try:
         with SMBus(1) as bus:
             bus.write_i2c_block_data(I2C_ADDR, data[0], list(data[1:]))
@@ -161,33 +176,36 @@ def write_reg(addr, value):
         print(f"[I2C] Write error at reg 0x{addr:04X}: {e}")
         raise
 
+
 def read_reg(addr):
     """Read an unsigned 32-bit register at the given 16-bit address (big-endian)."""
     try:
         with SMBus(1) as bus:
-            addr_bytes = addr.to_bytes(2, 'big')
+            addr_bytes = addr.to_bytes(2, "big")
             bus.i2c_rdwr(i2c_msg.write(I2C_ADDR, addr_bytes))
             read = i2c_msg.read(I2C_ADDR, 4)
             bus.i2c_rdwr(read)
             data = bytes(read)
-            return int.from_bytes(data, 'big', signed=False)
+            return int.from_bytes(data, "big", signed=False)
     except Exception as e:
         print(f"[I2C] Read error at reg 0x{addr:04X}: {e}")
         raise
+
 
 def read_reg_signed(addr):
     """Read a signed 32-bit register at the given 16-bit address (big-endian)."""
     try:
         with SMBus(1) as bus:
-            addr_bytes = addr.to_bytes(2, 'big')
+            addr_bytes = addr.to_bytes(2, "big")
             bus.i2c_rdwr(i2c_msg.write(I2C_ADDR, addr_bytes))
             read = i2c_msg.read(I2C_ADDR, 4)
             bus.i2c_rdwr(read)
             data = bytes(read)
-            return int.from_bytes(data, 'big', signed=True)
+            return int.from_bytes(data, "big", signed=True)
     except Exception as e:
         print(f"[I2C] Read (signed) error at reg 0x{addr:04X}: {e}")
         raise
+
 
 def poll_not_busy(timeout=5.0):
     """Poll until Busy bit clears or timeout, else raise."""
@@ -199,12 +217,14 @@ def poll_not_busy(timeout=5.0):
         time.sleep(0.05)
     raise TimeoutError("Timeout waiting for busy to clear.")
 
+
 def check_no_errors(status):
     """Check if status has any error bits set."""
     if status & ERROR_MASK:
         print(f"[XM125] ERROR detected! Status: 0x{status:08X}")
         return False
     return True
+
 
 def do_reset():
     """Send RESET MODULE command and poll until not busy."""
@@ -219,6 +239,7 @@ def do_reset():
     print(f"[XM125] Status after reset: 0x{status:08X}")
     return status
 
+
 def initialize_detector():
     """Fully initialize, configure and calibrate the detector. Retries until success."""
     while not exit_event.is_set():
@@ -230,7 +251,7 @@ def initialize_detector():
                 print("[XM125] Error/busy on boot, retrying reset.")
                 time.sleep(0.5)
                 continue
-            print(f"[XM125] Writing tunable parameters...")
+            print("[XM125] Writing tunable parameters...")
             write_reg(REG_START, START_MM)
             write_reg(REG_END, END_MM)
             write_reg(REG_THRESHOLD_SENSITIVITY, THRESHOLD_SENS)
@@ -274,6 +295,7 @@ def initialize_detector():
 # ==============================
 class MQTTPublisher:
     """MQTT publisher for the XM125 data, all params dynamic."""
+
     def __init__(self, mqtt_settings):
         self.connected = False
         self._closed = False
@@ -284,11 +306,13 @@ class MQTTPublisher:
             mqtt.CallbackAPIVersion.VERSION2,
             client_id=self.settings["client_id"],
             protocol=self.settings["protocol"],
-            transport="websockets" if self.settings["use_ws"] else "tcp"
+            transport="websockets" if self.settings["use_ws"] else "tcp",
         )
 
         if self.settings["username"]:
-            self.client.username_pw_set(self.settings["username"], self.settings["password"])
+            self.client.username_pw_set(
+                self.settings["username"], self.settings["password"]
+            )
         self._setup_callbacks()
 
     def _setup_callbacks(self):
@@ -319,7 +343,7 @@ class MQTTPublisher:
                 self.client.connect(
                     self.settings["broker"],
                     self.settings["port"],
-                    keepalive=self.settings["keepalive"]
+                    keepalive=self.settings["keepalive"],
                 )
                 self.client.loop_start()
                 for _ in range(100):
@@ -372,9 +396,11 @@ def get_peaks(num_distances):
             peaks.append((None, None))
     return peaks
 
+
 def handle_exit_signal(signum, frame):
     print(f"[Main] Received exit signal {signum}, shutting down gracefully.")
     exit_event.set()
+
 
 def main():
     # Register signal handlers for graceful exit on systemd/service
@@ -401,7 +427,9 @@ def main():
                 poll_not_busy(5)
                 status = read_reg(REG_DETECTOR_STATUS)
                 if not check_no_errors(status):
-                    print("[XM125] Measurement error detected. Re-initializing detector...")
+                    print(
+                        "[XM125] Measurement error detected. Re-initializing detector..."
+                    )
                     initialize_detector()
                     continue
 
@@ -413,29 +441,41 @@ def main():
                 temp = (result >> 16) & 0xFFFF
 
                 if measure_error or calib_needed:
-                    print("[XM125] Measurement/calibration error. Re-initializing detector...")
+                    print(
+                        "[XM125] Measurement/calibration error. Re-initializing detector..."
+                    )
                     initialize_detector()
                     continue
 
                 if num_distances > 0:
                     peaks = get_peaks(num_distances)
-                    print(f"Status: 0x{status:08X} | Result: 0x{result:08X} | Peaks: {num_distances} | Temp: {temp} | NearEdge: {near_start} | Calib: {calib_needed} | Error: {measure_error}")
+                    print(
+                        f"Status: 0x{status:08X} | Result: 0x{result:08X} | Peaks: {num_distances} | Temp: {temp} | NearEdge: {near_start} | Calib: {calib_needed} | Error: {measure_error}"
+                    )
                     for i, (dist_mm, strength) in enumerate(peaks):
                         print(f"  Peak {i}: {dist_mm} mm, Strength: {strength}")
 
                     # --- Find strongest peak ---
                     strongest = None
                     if peaks and all(x is not None for x in peaks):
-                        valid = [(i, d, s) for i, (d, s) in enumerate(peaks) if d is not None and s is not None]
+                        valid = [
+                            (i, d, s)
+                            for i, (d, s) in enumerate(peaks)
+                            if d is not None and s is not None
+                        ]
                         if valid:
                             i_best, d_best, s_best = min(valid, key=lambda x: abs(x[2]))
-                            strongest = {"index": i_best, "distance_mm": d_best, "strength": s_best}
+                            strongest = {
+                                "index": i_best,
+                                "distance_mm": d_best,
+                                "strength": s_best,
+                            }
 
                     # Compose payload and publish only if peaks exist
                     msg = {
-                        'device_id': mqtt_settings["client_id"][:-3],
-                        'device_type': 'camera',
-                        "status": status, 
+                        "device_id": mqtt_settings["client_id"][:-3],
+                        "device_type": "camera",
+                        "status": status,
                         "result": result,
                         "temperature": temp,
                         "num_peaks": num_distances,
@@ -445,8 +485,8 @@ def main():
                             {"index": i, "distance_mm": d, "strength": s}
                             for i, (d, s) in enumerate(peaks)
                         ],
-                        'strongest_distance': strongest,
-                        'ts': int(time.time()),
+                        "strongest_distance": strongest,
+                        "ts": int(time.time()),
                     }
                     mqtt_pub.publish(msg)
                 # No peaks: do nothing (no print, no MQTT)
@@ -468,6 +508,7 @@ def main():
     finally:
         mqtt_pub.close()
         print("[Main] Exiting cleanly.")
+
 
 if __name__ == "__main__":
     main()

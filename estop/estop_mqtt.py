@@ -1,14 +1,15 @@
-import time
-import sys
-import traceback
 import json
-import random
-import subprocess
-import threading
-import signal
 import os
-from smbus2 import SMBus
+import random
+import signal
+import subprocess
+import sys
+import threading
+import time
+import traceback
+
 import paho.mqtt.client as mqtt
+from smbus2 import SMBus
 
 # =================== CONFIGURATION ===================
 I2C_BUS = 1
@@ -24,18 +25,18 @@ MUX_CH1 = 0x5000
 MUX_CH2 = 0x6000
 MUX_CH3 = 0x7000
 
-CONFIG_OS_SINGLE         = 0x8000
+CONFIG_OS_SINGLE = 0x8000
 # PGA bits (FSR): 6.144=0x0000, 4.096=0x0200, 2.048=0x0400, 1.024=0x0600, 0.512=0x0800, 0.256=0x0A00
-CONFIG_PGA_6_144V        = 0x0000
-CONFIG_PGA_4_096V        = 0x0200
-CONFIG_PGA_2_048V        = 0x0400
-CONFIG_PGA_1_024V        = 0x0600
-CONFIG_PGA_0_512V        = 0x0800
-CONFIG_PGA_0_256V        = 0x0A00
+CONFIG_PGA_6_144V = 0x0000
+CONFIG_PGA_4_096V = 0x0200
+CONFIG_PGA_2_048V = 0x0400
+CONFIG_PGA_1_024V = 0x0600
+CONFIG_PGA_0_512V = 0x0800
+CONFIG_PGA_0_256V = 0x0A00
 
-CONFIG_MODE_SINGLE       = 0x0100
-CONFIG_DR_128SPS         = 0x0080
-CONFIG_COMP_QUE_DISABLE  = 0x0003
+CONFIG_MODE_SINGLE = 0x0100
+CONFIG_DR_128SPS = 0x0080
+CONFIG_COMP_QUE_DISABLE = 0x0003
 
 # Map PGA bits -> FSR volts for proper V/bit per-channel math
 PGA_TO_FSR = {
@@ -49,25 +50,25 @@ PGA_TO_FSR = {
 
 # --------- BUTTON/THRESHOLD DEFAULTS (can be overridden by JSON) ---------
 # Defaults preserved here, but actual values will be read from config.
-DEFAULT_PRESS_THRESHOLD_V   = 0.4
+DEFAULT_PRESS_THRESHOLD_V = 0.4
 DEFAULT_RELEASE_THRESHOLD_V = 0.7
-DEFAULT_BUTTON_HOLD_TIME_S  = 0.25
+DEFAULT_BUTTON_HOLD_TIME_S = 0.25
 
 # Poll and other timings
 POLL_INTERVAL_SEC = 0.05
 I2C_ERROR_COOLDOWN_SEC = 1.0
-MIN_EVENT_INTERVAL = 5.0      # Minimum seconds between events to avoid spam
+MIN_EVENT_INTERVAL = 5.0  # Minimum seconds between events to avoid spam
 
 CONFIG_PATH = "/app/bodycam2/camera/conf/config.json"
 
 # --------- BATTERY MONITOR CONFIG ---------
-BATTERY_CHANNEL = 0                 # Read battery on CH0
-BATTERY_SAMPLE_INTERVAL_SEC = 1.0   # One burst per second
-BATTERY_BURST_SAMPLES = 10          # N samples per burst (median used)
-BATTERY_AVG_WINDOW = 30             # 30 bursts (~30 s) for steady output
-BATTERY_WRITE_PERIOD_SEC = 10.0     # Write every 10 s
+BATTERY_CHANNEL = 0  # Read battery on CH0
+BATTERY_SAMPLE_INTERVAL_SEC = 1.0  # One burst per second
+BATTERY_BURST_SAMPLES = 10  # N samples per burst (median used)
+BATTERY_AVG_WINDOW = 30  # 30 bursts (~30 s) for steady output
+BATTERY_WRITE_PERIOD_SEC = 10.0  # Write every 10 s
 BATTERY_OUTPUT_PATH = "/tmp/battery.dat"
-BATTERY_DECIMAL_PLACES = 4          # e.g. "3.1150"
+BATTERY_DECIMAL_PLACES = 4  # e.g. "3.1150"
 
 # Divider is currently reversed on hardware:
 # Rtop = 4.7k (battery -> AIN0), Rbottom = 30k (AIN0 -> GND)
@@ -92,6 +93,7 @@ AIN_ABSMAX_WARN = 3.55
 
 exit_event = threading.Event()
 
+
 # =================== UTILITY/MQTT (MATCHES IMU) ===================
 def get_shell_output(command):
     try:
@@ -100,8 +102,11 @@ def get_shell_output(command):
         )
         return output.strip()
     except Exception as e:
-        print(f"[CONFIG] ERROR: Failed to run shell command for client_id: '{command}' -> {e}")
+        print(
+            f"[CONFIG] ERROR: Failed to run shell command for client_id: '{command}' -> {e}"
+        )
         return None
+
 
 def load_config(path=CONFIG_PATH):
     try:
@@ -115,6 +120,7 @@ def load_config(path=CONFIG_PATH):
         sys.exit(101)
     return cfg
 
+
 def _get_cfg_float(cfg, key, default, min_ok=None, max_ok=None):
     """
     Safely parse a float from cfg[key]; accept int/float/str; apply bounds if given.
@@ -125,12 +131,17 @@ def _get_cfg_float(cfg, key, default, min_ok=None, max_ok=None):
         # Some configs store as strings; int/float are fine too
         f = float(val)
         if (min_ok is not None and f < min_ok) or (max_ok is not None and f > max_ok):
-            print(f"[CONFIG] WARN: '{key}'={f} out of range ({min_ok}, {max_ok}); using default {default}.")
+            print(
+                f"[CONFIG] WARN: '{key}'={f} out of range ({min_ok}, {max_ok}); using default {default}."
+            )
             return default
         return f
     except Exception:
-        print(f"[CONFIG] WARN: Could not parse '{key}' from config; using default {default}.")
+        print(
+            f"[CONFIG] WARN: Could not parse '{key}' from config; using default {default}."
+        )
         return default
+
 
 def build_mqtt_settings(cfg):
     for k in ("server", "port_s", "username", "client_id"):
@@ -154,10 +165,9 @@ def build_mqtt_settings(cfg):
         print("[CONFIG] ERROR: Could not determine base client_id, exiting.")
         sys.exit(104)
     # NOTE: topic ends with /button
-    mqtt_topic = f"device-{base_id}"
     rand_num = random.randint(10, 99)
-    mqtt_client_id = f"{mqtt_topic}-{rand_num}"
-    mqtt_topic = f"device/{mqtt_topic}/button"
+    mqtt_client_id = f"{base_id}-{rand_num}"
+    mqtt_topic = f"device/{base_id}/button"
     print(f"[MQTT] INFO: MQTT_TOPIC: {mqtt_topic}.")
     print(f"[MQTT] INFO: MQTT_CLIENT_ID: {mqtt_client_id}.")
     return dict(
@@ -171,8 +181,9 @@ def build_mqtt_settings(cfg):
         protocol=mqtt_protocol,
         topic=mqtt_topic,
         client_id=mqtt_client_id,
-        device_id=mqtt_client_id
+        device_id=mqtt_client_id,
     )
+
 
 class MQTTPublisher:
     def __init__(self, mqtt_settings):
@@ -183,10 +194,12 @@ class MQTTPublisher:
             mqtt.CallbackAPIVersion.VERSION2,
             client_id=self.settings["client_id"],
             protocol=self.settings["protocol"],
-            transport="websockets" if self.settings["use_ws"] else "tcp"
+            transport="websockets" if self.settings["use_ws"] else "tcp",
         )
         if self.settings["username"]:
-            self.client.username_pw_set(self.settings["username"], self.settings["password"])
+            self.client.username_pw_set(
+                self.settings["username"], self.settings["password"]
+            )
         self._setup_callbacks()
 
     def _setup_callbacks(self):
@@ -217,7 +230,7 @@ class MQTTPublisher:
                 self.client.connect(
                     self.settings["broker"],
                     self.settings["port"],
-                    keepalive=self.settings["keepalive"]
+                    keepalive=self.settings["keepalive"],
                 )
                 self.client.loop_start()
                 for _ in range(100):
@@ -254,9 +267,11 @@ class MQTTPublisher:
                 pass
             self._closed = True
 
+
 def handle_exit_signal(signum, frame):
     print(f"[Main] Received exit signal {signum}, shutting down gracefully.")
     exit_event.set()
+
 
 # ---------- I2C retry helper ----------
 def _i2c_retry(op, retries=3, delay=0.003):
@@ -273,6 +288,7 @@ def _i2c_retry(op, retries=3, delay=0.003):
             time.sleep(delay)
     raise last if last else RuntimeError("Unknown I2C error")
 
+
 # ---------- ADS1115 Helpers (thread-safe, per-channel PGA, dummy-read to settle) ----------
 def _ads1115_single_ended_voltage(bus, mux_bits, pga_bits, bus_lock):
     """
@@ -285,18 +301,26 @@ def _ads1115_single_ended_voltage(bus, mux_bits, pga_bits, bus_lock):
     lsb = fsr / 32768.0
 
     def _convert_once():
-        config = (CONFIG_OS_SINGLE |
-                  mux_bits |
-                  pga_bits |
-                  CONFIG_MODE_SINGLE |
-                  CONFIG_DR_128SPS |
-                  CONFIG_COMP_QUE_DISABLE)
-        cfg_bytes = config.to_bytes(2, 'big')
+        config = (
+            CONFIG_OS_SINGLE
+            | mux_bits
+            | pga_bits
+            | CONFIG_MODE_SINGLE
+            | CONFIG_DR_128SPS
+            | CONFIG_COMP_QUE_DISABLE
+        )
+        cfg_bytes = config.to_bytes(2, "big")
         with bus_lock:
-            _i2c_retry(lambda: bus.write_i2c_block_data(ADS1115_ADDR, REG_CONFIG, list(cfg_bytes)))
+            _i2c_retry(
+                lambda: bus.write_i2c_block_data(
+                    ADS1115_ADDR, REG_CONFIG, list(cfg_bytes)
+                )
+            )
         time.sleep(CONVERSION_DELAY_SEC)  # settle + conversion
         with bus_lock:
-            data = _i2c_retry(lambda: bus.read_i2c_block_data(ADS1115_ADDR, REG_CONVERSION, 2))
+            data = _i2c_retry(
+                lambda: bus.read_i2c_block_data(ADS1115_ADDR, REG_CONVERSION, 2)
+            )
         raw = (data[0] << 8) | data[1]
         if raw > 0x7FFF:
             raw -= 0x10000
@@ -307,13 +331,16 @@ def _ads1115_single_ended_voltage(bus, mux_bits, pga_bits, bus_lock):
     _ = _convert_once()
     return _convert_once()
 
+
 def read_ads1115_ch3(bus, bus_lock):
     # Pressure pad: keep original ±4.096 V headroom
     return _ads1115_single_ended_voltage(bus, MUX_CH3, PGA_CH3, bus_lock)
 
+
 def read_ads1115_ch0(bus, bus_lock):
     # Battery (current reversed divider): use ±4.096 V for headroom
     return _ads1115_single_ended_voltage(bus, MUX_CH0, PGA_CH0, bus_lock)
+
 
 def read_ads1115_ch0_burst(bus, bus_lock, n=10):
     """
@@ -330,16 +357,28 @@ def read_ads1115_ch0_burst(bus, bus_lock, n=10):
     # Now stay on CH0 at same PGA; repeatedly trigger conversions
     fsr = PGA_TO_FSR[PGA_CH0]
     lsb = fsr / 32768.0
-    config = (CONFIG_OS_SINGLE | MUX_CH0 | PGA_CH0 |
-              CONFIG_MODE_SINGLE | CONFIG_DR_128SPS | CONFIG_COMP_QUE_DISABLE)
-    cfg_bytes = config.to_bytes(2, 'big')
+    config = (
+        CONFIG_OS_SINGLE
+        | MUX_CH0
+        | PGA_CH0
+        | CONFIG_MODE_SINGLE
+        | CONFIG_DR_128SPS
+        | CONFIG_COMP_QUE_DISABLE
+    )
+    cfg_bytes = config.to_bytes(2, "big")
 
     for _ in range(max(1, n) - 1):
         with bus_lock:
-            _i2c_retry(lambda: bus.write_i2c_block_data(ADS1115_ADDR, REG_CONFIG, list(cfg_bytes)))
+            _i2c_retry(
+                lambda: bus.write_i2c_block_data(
+                    ADS1115_ADDR, REG_CONFIG, list(cfg_bytes)
+                )
+            )
         time.sleep(CONVERSION_DELAY_SEC)
         with bus_lock:
-            data = _i2c_retry(lambda: bus.read_i2c_block_data(ADS1115_ADDR, REG_CONVERSION, 2))
+            data = _i2c_retry(
+                lambda: bus.read_i2c_block_data(ADS1115_ADDR, REG_CONVERSION, 2)
+            )
         raw = (data[0] << 8) | data[1]
         if raw > 0x7FFF:
             raw -= 0x10000
@@ -348,13 +387,19 @@ def read_ads1115_ch0_burst(bus, bus_lock, n=10):
 
     # Median-of-burst
     samples.sort()
-    m = samples[len(samples)//2] if len(samples) % 2 == 1 else \
-        0.5 * (samples[len(samples)//2 - 1] + samples[len(samples)//2])
+    m = (
+        samples[len(samples) // 2]
+        if len(samples) % 2 == 1
+        else 0.5 * (samples[len(samples) // 2 - 1] + samples[len(samples) // 2])
+    )
     return m
+
 
 # =================== BUTTON DETECTOR WITH MOVING AVERAGE + HYSTERESIS ===================
 class ButtonMonitor:
-    def __init__(self, bus, bus_lock, mqtt_pub, mqtt_settings, press_v, release_v, hold_time_s):
+    def __init__(
+        self, bus, bus_lock, mqtt_pub, mqtt_settings, press_v, release_v, hold_time_s
+    ):
         self.bus = bus
         self.bus_lock = bus_lock
         self.mqtt_pub = mqtt_pub
@@ -366,7 +411,7 @@ class ButtonMonitor:
         self.last_press_time = 0
         self.press_start_time = None
         self.moving_window = []
-        self.state = 'RELEASED'
+        self.state = "RELEASED"
 
     def log(self, msg, important=False):
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
@@ -383,27 +428,35 @@ class ButtonMonitor:
                 now = time.time()
 
                 # --- Hysteresis-based state machine (using config thresholds) ---
-                if self.state == 'RELEASED':
+                if self.state == "RELEASED":
                     if avg_voltage < self.press_threshold_v:
-                        self.state = 'PRESSED'
+                        self.state = "PRESSED"
                         self.press_start_time = now
                         self.log(f"Button pressed (avg {avg_voltage:.3f} V)")
-                elif self.state == 'PRESSED':
+                elif self.state == "PRESSED":
                     if avg_voltage > self.release_threshold_v:
-                        self.state = 'RELEASED'
+                        self.state = "RELEASED"
                         self.press_start_time = None
                         self.log(f"Button released (avg {avg_voltage:.3f} V)")
                     else:
                         # Still pressed, check if held long enough and not sent recently
-                        held_time = now - self.press_start_time if self.press_start_time else 0
-                        if held_time >= self.hold_time_s and (now - self.last_press_time) > MIN_EVENT_INTERVAL:
+                        held_time = (
+                            now - self.press_start_time if self.press_start_time else 0
+                        )
+                        if (
+                            held_time >= self.hold_time_s
+                            and (now - self.last_press_time) > MIN_EVENT_INTERVAL
+                        ):
                             payload = {
-                                'device_id': self.mqtt_settings["client_id"][:-3],
-                                'device_type': 'camera',
-                                'ts': int(now),
-                                'status': 'emergency'
+                                "device_id": self.mqtt_settings["client_id"][:-3],
+                                "device_type": "camera",
+                                "ts": int(now),
+                                "status": "emergency",
                             }
-                            self.log(f"EMERGENCY BUTTON HELD {held_time:.1f}s (avg {avg_voltage:.3f}V), Sending MQTT", important=True)
+                            self.log(
+                                f"EMERGENCY BUTTON HELD {held_time:.1f}s (avg {avg_voltage:.3f}V), Sending MQTT",
+                                important=True,
+                            )
                             try:
                                 self.mqtt_pub.publish(payload)
                                 self.last_press_time = now
@@ -418,6 +471,7 @@ class ButtonMonitor:
                 traceback.print_exc()
                 time.sleep(I2C_ERROR_COOLDOWN_SEC)
 
+
 # =================== BATTERY MONITOR ===================
 class BatteryMonitor(threading.Thread):
     """
@@ -426,6 +480,7 @@ class BatteryMonitor(threading.Thread):
     Write to /tmp/battery.dat every 10 s with 4 decimals, reporting TRUE battery volts.
     Includes a guardrail warning if AIN0 approaches VDD + 0.3 (~3.6 V at 3.3 V supply).
     """
+
     def __init__(self, bus, bus_lock):
         super().__init__(daemon=True)
         self.bus = bus
@@ -452,7 +507,9 @@ class BatteryMonitor(threading.Thread):
             # Sample once per second cadence
             if now >= next_sample_ts:
                 try:
-                    v_node = read_ads1115_ch0_burst(self.bus, self.bus_lock, n=BATTERY_BURST_SAMPLES)
+                    v_node = read_ads1115_ch0_burst(
+                        self.bus, self.bus_lock, n=BATTERY_BURST_SAMPLES
+                    )
                     if v_node < 0.0:
                         v_node = 0.0
 
@@ -468,7 +525,9 @@ class BatteryMonitor(threading.Thread):
 
                     # Warn if near absolute input limit
                     if v_node > AIN_ABSMAX_WARN:
-                        print(f"[Battery] WARNING: AIN0 high ({v_node:.3f}V) near abs max (~3.6V). Check divider / supply.")
+                        print(
+                            f"[Battery] WARNING: AIN0 high ({v_node:.3f}V) near abs max (~3.6V). Check divider / supply."
+                        )
                 except Exception as e:
                     print(f"[Battery] I2C read error: {e}")
                     # keep going; just skip this sample
@@ -478,19 +537,26 @@ class BatteryMonitor(threading.Thread):
             if (now - self.last_write_ts) >= BATTERY_WRITE_PERIOD_SEC:
                 if self.window:
                     avg_v_node = sum(self.window) / len(self.window)
-                    avg_v_batt = avg_v_node * DIVIDER_SCALE  # node -> true battery voltage
+                    avg_v_batt = (
+                        avg_v_node * DIVIDER_SCALE
+                    )  # node -> true battery voltage
                     out = f"{avg_v_batt:.{BATTERY_DECIMAL_PLACES}f}\n"
                     self.safe_write_atomic(BATTERY_OUTPUT_PATH, out)
                     # Optional: print for visibility
-                    print(f"[Battery] Wrote {BATTERY_OUTPUT_PATH}: {out.strip()} (node={avg_v_node:.4f}V, scale={DIVIDER_SCALE:.6f})")
+                    print(
+                        f"[Battery] Wrote {BATTERY_OUTPUT_PATH}: {out.strip()} (node={avg_v_node:.4f}V, scale={DIVIDER_SCALE:.6f})"
+                    )
                 else:
                     out = f"{0.0:.{BATTERY_DECIMAL_PLACES}f}\n"
                     self.safe_write_atomic(BATTERY_OUTPUT_PATH, out)
-                    print(f"[Battery] Wrote {BATTERY_OUTPUT_PATH}: {out.strip()} (no samples yet)")
+                    print(
+                        f"[Battery] Wrote {BATTERY_OUTPUT_PATH}: {out.strip()} (no samples yet)"
+                    )
                 self.last_write_ts = now
 
             # Sleep a bit to avoid tight loop; wake early if exit_event set
             exit_event.wait(0.05)
+
 
 # =================== MAIN ===================
 def main():
@@ -504,13 +570,21 @@ def main():
     mqtt_settings = build_mqtt_settings(cfg)
 
     # --- Read button thresholds from JSON with safe defaults & sanity checks ---
-    press_threshold_v   = _get_cfg_float(cfg, "press_threshold_v",   DEFAULT_PRESS_THRESHOLD_V,   0.0, 5.0)
-    release_threshold_v = _get_cfg_float(cfg, "release_threshold_v", DEFAULT_RELEASE_THRESHOLD_V, 0.0, 5.0)
-    hold_time_s         = _get_cfg_float(cfg, "button_hold_time_s",  DEFAULT_BUTTON_HOLD_TIME_S,  0.0, 10.0)
+    press_threshold_v = _get_cfg_float(
+        cfg, "press_threshold_v", DEFAULT_PRESS_THRESHOLD_V, 0.0, 5.0
+    )
+    release_threshold_v = _get_cfg_float(
+        cfg, "release_threshold_v", DEFAULT_RELEASE_THRESHOLD_V, 0.0, 5.0
+    )
+    hold_time_s = _get_cfg_float(
+        cfg, "button_hold_time_s", DEFAULT_BUTTON_HOLD_TIME_S, 0.0, 10.0
+    )
 
     # Guard against mis-ordered thresholds (if someone fat-fingers the JSON)
     if release_threshold_v <= press_threshold_v:
-        print(f"[CONFIG] WARN: release_threshold_v ({release_threshold_v}) <= press_threshold_v ({press_threshold_v}); adjusting.")
+        print(
+            f"[CONFIG] WARN: release_threshold_v ({release_threshold_v}) <= press_threshold_v ({press_threshold_v}); adjusting."
+        )
         # Maintain at least 50 mV hysteresis
         release_threshold_v = press_threshold_v + 0.05
 
@@ -528,8 +602,13 @@ def main():
 
             # Run button monitor (blocking loop) with configured thresholds
             monitor = ButtonMonitor(
-                bus, bus_lock, mqtt_pub, mqtt_settings,
-                press_threshold_v, release_threshold_v, hold_time_s
+                bus,
+                bus_lock,
+                mqtt_pub,
+                mqtt_settings,
+                press_threshold_v,
+                release_threshold_v,
+                hold_time_s,
             )
             monitor.run()
 
@@ -547,6 +626,6 @@ def main():
         mqtt_pub.close()
         print("[Main] Exiting cleanly.")
 
+
 if __name__ == "__main__":
     main()
-
