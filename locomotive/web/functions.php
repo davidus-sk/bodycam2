@@ -1,6 +1,7 @@
 <?php
 
-use App\Config;
+use App\Base\View;
+use App\Base\Config;
 
 $_db = null;
 function db()
@@ -24,20 +25,24 @@ function db()
  * Generate URL
  * @param string $to
  * @param array $params
- * @param bool $window
+ * @param bool $changeBaseView
  * @return string
  */
-function url($to, array $params = [], $window = false): string
+function url(string $to, array $params = [], bool $changeBaseView = false): string
 {
-    $url = $window === true ? 'window.php' : 'index.php';
-    if (!$to || $to == '/') {
-        $url = 'index.php';
+    if ($changeBaseView === true && $to) {
+        $url = str_replace('.php', '', $to) . '.php';
     } else {
-        $url .= '?r=' . trim($to, ' /');
+        if (!$to || $to == '/') {
+            $url = 'index.php';
+        } else {
+            $url = 'index.php' . '?r=' . trim($to, ' /');
+        }
     }
 
     if ($params) {
-        $url .= '&' . http_build_query($params);
+        $sep = strpos($url, '?') !== false ? '&' : '?';
+        $url .=  $sep . http_build_query($params);
     }
 
     return $url;
@@ -61,27 +66,28 @@ function redirect($to, array $params = [], $permanent = false)
  * Renders a view
  * @param string $view view name.
  * @param array $params view variables (`name => value`).
+ * @param bool|string|null $layout
  * @return string rendered view content.
  * @throws RuntimeException if the view file does not exist or is not a file.
  * @throws Throwable If an error occurred during rendering.
- * @psalm-suppress RedundantCondition, NoValue
  */
-function render(string $view, array $params = []): string
+function render(
+    string $view,
+    array $params = [],
+    bool|string|null $layout = null,
+    array $layoutParams = [],
+): string {
+    return View::render($view, $params, $layout, $layoutParams);
+}
+
+/**
+ * Set layout
+ * @param string|boolean $layout
+ * @return void
+ */
+function layout(string|bool $layout): void
 {
-    $__viewPath = __DIR__ . '/views/' . trim($view, '\/') . '.php';
-    if (!file_exists($__viewPath) || !is_file($__viewPath)) {
-        throw new RuntimeException(sprintf('View file "%s" does not exist or is not a file.', $__viewPath));
-    }
-
-    if ($params) {
-        extract($params);
-    }
-
-    ob_start();
-    include $__viewPath;
-    $content = ob_get_clean();
-
-    return $content;
+    View::layout($layout);
 }
 
 /**
@@ -102,6 +108,71 @@ function jsonResponse($data, $responseCode = 200)
     die();
 }
 
+function _t(string $message, array $params = []): string
+{
+    // Replace placeholders in the translation with the provided values.
+    if ($params) {
+        foreach ($params as $placeholder => $value) {
+            $message = str_replace(":$placeholder", $value, $message);
+        }
+    }
+
+    return $message;
+}
+
+function isAdmin(): bool
+{
+    return isset($_SESSION['auth_role']) && $_SESSION['auth_role'] === 'admin';
+}
+
+/**
+ * Returns boolean representation of integer value
+ * @param int $value
+ * @return bool
+ */
+function booleanValue($value)
+{
+    return $value === 1 || (bool) $value === true || $value === '1';
+}
+
+/**
+ * Returns array with Yes/No values
+ * @return array
+ */
+function yesNoArray()
+{
+    return [1 => _t('Yes'), 0 => _t('No')];
+}
+
+
+/**
+ * Returns value Yes/No
+ * @return string
+ */
+function yesNoValue($value)
+{
+    return ((int) $value === 1) ? _t('Yes') : _t('No');
+}
+
+/**
+ * Returns array with Enabled/Disabled values
+ * @return array
+ */
+function enabledDisabledArray()
+{
+    return [0 => _t('Disabled'), 1 => _t('Enabled')];
+}
+
+
+/**
+ * Returns value Enabled/Disabled
+ * @return string
+ */
+function enabledDisabledNoValue($value)
+{
+    return ((int) $value === 1) ? _t('Enabled') : _t('Disabled');
+}
+
 /**
  * Prints a string to STDOUT.
  * @param string $string the string to print
@@ -110,6 +181,72 @@ function jsonResponse($data, $responseCode = 200)
 function stdout($string): void
 {
     echo $string;
+}
+
+
+function get_post(mixed $key = null): array
+{
+    if ($key !== null) {
+        return $_POST[$key] ?? [];
+    } else {
+        return $_POST;
+    }
+}
+
+function isPost(): bool
+{
+    return isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST';
+}
+
+function showMessages(): ?string
+{
+    $output = null;
+
+    if (!empty($_SESSION['_messages_'])) {
+        $output = '';
+        $output .= '<div class="messages ' . $_SESSION['_messages_']['t'] . '">';
+
+        foreach ($_SESSION['_messages_']['m'] as $m) {
+            $output .= '<div class="message">' . $m . ' <i class="message-close fa-solid fa-xmark"></i></div>';
+        }
+
+        $output .= '</div>';
+        unset($_SESSION['_messages_']);
+    }
+
+    return $output;
+}
+
+function set_messages(string $type, string|array $messages): void
+{
+    if (!is_array($messages)) {
+        $messages = [$messages];
+    }
+
+    if ($messages) {
+        $data = ['t' => $type, 'm' => []];
+
+        foreach ($messages as $e) {
+            $data['m'][] = $e;
+        }
+
+        $_SESSION['_messages_'] = $data;
+    }
+}
+
+function success_messages(string|array $messages): void
+{
+    set_messages('success', $messages);
+}
+
+function warning_message(string|array $messages): void
+{
+    set_messages('warning', $messages);
+}
+
+function error_message(string|array $messages): void
+{
+    set_messages('error', $messages);
 }
 
 function readConfig(bool $returnJson = false, array $overrideOptions = [])

@@ -1,6 +1,10 @@
 <?php
 
-namespace App;
+namespace App\Base;
+
+use App\Helpers\ArrayHelper;
+use Symfony\Component\Yaml\Exception\ParseException;
+use Symfony\Component\Yaml\Yaml;
 
 class Config
 {
@@ -69,14 +73,14 @@ class Config
         return $config;
     }
 
-
     /**
      * Sets a configuration value.
      * @param string $key The configuration key.
      * @param mixed $value The value to set for the given key.
+     * @param bool $merge Merge values
      * @return void
      */
-    public static function set(string $key, $value): void
+    public static function set(string $key, $value, bool $merge = true): void
     {
         if (is_null($key)) {
             self::$mergedConfig = $value;
@@ -100,10 +104,30 @@ class Config
                 $array = & $array[$part];
             }
 
-            $array[array_shift($parts)] = $value;
+            if ($merge === true) {
+                $part = array_shift($parts);
+                foreach ($value as $k => $val) {
+                    $array[$part][$k] = $val;
+                }
+            } else {
+                $array[array_shift($parts)] = $value;
+            }
         } else {
-            $config[$key] = $value;
+            if ($merge === true) {
+                if (is_array($value)) {
+                    foreach ($value as $k => $val) {
+                        $config[$key][$k] = $val;
+                    }
+                } else {
+                    $config[$key] = $value;
+                }
+            } else {
+                $config[$key] = $value;
+            }
         }
+
+        var_dump('----------------------');
+        print_r($config['mqtt']);
 
         self::$mergedConfig = $config;
     }
@@ -157,68 +181,40 @@ class Config
      */
     private static function readConfigs(?string $defaultConfigFile = null, ?string $userConfigFile = null): array
     {
+
         if (!$defaultConfigFile) {
-            $defaultConfigFile = __DIR__ . '/../config/config.default.ini';
+            $defaultConfigFile = realpath(__DIR__ . '/../../config/config.default.yaml');
         }
 
         if (!$userConfigFile) {
-            self::$userConfigPath = __DIR__ . '/../config/config.ini';
+            self::$userConfigPath = realpath(__DIR__ . '/../../config/config.yaml');
         } else {
             self::$userConfigPath = $userConfigFile;
         }
 
-        self::$defaultConfig = self::parseIniFileWithSections($defaultConfigFile);
-        self::$userConfig = self::parseIniFileWithSections(self::$userConfigPath);
+        // default config
+        self::$defaultConfig = Yaml::parseFile($defaultConfigFile);
 
-        self::$mergedConfig = self::mergeIniArrays(self::$defaultConfig, self::$userConfig);
+        // custom config
+        if (file_exists(self::$userConfigPath)) {
+            $userConfig = Yaml::parseFile(self::$userConfigPath);
+            self::$userConfig = ArrayHelper::merge(self::$defaultConfig, $userConfig);
+        }
+
+        self::$mergedConfig = ArrayHelper::merge(self::$defaultConfig, self::$userConfig);
 
         return self::$mergedConfig;
     }
 
     public static function save(): bool
     {
-        return self::writeIniFile(self::getMergedConfig(), self::$userConfigPath);
+        return self::writeFile(self::getMergedConfig(), self::$userConfigPath);
     }
 
-    private static function writeIniFile(array $assocArr, string $path, bool $hasSections = true): bool
+    private static function writeFile(array $data, string $path): bool
     {
-        // process array
-        $data = [];
-
-        foreach ($assocArr as $key => $val) {
-            if (is_array($val)) {
-                $data[] = "[$key]";
-
-                foreach ($val as $skey => $sval) {
-
-                    if (is_array($sval)) {
-                        foreach ($sval as $_skey => $_sval) {
-                            if (is_numeric($_skey)) {
-                                $data[] = $skey.'[] = '.(is_numeric($_sval) ? $_sval : (ctype_upper($_sval) ? $_sval : '"'.$_sval.'"'));
-                            } else {
-                                $data[] = $skey.'['.$_skey.'] = '.(is_numeric($_sval) ? $_sval : (ctype_upper($_sval) ? $_sval : '"'.$_sval.'"'));
-                            }
-                        }
-                    } else {
-
-                        if ($sval !== false) {
-                            $data[] = $skey.' = '.(is_numeric($sval) ? $sval : (ctype_upper($sval) ? $sval : '"'.$sval.'"'));
-                        } else {
-                            $data[] = $skey.' = ""';
-                        }
-                    }
-                }
-            } else {
-                if ($val !== false) {
-                    $data[] = $key.' = '.(is_numeric($val) ? $val : (ctype_upper($val) ? $val : '"'.$val.'"'));
-                } else {
-                    $data[] = $key.' = ""';
-                }
-            }
-
-            // empty line
-            $data[] = null;
-        }
+        // dump array to its YAML representation
+        $yaml = Yaml::dump($data, 4);
 
         // open file pointer, init flock options
         $fp = fopen($path, 'w');
@@ -243,7 +239,7 @@ class Config
         }
 
         // got lock, write data
-        fwrite($fp, implode(PHP_EOL, $data).PHP_EOL);
+        fwrite($fp, $yaml);
 
         // release lock
         flock($fp, LOCK_UN);
@@ -252,29 +248,5 @@ class Config
         return true;
     }
 
-    private static function parseIniFileWithSections($filename)
-    {
-        return parse_ini_file($filename, true, INI_SCANNER_TYPED);
-    }
 
-    private static function mergeIniArrays($defaultArray, $userArray)
-    {
-        $merged = [];
-
-        foreach ($userArray as $key => $value) {
-            if (isset($userArray[$key])) {
-                $merged[$key] = $userArray[$key];
-            } elseif (isset($defaultArray[$key])) {
-                $merged[$key] = $defaultArray[$key];
-            }
-        }
-
-        foreach ($defaultArray as $key => $value) {
-            if (!isset($merged[$key])) {
-                $merged[$key] = $defaultArray[$key];
-            }
-        }
-
-        return $merged;
-    }
 }

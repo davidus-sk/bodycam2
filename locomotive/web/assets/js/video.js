@@ -226,14 +226,41 @@ export class Video {
             //     this.removeDeviceFromGrid(deviceId);
             // });
 
-            // init pi camera
-            this.initPiCamera(deviceId, true, {
-                ai: device.ai,
-            });
+            // demo video
+            if (
+                [
+                    '000000000000100',
+                    '000000000000101',
+                    '000000000000102',
+                    '000000000000100',
+                ].indexOf(deviceId) !== -1
+            ) {
+                this.demoMp4(deviceId, true);
+            } else {
+                // init pi camera
+                this.initPiCamera(deviceId, true, {
+                    ai: device.ai,
+                });
 
-            this.showOverlayText(deviceId, 'status_text', 'Connecting');
+                this.showOverlayText(deviceId, 'status_text', 'Connecting');
+            }
 
-            //this.demoMp4(deviceId, true);
+            // events
+            $('#' + device.dom_id)
+                .hammer()
+                .bind('doubletap', (evt, touch) => {
+                    const $elm = $(evt.target);
+                    const _deviceId = $elm.attr('data-device-id') || false;
+
+                    if (_deviceId) {
+                        $elm.toggleClass('fullscreen');
+                        // const _device = this.getDeviceData(_deviceId);
+
+                        // if (_device && _device.picamera) {
+                        //     _device.picamera.setEnabledStatus(false);
+                        // }
+                    }
+                });
         }
     }
 
@@ -357,25 +384,31 @@ export class Video {
 
     demoMp4(deviceId, autoplay) {
         const mp4 = {
-            '0000000000000001': 'http://localhost/static/video2.mp4',
-            '100000003a0a2f6e': 'http://localhost/static/video3.mp4',
-            '00000000b203ade4': 'http://localhost/static/video1.mp4',
-            '0000000000000002': 'http://localhost/static/video4.mp4',
+            '000000000000100': 'http://localhost/static/video1.mp4',
+            '000000000000101': 'http://localhost/static/video2.mp4',
+            '000000000000102': 'http://localhost/static/video3.mp4',
+            '000000000000103': 'http://localhost/static/video4.mp4',
         };
 
-        const elementId = '#video_' + deviceId;
-        const $video = $(elementId);
-        const video = $video.get(0);
+        this.showOverlayText(deviceId, 'status_text', 'Connecting');
 
-        video.pause();
-        $video.attr('loop', 1).html('<source src="' + mp4[deviceId] + '" />');
-        video.load();
-        video
-            .play()
-            .then(() => {})
-            .catch(error => {
-                console.log(error);
-            });
+        setTimeout(() => {
+            this.hideOverlayText(deviceId, 'status_text');
+
+            const elementId = '#video_' + deviceId;
+            const $video = $(elementId);
+            const video = $video.get(0);
+
+            video.pause();
+            $video.attr('loop', 1).html('<source src="' + mp4[deviceId] + '" />');
+            video.load();
+            video
+                .play()
+                .then(() => {})
+                .catch(error => {
+                    console.log(error);
+                });
+        }, 1000);
     }
 
     showOverlayText(deviceId, overlayId, text, options) {

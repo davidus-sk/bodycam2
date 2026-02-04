@@ -167,7 +167,29 @@ body.sidebar-hide {
     user-select: none;
 }
 
+// ------------------------------------------------------------
 // MODAL
+// ------------------------------------------------------------
+
+#nav-top {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+
+    .nav-link {
+        color: #ccc;
+        padding-top: 0.3rem;
+        padding-bottom: 0.3rem;
+
+        &.active {
+            background-color: #3d3d47;
+        }
+    }
+}
+
+// ------------------------------------------------------------
+// MODAL
+// ------------------------------------------------------------
+
 .modal-win {
     position: absolute;
     top: 0;
@@ -198,6 +220,61 @@ body.sidebar-hide {
     box-shadow: 0px 2px 15px #000000;
 }
 
+// ------------------------------------------------------------
+// MESSAGES
+// ------------------------------------------------------------
+
+.messages {
+    padding: 10px;
+    background-color: #345871;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+    border: 1px solid #ffffff21;
+
+    .message {
+        font-weight: 500;
+        position: relative;
+        padding-right: 48px;
+        color: #dff2ff;
+    }
+
+    .message-close {
+        position: absolute;
+        top: 0px;
+        right: 0px;
+        font-size: 17px;
+        line-height: 1;
+        padding: 2px 10px;
+        cursor: pointer;
+
+        &:hover {
+            background-color: #b6edbf;
+        }
+    }
+
+    &.success {
+        background-color: #20613f;
+
+        .message {
+            color: #a6ffd1;
+        }
+    }
+    &.warning {
+        background-color: #735e18;
+
+        .message {
+            color: #ffd340;
+        }
+    }
+    &.error {
+        background-color: #8b2d2d;
+
+        .message {
+            color: #ffc5c5;
+        }
+    }
+}
+
 // MQTT
 #mqtt-status {
     display: flex;
@@ -219,7 +296,10 @@ body.sidebar-hide {
     }
 }
 
+// ------------------------------------------------------------
 // VIDEO
+// ------------------------------------------------------------
+
 #video-grid {
     display: grid;
     height: 100%;
@@ -385,6 +465,17 @@ body.sidebar-hide {
     // place-content: center;
     // overflow: hidden;
 
+    &.fullscreen {
+        position: absolute;
+        top: 2px;
+        left: $sidebarWidth + 5;
+        right: 5px;
+        bottom: 5px;
+        width: auto;
+        height: auto;
+        z-index: 100;
+    }
+
     video {
         position: absolute;
         top: 0;
@@ -486,9 +577,9 @@ body.sidebar-hide {
     }
 }
 
-// -------------------------------------------------------------------------------------
+// ------------------------------------------------------------
 // CARDS
-// -------------------------------------------------------------------------------------
+// ------------------------------------------------------------
 
 .card-dark {
     background-color: #111114;
@@ -496,9 +587,59 @@ body.sidebar-hide {
     color: #d8d8d8;
 }
 
-// -------------------------------------------------------------------------------------
+// ------------------------------------------------------------
+// FORMS
+// ------------------------------------------------------------
+
+.mt-label {
+    margin-top: 25px;
+}
+
+.is-error {
+    .form-label {
+        color: #bb6b6b;
+    }
+    .form-control {
+        border-color: #653d3d;
+        background-color: #292121;
+        color: #ffc4c4;
+
+        &:focus {
+            box-shadow: 0 0 0 0.25rem rgb(253 13 13 / 25%);
+        }
+    }
+}
+
+input.is-error,
+.form-control.is-error {
+    border-color: #653d3d;
+    background-color: #292121;
+    color: #ffc4c4;
+    &:focus {
+        box-shadow: 0 0 0 0.25rem rgb(253 13 13 / 25%);
+    }
+}
+
+.form-error-message {
+    display: inline-block;
+    color: #bb6b6b;
+    font-weight: 500;
+    font-size: 0.8rem;
+    margin-top: 2px;
+}
+
+.form-subtitle {
+    margin: 2rem 0 1rem 0;
+    padding-bottom: 0.4rem;
+    font-size: 1rem;
+    color: #0c9d5b;
+    font-weight: 600;
+}
+
+// ------------------------------------------------------------
 // BUTTONS
-// -------------------------------------------------------------------------------------
+// ------------------------------------------------------------
+
 .btn-h-100 {
     height: 100px;
 }
@@ -569,9 +710,9 @@ body.sidebar-hide {
     transition: box-shadow 0.2s ease-in;
 }
 
-// -------------------------------------------------------------------------------------
+// ------------------------------------------------------------
 // MAP
-// -------------------------------------------------------------------------------------
+// ------------------------------------------------------------
 .map-video-wrapper {
     height: 100%;
     display: grid;
@@ -768,9 +909,9 @@ body.sidebar-hide {
     }
 }
 
-// -------------------------------------------------------------------------------------
+// ------------------------------------------------------------
 // MEDIA QUERIES
-// -------------------------------------------------------------------------------------
+// ------------------------------------------------------------
 
 @media (min-width: 48em) {
 }

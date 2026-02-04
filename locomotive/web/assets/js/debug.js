@@ -92,18 +92,19 @@ export class Debug {
         config.iceCandidatePoolSize = 10;
         //config.bundlePolicy = 'max-bundle';
 
-        // STUN servers
-        if (this.options.camera.stunUrls && this.options.camera.stunUrls.length > 0) {
-            config.iceServers.push({ urls: this.options.camera.stunUrls });
+        // STUN, TURN servers
+        if (
+            this.options.camera.iceServers &&
+            typeof this.options.camera.iceServers === 'object' &&
+            this.options.camera.iceServers.length
+        ) {
+            config.iceServers = this.options.camera.iceServers;
         }
 
-        // TURN servers
-        if (this.options.camera.turnUrls && typeof this.options.camera.turnUrls === 'object') {
-            config.iceServers.push({
-                urls: this.options.camera.turnUrls,
-                username: this.options.camera.turnUsername,
-                credential: this.options.camera.turnPassword,
-            });
+        // ICE transport policy - use 'relay' to force TURN for cross-network connections
+        // Options: 'all' (default), 'relay' (force TURN only)
+        if (this.options.camera.iceTransportPolicy) {
+            config.iceTransportPolicy = this.options.camera.iceTransportPolicy;
         }
 
         return config;

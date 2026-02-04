@@ -397,7 +397,7 @@ export class MapView {
                 });
             case 'equipment':
                 return L.divIcon({
-                    className: 'map-icon map-icon-pulse emergency',
+                    className: 'map-icon emergency',
                     html: '<div class="inner"></div>',
                     iconSize: [38, 38],
                 });
@@ -502,12 +502,12 @@ export class MapView {
             var marker = new L.Marker(obj.gps, {
                 camera: obj,
                 icon: this.getMapIcon(type),
-            }).on('click', function () {
-                self.emit('map_marker_click', this, obj);
+            }).on('click', () => {
+                this.emit('map_marker_click', this, obj);
             });
 
-            marker.on('contextmenu', function (e) {
-                self.removeMapObject(e.target.options.camera.device_id);
+            marker.on('contextmenu', e => {
+                this.removeMapObject(e.target.options.camera.device_id);
             });
 
             // markers - feature group (markers are added to separate groups)

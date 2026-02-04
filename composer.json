@@ -2,7 +2,8 @@
     "name": "pi/bodycam2",
     "require": {
         "php-mqtt/client": "^2.3",
-        "symfony/cache": "^6.4"
+        "symfony/cache": "^6.4",
+        "symfony/yaml": "^7.4"
     },
     "autoload": {
         "psr-4": {

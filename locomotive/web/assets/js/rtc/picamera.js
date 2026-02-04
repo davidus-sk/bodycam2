@@ -76,12 +76,7 @@ export class PiCamera {
             isMicOn: false,
             isSpeakerOn: false,
             showClock: false,
-            stunUrl: '',
-            stunUrls: [],
-            turnUrl: '',
-            turnUrls: [],
-            turnUsername: '',
-            turnPassword: '',
+            iceServers: [],
             iceTransportPolicy: 'all',
             ai: false,
         };
@@ -89,8 +84,7 @@ export class PiCamera {
         let opt = { ...defaultOptions, ...options };
 
         // remove duplicates
-        opt.stunUrls = [...new Set(opt.stunUrls)];
-        opt.turnUrls = [...new Set(opt.turnUrls)];
+        opt.iceServers = [...new Set(opt.iceServers)];
 
         return opt;
     }
@@ -346,12 +340,10 @@ export class PiCamera {
     getRtcConfig() {
         let config = {};
 
-        config.iceServers = [];
-        // config.iceCandidatePoolSize = 1;
-        // config.icetransportpolicy = 'relay';
-        // config.rtcpmuxpolicy = 'negotiate';
+        // ---------------------------------------------
+        // ICE servers (STUN, TURN)
+        // ---------------------------------------------
 
-        // ICE stun, turn configuration:
         // iceServers (optional)
         // An array of objects, each describing one server which may be used by
         // the ICE agent; these are typically STUN and/or TURN servers. If this isn't
@@ -366,62 +358,14 @@ export class PiCamera {
         // The credential to use when logging into the server.
         // This is only used if the object represents a TURN server
 
-        // ---------------------------------------------
-        // STUN servers
-        // ---------------------------------------------
-        if (
-            this.options.stunUrl &&
-            typeof this.options.stunUrl === 'string' &&
-            this.options.stunUrl.length
-        ) {
-            // string
-            config.iceServers.push({
-                urls: this.options.stunUrl,
-            });
-        }
+        config.iceServers = [];
 
         if (
-            this.options.stunUrls &&
-            typeof this.options.stunUrls === 'object' &&
-            this.options.stunUrls.length
+            this.options.iceServers &&
+            typeof this.options.iceServers === 'object' &&
+            this.options.iceServers.length
         ) {
-            // array
-            for (const url of this.options.stunUrls) {
-                config.iceServers.push({
-                    urls: url,
-                });
-            }
-        }
-
-        // ---------------------------------------------
-        // TURN servers
-        // ---------------------------------------------
-        if (
-            this.options.turnUrl &&
-            typeof this.options.turnUrl === 'string' &&
-            this.options.turnUrl.length
-        ) {
-            // string
-            config.iceServers.push({
-                urls: this.options.turnUrl,
-                username: this.options.turnUsername,
-                credential: this.options.turnPassword,
-            });
-        }
-
-        if (
-            this.options.turnUrls &&
-            typeof this.options.turnUrls === 'object' &&
-            this.options.turnUrls.length
-        ) {
-            // array
-            for (const url of this.options.turnUrls) {
-                config.iceServers.push({
-                    urls: url,
-                    username: this.options.turnUsername,
-                    credential: this.options.turnPassword,
-                });
-            }
+            config.iceServers = this.options.iceServers;
         }
 
         // ICE transport policy - use 'relay' to force TURN for cross-network connections
@@ -701,6 +645,10 @@ export class PiCamera {
         }
     }
 
+    setEnabledStatus = enabled => {
+        this.mediaElement.srcObject.getTracks().forEach(t => (t.enabled = enabled));
+    };
+
     snapshot = (quality = 30) => {
         if (this.dataChannel?.readyState === 'open') {
             quality = Math.max(0, Math.min(quality, 100));
@@ -722,9 +670,9 @@ export class PiCamera {
         }
     };
 
-    toggleTrack = (isOn, stream) => {
+    toggleTrack = (enabled, stream) => {
         stream?.getAudioTracks().forEach(track => {
-            track.enabled = isOn;
+            track.enabled = enabled;
         });
     };
 

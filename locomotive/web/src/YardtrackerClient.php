@@ -2,6 +2,7 @@
 
 namespace App;
 
+use App\Base\Config;
 use App\HttpClient;
 
 class YardtrackerClient

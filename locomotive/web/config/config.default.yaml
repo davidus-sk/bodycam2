@@ -1,0 +1,76 @@
+app:
+    debug: false
+
+video:
+    debug: false
+
+# PI camera
+camera:
+    debug: false
+    timeout: 30000
+    microphone: false
+    speaker: false
+    showClock: false
+
+    # iceServers (optional)
+    # An array of objects, each describing one server which may be used by
+    # the ICE agent; these are typically STUN and/or TURN servers. If this isn't
+    # specified, the connection attempt will be made with no STUN or TURN server
+    # available, which limits the connection to local peers.
+
+    # 'urls':
+    # This required property is either a single string or an array of strings,
+    # each specifying a URL which can be used to connect to the server.
+    #
+    # 'credential' (optional)
+    # The credential to use when logging into the server.
+    # This is only used if the object represents a TURN server
+    iceServers: []
+    # iceServers:
+    #     - urls: "stun:34.200.4.20:3478"
+    #     - urls: "turn:34.200.4.20:3478"
+    #       username:
+    #       credential:
+    # stunUrls: null
+
+    # A string representing the current ICE transport policy. Possible values are:
+    #
+    # "all"    - All ICE candidates will be considered. This is the default value.
+    # "public" - Only ICE candidates with public IP addresses will be considered. (deprecated)
+    # "relay"  - Only ICE candidates whose IP addresses are being relayed,
+    #            such as those being passed through a TURN server, will be considered.
+    iceTransportPolicy: all
+
+# MQTT configuration
+mqtt:
+    debug: false
+    host: 2c843f82e5314984954de770e782a2ff.s1.eu.hivemq.cloud
+    port: 8884
+    path: /mqtt
+    username:
+    clientId:
+    password:
+    keepalive: 30
+    reconnectPeriod: 5000
+    protocol: wss
+    protocolVersion: 5
+
+# map configuration
+map:
+    yardtracker_api_token:
+
+# debug view
+debug:
+    debug: false
+    devices:
+        00000000acc2b845: "Bodycam David Test"
+        10000000e2b46e35: "Bodycam Al Test"
+        000000008067af75: valdosta-1
+        100000003a0a2f6e: "Marek PI"
+        5ee668d099cbacbc: "Marek Ezviz RTSP"
+        fbd6c11008ca16c2: "David Cam 1 RTSP"
+        40635474005a038f: "David Cam 2 RTSP"
+        10000000942b1fb1: "David Webrtc /dev/video0"
+        115f2c5560acf4da: "David Ffmpeg /dev/video99"
+        demo000000000100: "Demo Video 1"
+        demo000000000101: "Demo Video 2"

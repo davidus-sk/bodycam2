@@ -1,6 +1,6 @@
 <?php
 
-use App\Config;
+use App\Base\Config;
 
 $deviceId = getDeviceId();
 $lastDeviceId = $_COOKIE['last_device_id'] ?? null;
