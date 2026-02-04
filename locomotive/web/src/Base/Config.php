@@ -126,9 +126,6 @@ class Config
             }
         }
 
-        var_dump('----------------------');
-        print_r($config['mqtt']);
-
         self::$mergedConfig = $config;
     }
 
