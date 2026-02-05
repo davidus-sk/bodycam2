@@ -42,6 +42,8 @@ camera:
     iceTransportPolicy: all
 
 # MQTT configuration
+# live: 2c843f82e5314984954de770e782a2ff.s1.eu.hivemq.cloud
+# test: 0ae03b54704146e1998372ec7e832aee.s1.eu.hivemq.cloud
 mqtt:
     debug: false
     host: 2c843f82e5314984954de770e782a2ff.s1.eu.hivemq.cloud

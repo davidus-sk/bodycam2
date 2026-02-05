@@ -97,8 +97,8 @@ export class Video {
     mqttConnected() {
         if (this.mqtt) {
             // received camera status
-            this.debug('[video] %s | mqtt subscribe: device/#', this.mqtt.clientId);
-            this.mqtt.subscribe('device/#');
+            //this.debug('[video] %s | mqtt subscribe: device/#', this.mqtt.clientId);
+            //this.mqtt.subscribe('device/#');
 
             // got the message
             this.mqtt.on('message', (topic, message) => {
@@ -138,6 +138,7 @@ export class Video {
     }
 
     handleDeviceStatusMessage(topic, payload) {
+        // remote device id
         const deviceId = payload.device_id ?? null;
 
         if (!deviceId || !deviceId.length) {
@@ -149,8 +150,6 @@ export class Video {
             return;
         }
 
-        this.debug('[video] %s | status - %s', deviceId, topic);
-
         // get device data (only if is already in the video grid)
         const device = this.getDeviceData(deviceId);
 
@@ -158,14 +157,29 @@ export class Video {
         if (device) {
             //this.debug('[video] %s | the camera is already in the grid', deviceId);
 
+            // shutdown procedure
+            if (payload.status === 'shutdown') {
+                this.debug(
+                    '[video] %s | status - %creceived SHUTDOWN procedure - terminating',
+                    deviceId,
+                    ConsoleColors.red
+                );
+
+                // remove camera
+                this.removeDeviceFromGrid(device.device_id);
+
+                return;
+            }
+
             // update device data
             device.ts = payload.ts;
             device.status = payload.status;
             device.ai = payload.ai === true;
 
             const cam = device?.picamera;
+
+            // webrtc status - connected
             const isConnected = this.isDeviceConnected(deviceId);
-            const status = this.getCameraStatus(deviceId);
 
             // this.debug(
             //     '[video] %s |  ^ - connected: %s (status: %s)',
@@ -183,6 +197,9 @@ export class Video {
 
                 // device disconnected
             } else {
+                // webrtc connection status
+                const status = this.getCameraStatus(deviceId);
+
                 // reconnect picamera only if not already connecting
                 if (cam && ['connecting'].indexOf(status) === -1) {
                     this.debug('[video] %s | %creconnecting', deviceId, ConsoleColors.yellow);

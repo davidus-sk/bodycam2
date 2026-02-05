@@ -6,7 +6,7 @@ import { ConsoleColors } from './utils.js';
 export class App {
     options = {};
 
-    LIVE_DEVICE_TIMEOUT = 30;
+    LIVE_DEVICE_TIMEOUT = 25;
 
     mqtt = undefined;
     mqttClientId = undefined;
@@ -85,20 +85,22 @@ export class App {
     }
 
     mqttConnected() {
-        this.debug('[app  ] %s | mqtt connected', this.mqtt.client.options.clientId);
         this.$mqttStatus.addClass('connected').html('ONLINE');
 
-        this._connectedDevices = new Array();
+        this.debug('[app  ] %s | mqtt connected', this.mqtt.client.options.clientId);
 
-        this.mqtt.subscribe('device/+/status');
+        const statusRegex = new RegExp(`^device\/[0-9a-zA-Z\-\_]+/status$`);
+        this._connectedDevices = [];
+
+        // status message
+        //this.mqtt.subscribe('device/+/status');
+        this.mqtt.subscribe('device/#');
+        this.debug('[app  ] %s | mqtt subscribe: device/#', this.mqtt.client.options.clientId);
+        let data = {};
 
         this.mqtt.on('message', (topic, message) => {
             try {
-                const data = JSON.parse(message);
-
-                if (data && data.device_id) {
-                    this._connectedDevices[data.device_id] = data;
-                }
+                data = JSON.parse(message);
             } catch (e) {
                 this.debug(
                     '[video] %s | topic: %s - %cmessage parsing error: %s',
@@ -109,16 +111,20 @@ export class App {
                 );
             }
 
+            if (data && data.device_id && statusRegex.test(topic)) {
+                this.debug('[app  ] %s | status - %s', data.device_id, topic);
+                this._connectedDevices[data.device_id] = data;
+            }
+
             this.updateLiveDevicesCount();
         });
     }
 
     mqttDisconnected() {
-        this.debug('[app  ] %s | mqtt disconnected', this.mqtt.client.options.clientId);
         this.$mqttStatus.removeClass('connected').html('OFFLINE');
+        this.debug('[app  ] %s | mqtt disconnected', this.mqtt.client.options.clientId);
 
         this._connectedDevices = [];
-
         this.updateLiveDevicesCount();
     }
 
@@ -127,11 +133,11 @@ export class App {
             let now = getTimestamp();
 
             for (const deviceId in this._connectedDevices) {
-                const deviceTs = this._connectedDevices[deviceId]['ts'];
-                const delta = now - deviceTs;
+                const d = this._connectedDevices[deviceId];
+                const delta = now - d['ts'];
 
                 // remove old map object
-                if (delta > this.LIVE_DEVICE_TIMEOUT) {
+                if (d['status'] === 'shutdown' || delta > this.LIVE_DEVICE_TIMEOUT) {
                     delete this._connectedDevices[deviceId];
                 }
             }

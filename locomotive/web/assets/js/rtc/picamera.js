@@ -100,10 +100,12 @@ export class PiCamera {
             const clientId = mqttClient.client.options.clientId;
 
             // topics
-            this.mqttTopicLocalSdp = `${this.cameraId}/sdp/${clientId}/offer`;
             this.mqttTopicRemoteSdp = `${this.cameraId}/sdp/${clientId}`;
-            this.mqttTopicLocalIce = `${this.cameraId}/ice/${clientId}/offer`;
             this.mqttTopicRemoteIce = `${this.cameraId}/ice/${clientId}`;
+
+            // offer
+            this.mqttTopicLocalSdp = `${this.cameraId}/sdp/${clientId}/offer`;
+            this.mqttTopicLocalIce = `${this.cameraId}/ice/${clientId}/offer`;
 
             this.mqttClientId = clientId;
 
@@ -157,7 +159,7 @@ export class PiCamera {
             this.debug(
                 '[picam] %s | webrtc - %ccreateOffer()',
                 this.cameraId,
-                ConsoleColors.pink,
+                ConsoleColors.green,
                 '| connectionState: ' + this.peer.connectionState,
                 '| signalingState: ' + this.peer.signalingState
             );
@@ -188,7 +190,7 @@ export class PiCamera {
             // send local SDP offer to the mqtt broker
             this.mqtt.publish(this.mqttTopicLocalSdp, JSON.stringify(this.offer));
             this.debug(
-                '[picam] %s | webrtc - %c>>> sending local SDP (offer)',
+                '[picam] %s | webrtc - %csending local SDP (offer)',
                 this.cameraId,
                 ConsoleColors.green,
                 '> ' + this.mqttTopicLocalSdp
@@ -397,7 +399,7 @@ export class PiCamera {
         peer.onicegatheringstatechange = event => this.onicegatheringstatechange(event);
         peer.oniceconnectionstatechange = event => this.oniceconnectionstatechange(event);
         peer.ontrack = event => this.ontrack(event);
-        peer.addEventListener('icecandidateerror', event => this.onicecandidateerror(event));
+        peer.onicecandidateerror = event => this.onicecandidateerror(event);
 
         /*
         this.dataChannel = peer.createDataChannel(generateClientId(10), {
@@ -453,7 +455,7 @@ export class PiCamera {
         let reconnect = false;
 
         this.debug(
-            '[picam] %s | webrtc - %conconnectionstatechange: %s',
+            '[picam] %s | webrtc - onconnectionstatechange: %c%s',
             this.cameraId,
             ConsoleColors.yellow,
             this.peer.connectionState
@@ -483,16 +485,16 @@ export class PiCamera {
         // event
         this.onConnectionState?.(this.peer.connectionState);
 
-        if (reconnect) {
-            this.reconnect();
-        }
+        // if (reconnect) {
+        //     this.reconnect();
+        // }
     }
 
     onsignalingstatechange(event) {
         if (this.peer) {
             if (this.peer.signalingState === 'stable') {
                 this.debug(
-                    '[picam] %s | webrtc - %consignalingstatechange: %s',
+                    '[picam] %s | webrtc - onsignalingstatechange: %c%s',
                     this.cameraId,
                     ConsoleColors.blue,
                     this.peer.signalingState
@@ -727,8 +729,7 @@ export class PiCamera {
             ConsoleColors.pink,
             sdp.type,
             '| connectionState: ' + this.peer.connectionState,
-            '| signalingState: ' + this.peer.signalingState,
-            '| topic: ' + this.mqttTopicRemoteSdp
+            '| signalingState: ' + this.peer.signalingState
             //sdp.sdp
         );
 
