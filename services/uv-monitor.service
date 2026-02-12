@@ -1,0 +1,13 @@
+[Unit]
+Description=UV / Ambient Light Monitor
+After=multi-user.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/app/bodycam2/venv/bin/python3 /app/bodycam2/uv/uv_monitor.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
