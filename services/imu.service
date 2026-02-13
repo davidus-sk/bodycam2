@@ -1,13 +1,14 @@
 [Unit]
-Description=IMU Fall Detection to MQTT Publisher Service
+Description=IMU Fall Detection (ICM-42605) Service
 After=network.target
 
 [Service]
-Type=simple
+Type=notify
 WorkingDirectory=/app/bodycam2/imu/
 ExecStart=/app/bodycam2/venv/bin/python3 /app/bodycam2/imu/imu_fall_detect.py
 Restart=always
-RestartSec=1
+RestartSec=3
+WatchdogSec=15
 Environment=PYTHONUNBUFFERED=1
 
 [Install]
