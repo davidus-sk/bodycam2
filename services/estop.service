@@ -2,17 +2,19 @@
 Description=E-STOP MQTT Monitoring Service
 After=multi-user.target
 Wants=multi-user.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStart=/app/bodycam2/venv/bin/python3 /app/bodycam2/estop/estop_mqtt.py
+ExecStart=/app/bodycam2/venv/bin/python3 /app/bodycam2/estop/estop_mqtt.py --skip-mqtt --led-feedback
 Restart=always
-RestartSec=1
+RestartSec=3
 User=root
 WorkingDirectory=/app/bodycam2/estop/
-StandardOutput=syslog
-StandardError=syslog
+StandardOutput=journal
+StandardError=journal
 SyslogIdentifier=estop-service
+Environment=PYTHONUNBUFFERED=1
 
 [Install]
 WantedBy=multi-user.target
