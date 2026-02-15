@@ -91,7 +91,7 @@ if __name__ == "__main__":
             GPIO.output(25, GPIO.HIGH)
 
             # Example: Send "PI_DATA" on Channel 0 [cite: 140]
-            radio.send_packet(channel=0, message="PI_DATA")
+            radio.send_packet(channel=0, message="E-STOP")
 
             # Start listening for incoming RF packets [cite: 316]
             radio.listen_for_data(duration=15)

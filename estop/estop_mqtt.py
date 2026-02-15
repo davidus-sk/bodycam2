@@ -13,6 +13,7 @@ Either button fires an emergency MQTT event (QoS 1 for reliable delivery).
 Output:
     MQTT publish to  device/{base_id}/button
     Payload: {"device_id": "...", "device_type": "camera", "ts": ..., "status": "emergency"}
+    Log file: /tmp/estop.log
 
 Usage:
     python3 estop_mqtt.py              # normal (MQTT required)
@@ -21,6 +22,7 @@ Usage:
 
 import argparse
 import json
+import logging
 import os
 import random
 import signal
@@ -36,28 +38,31 @@ import paho.mqtt.client as mqtt
 # ---------------------------------------------------------------------------
 #  Configuration
 # ---------------------------------------------------------------------------
-ESTOP_GPIO_PINS = [8, 11]            # GPIO 8 and 11
+ESTOP_GPIO_PINS = [8]               # GPIO 11 disabled until hardware fix
 GPIO_CHIP = "/dev/gpiochip0"
 LED_GPIO_PIN = 22                    # Optional visual feedback LED
 
-# Debounce: after detecting a falling edge, confirm the pin is still LOW for
-# this many milliseconds.  100 ms is short enough for genuine emergency use
-# but filters electrical noise on top of the hardware RC filter.
 DEBOUNCE_CONFIRM_SEC = 0.100
-
-# Minimum seconds between published e-stop events.
-# Prevents MQTT flood if a worker mashes the button repeatedly, while still
-# allowing a re-trigger quickly if the first message was lost (QoS 1 helps,
-# but belt-and-suspenders).
 MIN_EVENT_INTERVAL_SEC = 3.0
-
-# Heartbeat: log a line every N seconds so you can confirm the process lives.
 HEARTBEAT_INTERVAL_SEC = 60.0
 
 CONFIG_PATH = "/app/bodycam2/camera/conf/config.json"
+LOG_FILE = "/tmp/estop.log"
 
-# MQTT QoS 1 -- broker ACKs receipt.  Paho auto-retries on failure.
 MQTT_QOS = 1
+
+# ---------------------------------------------------------------------------
+#  Logging
+# ---------------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler(),
+    ],
+)
+log = logging.getLogger("estop")
 
 # ---------------------------------------------------------------------------
 #  Globals
@@ -68,10 +73,6 @@ exit_event = threading.Event()
 # ---------------------------------------------------------------------------
 #  Utility / Config
 # ---------------------------------------------------------------------------
-def ts():
-    return time.strftime("%Y-%m-%d %H:%M:%S")
-
-
 def get_shell_output(command):
     try:
         output = subprocess.check_output(
@@ -79,7 +80,7 @@ def get_shell_output(command):
         )
         return output.strip()
     except Exception as e:
-        print(f"[{ts()}] [CONFIG] ERROR: shell command failed: '{command}' -> {e}")
+        log.error("Shell command failed: '%s' -> %s", command, e)
         return None
 
 
@@ -88,13 +89,13 @@ def load_config(path=CONFIG_PATH):
         with open(path, "r") as f:
             cfg = json.load(f)
     except FileNotFoundError:
-        print(f"[{ts()}] [CONFIG] ERROR: Config file not found at {path}. Exiting.")
+        log.error("Config file not found at %s. Exiting.", path)
         sys.exit(100)
     except json.JSONDecodeError as e:
-        print(f"[{ts()}] [CONFIG] ERROR: Invalid JSON in {path}: {e}")
+        log.error("Invalid JSON in %s: %s", path, e)
         sys.exit(101)
     except Exception as e:
-        print(f"[{ts()}] [CONFIG] ERROR: Failed to read config: {e}")
+        log.error("Failed to read config: %s", e)
         sys.exit(102)
     return cfg
 
@@ -102,14 +103,14 @@ def load_config(path=CONFIG_PATH):
 def build_mqtt_settings(cfg):
     for k in ("server", "port_s", "username", "client_id"):
         if k not in cfg:
-            print(f"[{ts()}] [CONFIG] ERROR: Missing key '{k}' in config file.")
+            log.error("Missing key '%s' in config file.", k)
             sys.exit(103)
 
     mqtt_broker = cfg.get("server")
     try:
         mqtt_port = int(cfg.get("port_s"))
     except Exception:
-        print(f"[{ts()}] [CONFIG] ERROR: Invalid port_s value in config, must be int.")
+        log.error("Invalid port_s value in config, must be int.")
         sys.exit(104)
 
     mqtt_username = cfg.get("username")
@@ -121,15 +122,15 @@ def build_mqtt_settings(cfg):
 
     base_id = get_shell_output(cfg.get("client_id"))
     if not base_id:
-        print(f"[{ts()}] [CONFIG] ERROR: Could not determine base client_id, exiting.")
+        log.error("Could not determine base client_id, exiting.")
         sys.exit(105)
 
     rand_num = random.randint(10, 99)
     mqtt_client_id = f"{base_id}-{rand_num}"
     mqtt_topic = f"device/{base_id}/button"
 
-    print(f"[{ts()}] [MQTT] TOPIC: {mqtt_topic}")
-    print(f"[{ts()}] [MQTT] CLIENT_ID: {mqtt_client_id}")
+    log.info("MQTT TOPIC: %s", mqtt_topic)
+    log.info("MQTT CLIENT_ID: %s", mqtt_client_id)
 
     return dict(
         broker=mqtt_broker,
@@ -147,7 +148,7 @@ def build_mqtt_settings(cfg):
 
 
 # ---------------------------------------------------------------------------
-#  MQTT Publisher (matches IMU/UV pattern)
+#  MQTT Publisher
 # ---------------------------------------------------------------------------
 class MQTTPublisher:
     def __init__(self, mqtt_settings):
@@ -170,14 +171,14 @@ class MQTTPublisher:
         def on_connect(client, userdata, flags, reason_code, properties):
             rc = reason_code.value if hasattr(reason_code, "value") else reason_code
             if rc == 0:
-                print(f"[{ts()}] [MQTT] Connected successfully.")
+                log.info("MQTT connected successfully.")
                 self.connected = True
             else:
-                print(f"[{ts()}] [MQTT] Connect failed, reason: {reason_code}")
+                log.error("MQTT connect failed, reason: %s", reason_code)
                 self.connected = False
 
         def on_disconnect(client, userdata, flags, reason_code, properties):
-            print(f"[{ts()}] [MQTT] Disconnected, reason: {reason_code}")
+            log.warning("MQTT disconnected, reason: %s", reason_code)
             self.connected = False
 
         self.client.on_connect = on_connect
@@ -200,9 +201,9 @@ class MQTTPublisher:
                         break
                     time.sleep(0.1)
                 if not self.connected and not exit_event.is_set():
-                    print(f"[{ts()}] [MQTT] Waiting for broker connection...")
+                    log.warning("MQTT waiting for broker connection...")
             except Exception as e:
-                print(f"[{ts()}] [MQTT] Connect error: {e}. Retrying in 5 sec.")
+                log.error("MQTT connect error: %s. Retrying in 5 sec.", e)
                 if exit_event.wait(5.0):
                     return
 
@@ -216,11 +217,11 @@ class MQTTPublisher:
                 self.settings["topic"], payload, qos=MQTT_QOS
             )
             if result.rc != mqtt.MQTT_ERR_SUCCESS:
-                print(f"[{ts()}] [MQTT] Publish failed, rc: {result.rc}")
+                log.error("MQTT publish failed, rc: %s", result.rc)
             else:
-                print(f"[{ts()}] [MQTT] Published (QoS {MQTT_QOS}): {payload}")
+                log.info("MQTT published (QoS %d): %s", MQTT_QOS, payload)
         except Exception as e:
-            print(f"[{ts()}] [MQTT] Publish exception: {e}")
+            log.error("MQTT publish exception: %s", e)
 
     def close(self):
         if not self._closed:
@@ -239,7 +240,7 @@ class MQTTPublisher:
 #  Signal handling
 # ---------------------------------------------------------------------------
 def handle_exit_signal(signum, frame):
-    print(f"[{ts()}] [Main] Received signal {signum}, shutting down.")
+    log.info("Received signal %d, shutting down.", signum)
     exit_event.set()
 
 
@@ -287,8 +288,7 @@ def run(skip_mqtt=False, led_feedback=False, debug=False):
     mqtt_pub = None
     mqtt_settings = None
     if skip_mqtt:
-        print(f"[{ts()}] [MQTT] Skipped (--skip-mqtt)")
-        # Still need base_id for payload; try to load config, fall back gracefully
+        log.info("MQTT skipped (--skip-mqtt)")
         try:
             cfg = load_config()
             base_id_cmd = cfg.get("client_id", "")
@@ -303,7 +303,7 @@ def run(skip_mqtt=False, led_feedback=False, debug=False):
         mqtt_pub.connect()
 
     # --- GPIO setup (gpiod v2) ---
-    print(f"[{ts()}] [GPIO] Opening {GPIO_CHIP}, pins {ESTOP_GPIO_PINS}")
+    log.info("Opening %s, pins %s", GPIO_CHIP, ESTOP_GPIO_PINS)
 
     led_request = None
     try:
@@ -311,7 +311,7 @@ def run(skip_mqtt=False, led_feedback=False, debug=False):
             pin: gpiod.LineSettings(
                 direction=gpiod.line.Direction.INPUT,
                 bias=gpiod.line.Bias.PULL_UP,
-                edge_detection=gpiod.line.Edge.FALLING,  # physical HIGH->LOW = button press
+                edge_detection=gpiod.line.Edge.FALLING,
             )
             for pin in ESTOP_GPIO_PINS
         }
@@ -321,7 +321,7 @@ def run(skip_mqtt=False, led_feedback=False, debug=False):
             config=config,
         )
     except Exception as e:
-        print(f"[{ts()}] [GPIO] ERROR: Failed to request GPIO lines: {e}")
+        log.error("Failed to request GPIO lines: %s", e)
         traceback.print_exc()
         if mqtt_pub:
             mqtt_pub.close()
@@ -341,101 +341,81 @@ def run(skip_mqtt=False, led_feedback=False, debug=False):
                 config=led_config,
             )
             led_request.set_value(LED_GPIO_PIN, gpiod.line.Value.INACTIVE)
-            print(f"[{ts()}] [GPIO] LED feedback enabled on GPIO{LED_GPIO_PIN}")
+            log.info("LED feedback enabled on GPIO%d", LED_GPIO_PIN)
         except Exception as e:
-            print(f"[{ts()}] [GPIO] WARNING: Could not setup LED on GPIO{LED_GPIO_PIN}: {e}")
+            log.warning("Could not setup LED on GPIO%d: %s", LED_GPIO_PIN, e)
             led_request = None
 
-    print(f"[{ts()}] [GPIO] Interrupt ready on pins {ESTOP_GPIO_PINS} (pull-up, falling edge = press)")
-    print(f"[{ts()}] [E-STOP] Monitor started")
-    print(f"[{ts()}] [E-STOP] Debounce confirm: {DEBOUNCE_CONFIRM_SEC * 1000:.0f} ms")
-    print(f"[{ts()}] [E-STOP] Min event interval: {MIN_EVENT_INTERVAL_SEC:.1f} s")
-    print(f"[{ts()}] [E-STOP] MQTT QoS: {MQTT_QOS}")
+    log.info("GPIO ready on pins %s (pull-up, falling edge = press)", ESTOP_GPIO_PINS)
+    log.info("E-STOP monitor started (debounce=%dms, cooldown=%.1fs, QoS=%d)",
+             DEBOUNCE_CONFIRM_SEC * 1000, MIN_EVENT_INTERVAL_SEC, MQTT_QOS)
 
-    # Show initial pin state so we can verify wiring
     for pin in ESTOP_GPIO_PINS:
         raw_val = request.get_value(pin)
         pressed = read_pin_pressed(request, pin)
-        print(f"[{ts()}] [GPIO] GPIO{pin} initial: raw={raw_val} pressed={pressed}")
-
-    if debug:
-        print(f"[{ts()}] [DEBUG] Debug mode ON - printing pin state every 0.5s")
+        log.info("GPIO%d initial: raw=%s pressed=%s", pin, raw_val, pressed)
 
     last_event_time = 0.0
     last_heartbeat = time.time()
     event_count = 0
+    led_off_time = [0.0]
 
     try:
         while not exit_event.is_set():
-            # Wait for edge event; shorter timeout in debug mode for frequent state prints
             wait_timeout = 0.5 if debug else 1.0
             if not request.wait_edge_events(wait_timeout):
-                # Timeout, no events
                 now = time.time()
 
-                # Debug: print raw pin state every cycle
                 if debug:
                     states = []
                     for pin in ESTOP_GPIO_PINS:
                         raw_val = request.get_value(pin)
                         pressed = read_pin_pressed(request, pin)
                         states.append(f"GPIO{pin}: raw={raw_val} pressed={pressed}")
-                    print(f"[{ts()}] [DEBUG] {' | '.join(states)}")
+                    log.debug(" | ".join(states))
 
-                # Heartbeat
                 if (now - last_heartbeat) >= HEARTBEAT_INTERVAL_SEC:
                     pin_states = []
                     for pin in ESTOP_GPIO_PINS:
                         pressed = read_pin_pressed(request, pin)
                         pin_states.append(f"GPIO{pin}={'PRESSED' if pressed else 'idle'}")
                     mqtt_status = "connected" if (mqtt_pub and mqtt_pub.connected) else ("skipped" if skip_mqtt else "disconnected")
-                    print(
-                        f"[{ts()}] [Heartbeat] alive | events_fired={event_count} | "
-                        f"{' '.join(pin_states)} | mqtt={mqtt_status}"
-                    )
+                    log.info("Heartbeat | events_fired=%d | %s | mqtt=%s",
+                             event_count, " ".join(pin_states), mqtt_status)
                     last_heartbeat = now
                 continue
 
             events = request.read_edge_events()
-
             now = time.time()
 
-            # --- Heartbeat (also on event wake) ---
             if (now - last_heartbeat) >= HEARTBEAT_INTERVAL_SEC:
                 pin_states = []
                 for pin in ESTOP_GPIO_PINS:
                     pressed = read_pin_pressed(request, pin)
                     pin_states.append(f"GPIO{pin}={'PRESSED' if pressed else 'idle'}")
                 mqtt_status = "connected" if (mqtt_pub and mqtt_pub.connected) else ("skipped" if skip_mqtt else "disconnected")
-                print(
-                    f"[{ts()}] [Heartbeat] alive | events_fired={event_count} | "
-                    f"{' '.join(pin_states)} | mqtt={mqtt_status}"
-                )
+                log.info("Heartbeat | events_fired=%d | %s | mqtt=%s",
+                         event_count, " ".join(pin_states), mqtt_status)
                 last_heartbeat = now
 
-            # Process edge events
             for event in events:
                 pin = event.line_offset
 
                 if debug:
-                    print(f"[{ts()}] [DEBUG] Edge event on GPIO{pin}, confirming press...")
+                    log.debug("Edge event on GPIO%d, confirming press...", pin)
 
-                # Confirm the press is real (software debounce on top of hardware RC)
                 if not confirm_press(request, pin):
                     if debug:
-                        print(f"[{ts()}] [DEBUG] GPIO{pin} debounce rejected (bounce or glitch)")
+                        log.debug("GPIO%d debounce rejected (bounce or glitch)", pin)
                     continue
 
                 now = time.time()
 
-                # Cooldown check
                 elapsed = now - last_event_time
                 if elapsed < MIN_EVENT_INTERVAL_SEC:
                     remaining = MIN_EVENT_INTERVAL_SEC - elapsed
-                    print(
-                        f"[{ts()}] [E-STOP] GPIO{pin} pressed but cooldown active "
-                        f"({remaining:.1f}s remaining), suppressed"
-                    )
+                    log.info("GPIO%d pressed but cooldown active (%.1fs remaining), suppressed",
+                             pin, remaining)
                     continue
 
                 # --- Fire e-stop ---
@@ -447,18 +427,17 @@ def run(skip_mqtt=False, led_feedback=False, debug=False):
                     "status": "emergency",
                 }
 
-                print(
-                    f"[{ts()}] [E-STOP] >>> EMERGENCY TRIGGERED via GPIO{pin} "
-                    f"(event #{event_count})"
-                )
+                log.info(">>> EMERGENCY TRIGGERED via GPIO%d (event #%d)", pin, event_count)
 
-                # LED feedback: turn ON for 1 second in a background thread
+                # LED feedback: turn ON for 60 seconds (safety visibility)
                 if led_request:
-                    def _led_flash():
+                    led_off_time[0] = time.time() + 60.0
+                    def _led_flash(expected_off=led_off_time[0]):
                         try:
                             led_request.set_value(LED_GPIO_PIN, gpiod.line.Value.ACTIVE)
-                            time.sleep(1.0)
-                            led_request.set_value(LED_GPIO_PIN, gpiod.line.Value.INACTIVE)
+                            time.sleep(60.0)
+                            if led_off_time[0] <= expected_off:
+                                led_request.set_value(LED_GPIO_PIN, gpiod.line.Value.INACTIVE)
                         except Exception:
                             pass
                     threading.Thread(target=_led_flash, daemon=True).start()
@@ -467,15 +446,15 @@ def run(skip_mqtt=False, led_feedback=False, debug=False):
                     try:
                         mqtt_pub.publish(payload)
                     except Exception as e:
-                        print(f"[{ts()}] [E-STOP] MQTT publish error: {e}")
+                        log.error("MQTT publish error: %s", e)
                         traceback.print_exc()
                 else:
-                    print(f"[{ts()}] [E-STOP] Event (MQTT skipped): {json.dumps(payload)}")
+                    log.info("Event (MQTT skipped): %s", json.dumps(payload))
 
                 last_event_time = now
 
     except Exception as e:
-        print(f"[{ts()}] [E-STOP] Fatal error in main loop: {e}")
+        log.error("Fatal error in main loop: %s", e)
         traceback.print_exc()
         sys.exit(1)
     finally:
@@ -491,7 +470,7 @@ def run(skip_mqtt=False, led_feedback=False, debug=False):
                 pass
         if mqtt_pub:
             mqtt_pub.close()
-        print(f"[{ts()}] [Main] Exiting cleanly. Total events fired: {event_count}")
+        log.info("Exiting cleanly. Total events fired: %d", event_count)
 
 
 # ---------------------------------------------------------------------------
@@ -508,7 +487,7 @@ def main():
     parser.add_argument(
         "--led-feedback",
         action="store_true",
-        help="Flash GPIO22 LED on e-stop event (testing only)",
+        help="Flash GPIO22 LED on e-stop event",
     )
     parser.add_argument(
         "--debug",
@@ -516,6 +495,10 @@ def main():
         help="Print raw pin state every 0.5s for wiring verification",
     )
     args = parser.parse_args()
+
+    if args.debug:
+        logging.getLogger("estop").setLevel(logging.DEBUG)
+
     run(skip_mqtt=args.skip_mqtt, led_feedback=args.led_feedback, debug=args.debug)
 
 

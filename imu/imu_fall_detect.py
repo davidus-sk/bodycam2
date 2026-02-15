@@ -12,6 +12,8 @@ Algorithm: 3-phase threshold-based fall detection (research-backed)
     Phase 2: Impact detection (accel > 3.0g or gyro > 300 deg/s)
     Phase 3: Inactivity + posture change confirmation
 
+Log file: /tmp/imu.log
+
 References:
     - Analog Devices AN-1023: Detecting Human Falls with a 3-Axis Accelerometer
     - Kangas et al: Evaluation of Accelerometer-Based Fall Detection Algorithms
@@ -20,6 +22,7 @@ References:
 
 import argparse
 import json
+import logging
 import math
 import os
 import random
@@ -41,6 +44,21 @@ except ImportError:
     mqtt = None
 
 # ---------------------------------------------------------------------------
+#  Logging
+# ---------------------------------------------------------------------------
+LOG_FILE = "/tmp/imu.log"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler(),
+    ],
+)
+log = logging.getLogger("imu")
+
+# ---------------------------------------------------------------------------
 #  ICM-42605 Register Map (Bank 0)
 # ---------------------------------------------------------------------------
 ICM42605_ADDR = 0x69
@@ -58,7 +76,7 @@ ACCEL_CONFIG0 = 0x50
 INT_CONFIG1 = 0x64
 INT_SOURCE0 = 0x65
 INT_STATUS = 0x2D
-ACCEL_DATA_X1 = 0x1F  # First byte of accel data block
+ACCEL_DATA_X1 = 0x1F
 REG_BANK_SEL = 0x76
 
 # ---------------------------------------------------------------------------
@@ -66,17 +84,12 @@ REG_BANK_SEL = 0x76
 # ---------------------------------------------------------------------------
 I2C_BUS = 1
 
-# Accelerometer: +/- 8g  (ACCEL_FS_SEL = 001)
-# Sensitivity: 4096 LSB/g — good resolution, headroom to 8g for real impacts
 ACCEL_FS_SEL = 1
 ACCEL_SCALE = 4096.0
 
-# Gyroscope: +/- 500 deg/s  (GYRO_FS_SEL = 010)
-# Sensitivity: 65.5 LSB/(deg/s) — headroom above 300 deg/s impact threshold
 GYRO_FS_SEL = 2
 GYRO_SCALE = 65.5
 
-# ODR: 100 Hz for both accel and gyro (register value 0x08)
 SENSOR_ODR = 0x08
 
 # ---------------------------------------------------------------------------
@@ -87,38 +100,27 @@ IMU_INT_GPIO = 16
 # ---------------------------------------------------------------------------
 #  Fall Detection Thresholds (research-backed)
 # ---------------------------------------------------------------------------
-# Phase 1 — Free-fall: Literature range 0.4–0.6 g.
-# 0.4 g catches trips/slips where free-fall is brief and shallow.
 FREE_FALL_THRESHOLD_G = 0.4
-
-# Phase 2 — Impact: Literature uses 2–3 g (PMC, Analog Devices).
-# 3.0 g avoids false triggers from sitting hard or jumping.
 IMPACT_THRESHOLD_G = 3.0
-IMPACT_THRESHOLD_GYRO = 300.0  # deg/s — angular velocity spike on impact
+IMPACT_THRESHOLD_GYRO = 300.0
 
-# Phase 3 — Inactivity: person lying still after fall.
-INACTIVITY_GYRO_THRESHOLD = 20.0  # deg/s — below this counts as still
-INACTIVITY_PERIOD_SEC = 2.0  # must remain still for 2 s (matches literature)
-INACTIVITY_ALLOWED_MOVEMENT_FRAC = 0.2  # up to 20 % of samples can have motion
+INACTIVITY_GYRO_THRESHOLD = 20.0
+INACTIVITY_PERIOD_SEC = 2.0
+INACTIVITY_ALLOWED_MOVEMENT_FRAC = 0.2
 
-# Phase 3 — Posture change: gravity vector shifted (Analog Devices AN-1023).
-# Standing -> lying produces ~1 g change; 0.7 g threshold catches partial falls.
 POSTURE_CHANGE_THRESHOLD_G = 0.4
 
-# Timing windows
-IMPACT_STABILIZATION_DELAY = 0.2  # seconds — ignore ringing right after impact
-FREE_FALL_IMPACT_WINDOW = 1.0  # seconds — impact must follow within 1 s
-MIN_EVENT_INTERVAL = 5.0  # seconds — debounce between events
+IMPACT_STABILIZATION_DELAY = 0.2
+FREE_FALL_IMPACT_WINDOW = 1.0
+MIN_EVENT_INTERVAL = 5.0
 
-# Gravity reference — exponential moving average
-# alpha ~0.02 ≈ 50-sample effective window at 100 Hz (≈ 0.5 s).
 GRAVITY_EMA_ALPHA = 0.02
-GRAVITY_MIN_SAMPLES = 50  # need this many before posture check is valid
+GRAVITY_MIN_SAMPLES = 50
 
 # ---------------------------------------------------------------------------
 #  Operational
 # ---------------------------------------------------------------------------
-MIN_VALID_ACCEL_SUM = 0.05  # reject near-zero (invalid) readings
+MIN_VALID_ACCEL_SUM = 0.05
 I2C_ERROR_COOLDOWN_SEC = 1.0
 WATCHDOG_INTERVAL_SEC = 5.0
 INTERRUPT_TIMEOUT_SEC = 0.5
@@ -153,17 +155,13 @@ def magnitude(x, y, z):
     return math.sqrt(x * x + y * y + z * z)
 
 
-def ts():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-
 def shell_output(command):
     try:
         return subprocess.check_output(
             command, shell=True, stderr=subprocess.STDOUT, universal_newlines=True
         ).strip()
     except Exception as e:
-        print(f"[CONFIG] ERROR: shell command failed: '{command}' -> {e}")
+        log.error("Shell command failed: '%s' -> %s", command, e)
         return None
 
 
@@ -177,14 +175,12 @@ class ICM42605:
         self.bus = bus
         self.addr = addr
 
-    # -- register helpers --------------------------------------------------
     def _r(self, reg):
         return self.bus.read_byte_data(self.addr, reg)
 
     def _w(self, reg, val):
         self.bus.write_byte_data(self.addr, reg, val)
 
-    # -- identity ----------------------------------------------------------
     def verify_who_am_i(self):
         wai = self._r(WHO_AM_I_REG)
         if wai != WHO_AM_I_EXPECTED:
@@ -194,60 +190,45 @@ class ICM42605:
             )
         return wai
 
-    # -- initialisation ----------------------------------------------------
     def init_sensor(self):
-        """Full init sequence.  Call once after bus open."""
-
-        # 1. Verify identity
+        """Full init sequence. Call once after bus open."""
         wai = self.verify_who_am_i()
-        print(f"[{ts()}] ICM-42605 detected (WHO_AM_I=0x{wai:02X})")
+        log.info("ICM-42605 detected (WHO_AM_I=0x%02X)", wai)
 
-        # 2. Soft reset
+        # Soft reset
         self._w(DEVICE_CONFIG, 0x01)
-        time.sleep(0.002)  # datasheet: wait >= 1 ms
+        time.sleep(0.002)
 
-        # 3. Verify again after reset
         self.verify_who_am_i()
-
-        # 4. Select register bank 0 (default, but be explicit)
         self._w(REG_BANK_SEL, 0x00)
 
-        # 5. Clock source — auto-select PLL when gyro active
-        #    INTF_CONFIG1 reset value 0x91 already has CLKSEL=01;
-        #    read-modify-write to be safe.
+        # Clock source
         val = self._r(INTF_CONFIG1)
         self._w(INTF_CONFIG1, (val & 0xFC) | 0x01)
 
-        # 6. Accelerometer: FS_SEL in bits [7:5], ODR in bits [3:0]
+        # Accel config
         self._w(ACCEL_CONFIG0, (ACCEL_FS_SEL << 5) | SENSOR_ODR)
 
-        # 7. Gyroscope: FS_SEL in bits [7:5], ODR in bits [3:0]
+        # Gyro config
         self._w(GYRO_CONFIG0, (GYRO_FS_SEL << 5) | SENSOR_ODR)
 
-        # 8. Interrupt pin: INT1 push-pull, active-low, pulsed
-        #    Bits [2:0] = MODE(0) | DRIVE(1=push-pull) | POLARITY(0=active-low)
+        # Interrupt: push-pull, active-low, pulsed
         self._w(INT_CONFIG, 0x02)
 
-        # 9. Route DATA_READY to INT1
+        # Route DATA_READY to INT1
         self._w(INT_SOURCE0, 0x08)
 
-        # 10. Power on — accel + gyro in Low-Noise mode
-        #     GYRO_MODE=11, ACCEL_MODE=11  →  0x0F
+        # Power on accel + gyro in Low-Noise mode
         self._w(PWR_MGMT0, 0x0F)
-        time.sleep(0.001)  # datasheet: no register writes for 200 us
+        time.sleep(0.001)
 
-        # 11. Wait for gyro startup (30 ms typical, 45 ms max)
+        # Wait for gyro startup
         time.sleep(0.050)
 
-        print(
-            f"[{ts()}] ICM-42605 ready: "
-            f"+/-8g accel, +/-500 deg/s gyro, 100 Hz ODR"
-        )
+        log.info("ICM-42605 ready: +/-8g accel, +/-500 deg/s gyro, 100 Hz ODR")
 
-    # -- data read ---------------------------------------------------------
     def read_sensor_data(self):
         """Burst-read accel + gyro (12 bytes, atomic).
-
         Returns (ax, ay, az, gx, gy, gz) in g and deg/s.
         """
         raw = self.bus.read_i2c_block_data(self.addr, ACCEL_DATA_X1, 12)
@@ -261,7 +242,6 @@ class ICM42605:
             gz_r / GYRO_SCALE,
         )
 
-    # -- health ------------------------------------------------------------
     def is_healthy(self):
         try:
             return self._r(WHO_AM_I_REG) == WHO_AM_I_EXPECTED
@@ -283,50 +263,49 @@ def setup_gpio_interrupt(gpio_pin):
         request = chip.request_lines(
             config={gpio_pin: settings}, consumer="imu-fall-detect"
         )
-        print(f"[{ts()}] GPIO {gpio_pin} interrupt ready (gpiod v2, falling edge)")
+        log.info("GPIO %d interrupt ready (gpiod v2, falling edge)", gpio_pin)
         return request
     except Exception as e:
-        print(f"[{ts()}] WARNING: GPIO setup failed: {e}")
-        print(f"[{ts()}] Falling back to polling mode")
+        log.warning("GPIO setup failed: %s -- falling back to polling mode", e)
         return None
 
 
 # =========================================================================
-#  MQTT — preserved from original, with bug-fixes noted inline
+#  MQTT
 # =========================================================================
 def load_config(path=CONFIG_PATH):
     try:
         with open(path, "r") as f:
             return json.load(f)
     except FileNotFoundError:
-        print(f"[CONFIG] ERROR: Config file not found at {path}. Exiting.")
+        log.error("Config file not found at %s. Exiting.", path)
         sys.exit(100)
     except Exception as e:
-        print(f"[CONFIG] ERROR: Failed to read config: {e}")
+        log.error("Failed to read config: %s", e)
         sys.exit(101)
 
 
 def build_mqtt_settings(cfg):
     for k in ("server", "port_s", "username", "client_id"):
         if k not in cfg:
-            print(f"[CONFIG] ERROR: Missing key '{k}' in config.")
+            log.error("Missing key '%s' in config.", k)
             sys.exit(102)
     try:
         port = int(cfg["port_s"])
     except (ValueError, TypeError):
-        print("[CONFIG] ERROR: port_s must be an integer.")
+        log.error("port_s must be an integer.")
         sys.exit(103)
 
     base_id = shell_output(cfg["client_id"])
     if not base_id:
-        print("[CONFIG] ERROR: Could not determine base client_id.")
+        log.error("Could not determine base client_id.")
         sys.exit(104)
 
     client_id = f"{base_id}-{random.randint(10, 99)}"
     topic = f"device/{base_id}/fall"
 
-    print(f"[MQTT] TOPIC : {topic}")
-    print(f"[MQTT] CLIENT: {client_id}")
+    log.info("MQTT TOPIC: %s", topic)
+    log.info("MQTT CLIENT: %s", client_id)
 
     return dict(
         broker=cfg["server"],
@@ -363,14 +342,14 @@ class MQTTPublisher:
         def on_connect(_c, _u, _f, rc, _p):
             ok = (hasattr(rc, "value") and rc.value == 0) or rc == 0
             if ok:
-                print("[MQTT] Connected.")
+                log.info("MQTT connected.")
                 self.connected = True
             else:
-                print(f"[MQTT] Connect failed: {rc}")
+                log.error("MQTT connect failed: %s", rc)
                 self.connected = False
 
         def on_disconnect(_c, _u, _f, rc, _p):
-            print(f"[MQTT] Disconnected: {rc}")
+            log.warning("MQTT disconnected: %s", rc)
             self.connected = False
 
         self.client.on_connect = on_connect
@@ -394,10 +373,9 @@ class MQTTPublisher:
                         break
                     time.sleep(0.1)
                 if not self.connected:
-                    print("[MQTT] Waiting for broker…")
+                    log.warning("MQTT waiting for broker...")
             except Exception as e:
-                # FIX: original had exit(-1) here — retry instead
-                print(f"[MQTT] Connect error: {e}. Retrying in 5 s.")
+                log.error("MQTT connect error: %s. Retrying in 5s.", e)
                 time.sleep(5)
 
     def publish(self, payload):
@@ -407,14 +385,22 @@ class MQTTPublisher:
             data = json.dumps(payload) if isinstance(payload, dict) else payload
             result = self.client.publish(self.settings["topic"], data, qos=1)
             if result.rc != mqtt.MQTT_ERR_SUCCESS:
-                print(f"[MQTT] Publish failed: rc={result.rc}")
+                log.error("MQTT publish failed: rc=%s", result.rc)
+            else:
+                log.info("MQTT published: %s", data)
         except Exception as e:
-            print(f"[MQTT] Publish error: {e}")
+            log.error("MQTT publish error: %s", e)
 
     def close(self):
         if not self._closed:
-            self.client.loop_stop()
-            self.client.disconnect()
+            try:
+                self.client.loop_stop()
+            except Exception:
+                pass
+            try:
+                self.client.disconnect()
+            except Exception:
+                pass
             self._closed = True
 
 
@@ -422,7 +408,7 @@ class MQTTPublisher:
 #  Signal Handling
 # =========================================================================
 def handle_exit_signal(signum, _frame):
-    print(f"[Main] Signal {signum} received, shutting down.")
+    log.info("Signal %d received, shutting down.", signum)
     exit_event.set()
 
 
@@ -444,16 +430,16 @@ class FallDetector:
         self.impact_time = None
         self.inactivity_start_time = None
         self.inactivity_buffer = []
-        self.last_event_time = 0  # persists across reset_state()
+        self.last_event_time = 0
         self.posture_acc_x = 0.0
         self.posture_acc_y = 0.0
         self.posture_acc_z = 0.0
         self.posture_acc_n = 0
 
-        # Gravity EMA for posture-change detection
+        # Gravity EMA
         self.grav_x = 0.0
         self.grav_y = 0.0
-        self.grav_z = 1.0  # assume upright at boot
+        self.grav_z = 1.0
         self.grav_samples = 0
         self.pre_fall_grav = None
 
@@ -464,15 +450,13 @@ class FallDetector:
         self.i2c_errors = 0
 
         mode = "interrupt-driven" if self.use_interrupts else "polling"
-        print(f"[{ts()}] Fall detector started ({mode})")
-        print(
-            f"[{ts()}] Thresholds: freefall={FREE_FALL_THRESHOLD_G}g  "
-            f"impact={IMPACT_THRESHOLD_G}g/{IMPACT_THRESHOLD_GYRO} deg/s  "
-            f"inactivity={INACTIVITY_PERIOD_SEC}s  "
-            f"posture={POSTURE_CHANGE_THRESHOLD_G}g"
-        )
+        log.info("Fall detector started (%s)", mode)
+        log.info("Thresholds: freefall=%.1fg  impact=%.1fg/%.0f deg/s  "
+                 "inactivity=%.1fs  posture=%.1fg",
+                 FREE_FALL_THRESHOLD_G, IMPACT_THRESHOLD_G,
+                 IMPACT_THRESHOLD_GYRO, INACTIVITY_PERIOD_SEC,
+                 POSTURE_CHANGE_THRESHOLD_G)
 
-    # ------------------------------------------------------------------
     def reset_state(self):
         """Reset state machine but preserve last_event_time for debounce."""
         self.state = "IDLE"
@@ -486,12 +470,6 @@ class FallDetector:
         self.posture_acc_z = 0.0
         self.posture_acc_n = 0
 
-    # ------------------------------------------------------------------
-    def log(self, msg, important=False):
-        if self.verbose or important:
-            print(f"[{ts()}] {msg}")
-
-    # ------------------------------------------------------------------
     def _update_gravity_ema(self, ax, ay, az):
         if self.grav_samples == 0:
             self.grav_x, self.grav_y, self.grav_z = ax, ay, az
@@ -505,37 +483,27 @@ class FallDetector:
     def _posture_changed(self, ax, ay, az):
         """Compare current gravity direction to the pre-fall reference."""
         if self.pre_fall_grav is None or self.grav_samples < GRAVITY_MIN_SAMPLES:
-            # Not enough data — skip posture check, fall back to gyro-only
-            self.log("Posture check skipped (insufficient samples)", important=True)
+            log.info("Posture check skipped (insufficient samples)")
             return True
         rx, ry, rz = self.pre_fall_grav
         change = magnitude(ax - rx, ay - ry, az - rz)
-        self.log(
-            f"Posture delta={change:.2f}g (threshold={POSTURE_CHANGE_THRESHOLD_G}g)",
-            important=True,
-        )
+        log.info("Posture delta=%.2fg (threshold=%.1fg)", change, POSTURE_CHANGE_THRESHOLD_G)
         return change >= POSTURE_CHANGE_THRESHOLD_G
 
-    # ------------------------------------------------------------------
     def process_sample(self, ax, ay, az, gx, gy, gz):
         a_mag = magnitude(ax, ay, az)
         g_mag = magnitude(gx, gy, gz)
         now = time.time()
 
-        # ---- Validate reading ----
         if abs(ax) + abs(ay) + abs(az) < MIN_VALID_ACCEL_SUM:
-            self.log("Skipping invalid accel (near zero)", important=True)
+            log.warning("Skipping invalid accel (near zero)")
             return
 
-        # ---- Update gravity reference during normal operation ----
         if self.state == "IDLE":
             self._update_gravity_ema(ax, ay, az)
 
         if self.verbose:
-            self.log(
-                f"|a|={a_mag:.2f}g  |g|={g_mag:.1f} deg/s  "
-                f"state={self.state}"
-            )
+            log.debug("|a|=%.2fg  |g|=%.1f deg/s  state=%s", a_mag, g_mag, self.state)
 
         # ==============================================================
         #  STATE MACHINE
@@ -549,11 +517,11 @@ class FallDetector:
                 self.state = "FREE_FALL"
                 self.free_fall_time = now
                 self.pre_fall_grav = (self.grav_x, self.grav_y, self.grav_z)
-                self.log(f">>> Free-fall detected  |a|={a_mag:.2f}g", important=True)
+                log.info(">>> Free-fall detected  |a|=%.2fg", a_mag)
 
         elif self.state == "FREE_FALL":
             if (now - self.free_fall_time) > FREE_FALL_IMPACT_WINDOW:
-                self.log("Free-fall expired (no impact within window)", important=True)
+                log.info("Free-fall expired (no impact within window)")
                 self.reset_state()
 
             elif a_mag > IMPACT_THRESHOLD_G or g_mag > IMPACT_THRESHOLD_GYRO:
@@ -561,20 +529,15 @@ class FallDetector:
                 self.impact_time = now
                 self.inactivity_start_time = now + IMPACT_STABILIZATION_DELAY
                 self.inactivity_buffer.clear()
-                self.log(
-                    f">>> Impact  |a|={a_mag:.2f}g  |g|={g_mag:.1f} deg/s  "
-                    f"(stabilizing {IMPACT_STABILIZATION_DELAY}s)",
-                    important=True,
-                )
+                log.info(">>> Impact  |a|=%.2fg  |g|=%.1f deg/s  (stabilizing %.1fs)",
+                         a_mag, g_mag, IMPACT_STABILIZATION_DELAY)
 
         elif self.state == "POST_IMPACT":
-            # Skip samples during stabilization window
             if now < self.inactivity_start_time:
                 return
 
             self.inactivity_buffer.append(g_mag > INACTIVITY_GYRO_THRESHOLD)
 
-            # Accumulate accel for averaged posture check
             self.posture_acc_x += ax
             self.posture_acc_y += ay
             self.posture_acc_z += az
@@ -583,13 +546,11 @@ class FallDetector:
             elapsed = now - self.inactivity_start_time
 
             if elapsed >= INACTIVITY_PERIOD_SEC:
-                # -- Primary check: averaged orientation over 2s window --
                 avg_ax = self.posture_acc_x / self.posture_acc_n
                 avg_ay = self.posture_acc_y / self.posture_acc_n
                 avg_az = self.posture_acc_z / self.posture_acc_n
                 posture_changed = self._posture_changed(avg_ax, avg_ay, avg_az)
 
-                # -- Secondary check: are they motionless? (severity) --
                 n = len(self.inactivity_buffer) or 1
                 movement = sum(self.inactivity_buffer) / n
                 is_motionless = movement <= INACTIVITY_ALLOWED_MOVEMENT_FRAC
@@ -597,28 +558,17 @@ class FallDetector:
                 if posture_changed:
                     severe = is_motionless
                     if severe:
-                        self.log(
-                            ">>> FALL CONFIRMED — SEVERE "
-                            "(posture changed + motionless)",
-                            important=True,
-                        )
+                        log.info(">>> FALL CONFIRMED -- SEVERE (posture changed + motionless)")
                     else:
-                        self.log(
-                            f">>> FALL CONFIRMED "
-                            f"(posture changed, movement={movement * 100:.1f}%)",
-                            important=True,
-                        )
+                        log.info(">>> FALL CONFIRMED (posture changed, movement=%.1f%%)",
+                                 movement * 100)
                     self._publish_fall_event(severe=severe)
                 else:
-                    self.log(
-                        "False alarm: posture unchanged (recovered/caught self)",
-                        important=True,
-                    )
+                    log.info("False alarm: posture unchanged (recovered/caught self)")
 
                 self.last_event_time = now
                 self.reset_state()
 
-    # ------------------------------------------------------------------
     def _publish_fall_event(self, severe=False):
         payload = {
             "device_id": self.mqtt_settings.get("device_id", "unknown"),
@@ -627,65 +577,61 @@ class FallDetector:
             "fall": True,
         }
         if severe:
-            self.log("NOTE: fall appears severe (motionless)", important=True)
+            log.info("NOTE: fall appears severe (motionless)")
         if self.mqtt_pub is None:
-            self.log(f"FALL EVENT (MQTT skipped): {payload}", important=True)
+            log.info("FALL EVENT (MQTT skipped): %s", payload)
             return
         try:
             self.mqtt_pub.publish(payload)
-            self.log(f"MQTT published: {payload}", important=True)
         except Exception as e:
-            self.log(f"MQTT publish error: {e}", important=True)
+            log.error("MQTT publish error: %s", e)
 
     # ==================================================================
     #  Main Loop
     # ==================================================================
     def run(self):
-        poll_interval = 1.0 / 100.0  # 100 Hz fallback
+        poll_interval = 1.0 / 100.0
 
         while not exit_event.is_set():
             try:
                 got_data = False
 
-                # ---- Wait for data ----
                 if self.use_interrupts:
                     if self.gpio.wait_edge_events(
                         timeout=timedelta(seconds=INTERRUPT_TIMEOUT_SEC)
                     ):
-                        self.gpio.read_edge_events()  # drain queue
+                        self.gpio.read_edge_events()
                         got_data = True
-                    # timeout is fine — we still do housekeeping below
                 else:
                     time.sleep(poll_interval)
                     got_data = True
 
-                # ---- Read & process ----
                 if got_data:
                     ax, ay, az, gx, gy, gz = self.imu.read_sensor_data()
                     self.sample_count += 1
                     self.process_sample(ax, ay, az, gx, gy, gz)
 
-                # ---- Watchdog ping ----
+                # Watchdog ping
                 now = time.time()
                 if now - self.last_watchdog >= WATCHDOG_INTERVAL_SEC:
                     sd_notify("WATCHDOG=1")
                     self.last_watchdog = now
 
-                # ---- Periodic sensor health check ----
+                # Periodic sensor health check
                 if now - self.last_health_check >= SENSOR_HEALTH_CHECK_SEC:
                     if not self.imu.is_healthy():
-                        self.log("WARNING: sensor health check failed", important=True)
+                        log.warning("Sensor health check failed")
                         self.i2c_errors += 1
                     self.last_health_check = now
 
             except OSError as e:
                 self.i2c_errors += 1
-                self.log(f"I2C error: {e}", important=True)
+                log.error("I2C error: %s", e)
                 self.reset_state()
                 time.sleep(I2C_ERROR_COOLDOWN_SEC)
 
             except Exception as e:
-                self.log(f"Unexpected error: {e}", important=True)
+                log.error("Unexpected error: %s", e)
                 traceback.print_exc()
                 self.reset_state()
                 time.sleep(I2C_ERROR_COOLDOWN_SEC)
@@ -703,6 +649,9 @@ def main():
     parser.add_argument("--skip-mqtt", action="store_true", help="Skip MQTT (local testing)")
     args = parser.parse_args()
 
+    if args.verbose:
+        logging.getLogger("imu").setLevel(logging.DEBUG)
+
     # Signals
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, handle_exit_signal)
@@ -714,43 +663,38 @@ def main():
     mqtt_settings = {}
     if not args.skip_mqtt:
         if mqtt is None:
-            print("[MQTT] ERROR: paho-mqtt not installed. Use --skip-mqtt or install it.")
+            log.error("paho-mqtt not installed. Use --skip-mqtt or install it.")
             sys.exit(105)
         cfg = load_config()
         mqtt_settings = build_mqtt_settings(cfg)
         mqtt_pub = MQTTPublisher(mqtt_settings)
     else:
-        print("[MQTT] Skipped (--skip-mqtt)")
+        log.info("MQTT skipped (--skip-mqtt)")
 
     gpio_request = None
 
     try:
         with smbus2.SMBus(I2C_BUS) as bus:
-            # ---- IMU init ----
             imu = ICM42605(bus)
             imu.init_sensor()
 
-            # ---- GPIO interrupt ----
             if not args.no_interrupt:
                 gpio_request = setup_gpio_interrupt(IMU_INT_GPIO)
 
-            # ---- MQTT connect ----
             if mqtt_pub:
                 mqtt_pub.connect()
 
-            # ---- Tell systemd we are alive ----
             sd_notify("READY=1")
 
-            # ---- Run ----
             detector = FallDetector(
                 imu, gpio_request, mqtt_pub, mqtt_settings, args.verbose
             )
             detector.run()
 
     except KeyboardInterrupt:
-        print("\nInterrupted.")
+        log.info("Interrupted.")
     except Exception as e:
-        print(f"[FATAL] {e}")
+        log.error("FATAL: %s", e)
         traceback.print_exc()
         sys.exit(1)
     finally:
@@ -761,7 +705,7 @@ def main():
                 pass
         if mqtt_pub:
             mqtt_pub.close()
-        print(f"[{ts()}] Shutdown complete.")
+        log.info("Shutdown complete.")
 
 
 if __name__ == "__main__":
