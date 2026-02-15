@@ -1,6 +1,7 @@
 import serial
 import time
-from gpiozero import LED
+import RPi.GPIO as GPIO
+import time
 
 class ZetaPlusPi:
     def __init__(self, port='/dev/serial0', baudrate=19200):
@@ -22,14 +23,14 @@ class ZetaPlusPi:
         """
         # Clear buffers to ensure a clean read
         self.ser.reset_input_buffer()
-        
+
         # Command: ATV (ASCII for Version Check) [cite: 320]
         self.ser.write(b'ATV')
-        
+
         # The module responds with #V followed by the version [cite: 318]
         time.sleep(0.1) 
         response = self.ser.read_until(b'\r')
-        
+
         if response:
             decoded = response.decode('ascii', errors='ignore').strip()
             print(f"Connection Verified. Firmware Version: {decoded} [cite: 318]")
@@ -42,12 +43,12 @@ class ZetaPlusPi:
         """
         if isinstance(message, str):
             message = message.encode('ascii')
-            
+
         length = len(message)
         # Construct packet: 'ATS' (65, 84, 83) + Channel + Length + Data [cite: 140, 141]
         header = bytearray([65, 84, 83, channel, length])
         full_packet = header + message
-        
+
         self.ser.write(full_packet)
         print(f"Transmitted {length} bytes on channel {channel} [cite: 140]")
 
@@ -69,17 +70,29 @@ class ZetaPlusPi:
         self.ser.close()
 
 if __name__ == "__main__":
-    ctrl = LED(4,active_high=False)
-    ctrl.off()
+    GPIO.setmode(GPIO.BCM)
+
+    # Enable Radion
+    GPIO.setup(4, GPIO.OUT)
+    GPIO.output(4, GPIO.LOW)
+
+    # Setup status LED
+    GPIO.setup(25, GPIO.OUT)
+
+    # Wait for radio to come on
+    time.sleep(1)
 
     # GPIO14 (TX) and GPIO15 (RX) are mapped to /dev/serial0
     radio = ZetaPlusPi(port='/dev/serial0')
 
     try:
         if radio.validate_connection():
+            # Turn on status LED
+            GPIO.output(25, GPIO.HIGH)
+
             # Example: Send "PI_DATA" on Channel 0 [cite: 140]
             radio.send_packet(channel=0, message="PI_DATA")
-            
+
             # Start listening for incoming RF packets [cite: 316]
             radio.listen_for_data(duration=15)
         else:
@@ -88,4 +101,4 @@ if __name__ == "__main__":
         print("\nStopping...")
     finally:
         radio.close()
-        ctrl.close()
+        GPIO.cleanup()
