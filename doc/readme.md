@@ -5,7 +5,8 @@
  - service: yes
  - managed by: `/services/cell_status.service`
  - interval: 60s
- - provides: cell signal level, operator name, cell connection status, battery level
+ - mqtt: device/{id}/osd
+ - provides: cell signal level (0-100), operator name, cell connection status, battery level (0-100)
 
 ## /battery/battery_monitor.py
  - purpose: monitor LiPo battery voltage via ADC and report percentage
@@ -28,7 +29,8 @@
  - service: yes
  - managed by: `/services/estop.service`
  - interval: interrupt-driven (GPIO 8, GPIO 11 falling edge)
- - provides: emergency stop event via MQTT to device/{id}/button
+ - mqtt: device/{$clientId}/button
+ - provides: emergency stop event via MQTT
  - log: `/tmp/estop.log`
 
 ## /imu/imu_fall_detect.py
@@ -36,6 +38,7 @@
  - service: yes
  - managed by: `/services/imu.service`
  - interval: interrupt-driven (GPIO 16, 100 Hz DATA_READY)
- - provides: fall detection event via MQTT to device/{id}/fall
+ - mqtt: device/{id}/fall
+ - provides: fall detection event via MQTT
  - log: `/tmp/imu.log`
 

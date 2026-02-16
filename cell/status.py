@@ -9,6 +9,7 @@ from gpiozero import LED
 # --- Configuration ---
 DESTINATION_URL = "https://your-api-endpoint.com/report"
 BATTERY_FILE = "/dev/shm/battery.dat"
+JSON_FILE = "/dev/shm/status.json"
 INTERVAL = 30  # Seconds
 
 def get_modem_list():
@@ -40,11 +41,16 @@ def get_modem_details(index):
         }
 
         if details["signal_quality"] > 0:
-            subprocess.check_output(["mmcli", "-m", index, "--signal-setup=15"], stderr=subprocess.STDOUT)
-            rssi = subprocess.check_output(["mmcli", "-m", index, "--signal-get"], stderr=subprocess.STDOUT)
+            result = subprocess.check_output(["mmcli", "-m", index, "--signal-setup=15"], stderr=subprocess.STDOUT)
+            result = subprocess.check_output(["mmcli", "-m", index, "--signal-get", "-J"], stderr=subprocess.STDOUT)
+            data = json.loads(result)
+            modem = data.get("modem", {})
 
-            if rssi:
-                details["signal_level"] = round(2 * (float(rssi) + 100), 0)
+            if modem:
+                rssi = modem.get("signal", {}).get("lte", {}).get("rssi")
+
+                if rssi:
+                    details["signal_level"] = round(2 * (float(rssi) + 100), 0)
 
         return details
     except Exception as e:
@@ -60,15 +66,23 @@ def get_battery_level():
             if content:
                 return int(content)
             else:
-                print(f"Error: File {file_path} is empty.")
-                return None
+                print(f"Error: File {BATTERY_FILE} is empty.")
+                return 0
 
     except FileNotFoundError:
-        print(f"Error: The file {file_path} was not found.")
-        return None
+        print(f"Error: The file {BATTERY_FILE} was not found.")
+        return 0
     except ValueError:
-        print(f"Error: The file {file_path} contains non-integer data.")
-        return None
+        print(f"Error: The file {BATTERY_FILE} contains non-integer data.")
+        return 0
+
+def write_to_file(data):
+    """Write obtained data to file"""
+    try:
+        with open(JSON_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4)
+    except:
+        print(f"Error: Unable to write JSON data to file {JSON_FILE}")
 
 def main():
     status = "new"
@@ -83,18 +97,22 @@ def main():
             print("No modems detected.")
 
         for index in modem_indices:
+            print(f"Procesing modem with index {index}")
+
             payload = get_modem_details(index)
             payload["battery_level"] = get_battery_level()
+
+            write_to_file(payload)
 
             print(f"Sending data to server: {payload}")
 
             if payload:
                 # blink led
-                if payload['status'] != status and payload['status'] == "connected":
-                    cell_led.blink()
+                if payload['status'] != status and payload['status'] == "registered":
+                    cell_led.blink(on_time=1, off_time=2)
                     status = payload['status']
 
-                if payload['status'] != status and payload['status'] != "connected":
+                if payload['status'] != status and payload['status'] != "registered":
                     cell_led.off()
                     status = payload['status']
 
