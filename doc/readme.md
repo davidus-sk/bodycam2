@@ -42,3 +42,10 @@
  - provides: fall detection event via MQTT
  - log: `/tmp/imu.log`
 
+## /gps/get_gps.py
+ - purpose: obtain GPS readings and report user's location
+ - service: yes
+ - managed by: `/services/gps.service`
+ - interval: 15s
+ - mqtt: /device/{id}/gps
+ - provides: GPS lat nad lon every 15 seconds if available

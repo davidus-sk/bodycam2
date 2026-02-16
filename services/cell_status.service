@@ -1,5 +1,5 @@
 [Unit]
-Description=Network Status Service
+Description=Cellular Network and Battery Status Service
 After=network-online.target
 StartLimitIntervalSec=0
 
