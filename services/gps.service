@@ -4,11 +4,11 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/app/bodycam2/camera/scripts/gps.php
+ExecStart=/app/bodycam2/gps/get_gps.py
 Restart=always
 RestartSec=1
 User=root
-WorkingDirectory=/app/bodycam2/camera/scripts/
+WorkingDirectory=/app/bodycam2/gps
 
 [Install]
 WantedBy=multi-user.target

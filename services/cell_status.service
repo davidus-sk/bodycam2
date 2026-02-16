@@ -1,15 +1,15 @@
 [Unit]
-Description=Network Status Service
+Description=Cellular Network and Battery Status Service
 After=network-online.target
 StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStart=/app/bodycam2/common/network_status.php camera
+ExecStart=/app/bodycam2/cell/status.py camera
 Restart=always
 RestartSec=1
 User=root
-WorkingDirectory=/app/bodycam2/common/
+WorkingDirectory=/app/bodycam2/cell/
 
 [Install]
 WantedBy=multi-user.target
