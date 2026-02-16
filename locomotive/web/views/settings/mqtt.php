@@ -8,6 +8,7 @@ use App\Helpers\HtmlHelper;
 
 // app config
 $cfg = Config::get('mqtt');
+$cfg = Config::get('mqtt');
 
 $postData = [];
 $postData['debug'] = $cfg['debug'];
@@ -27,6 +28,9 @@ if (isPost()) {
 
     $dataBefore = $postData;
     $postData = get_post('form');
+
+    // fix types
+    $postData['debug'] = (bool) $postData['debug'];
 
     $form->setAttributes($postData, true);
     $form->input('host')->required();
