@@ -10,8 +10,8 @@ class Config
 {
     private static $initialized;
 
-    private static $defaultConfig;
-    private static $userConfig;
+    private static $defaultConfig = [];
+    private static $userConfig = [];
     private static $userConfigPath;
     private static $mergedConfig;
 
@@ -161,8 +161,7 @@ class Config
 
     public static function getMergedConfig()
     {
-        if (self::$initialized === null) {
-            self::$initialized = true;
+        if (self::$mergedConfig === null) {
             self::readConfigs();
         }
 
@@ -176,38 +175,60 @@ class Config
      * @param string|null $userConfigFile
      * @return array
      */
-    private static function readConfigs(?string $defaultConfigFile = null, ?string $userConfigFile = null): array
-    {
+    private static function readConfigs(
+        ?string $defaultConfigFile = null,
+        ?string $userConfigFile = null
+    ): array {
 
+        // default config
         if (!$defaultConfigFile) {
             $defaultConfigFile = realpath(__DIR__ . '/../../config/config.default.yaml');
         }
 
-        if (!$userConfigFile) {
-            self::$userConfigPath = realpath(__DIR__ . '/../../config/config.yaml');
-        } else {
-            self::$userConfigPath = $userConfigFile;
-        }
-
-        // default config
         self::$defaultConfig = Yaml::parseFile($defaultConfigFile);
 
-        // custom config
-        if (file_exists(self::$userConfigPath)) {
-            $userConfig = Yaml::parseFile(self::$userConfigPath);
-            self::$userConfig = ArrayHelper::merge(self::$defaultConfig, $userConfig);
+        // user config
+        if (!$userConfigFile) {
+            $userConfigFile = __DIR__ . '/../../config/config.yaml';
         }
 
+        $reformat = false;
+        if (file_exists($userConfigFile)) {
+            self::$userConfigPath = realpath($userConfigFile);
+            self::$userConfig = Yaml::parseFile(self::$userConfigPath);
+        } else {
+            copy($defaultConfigFile, $userConfigFile);
+            self::$userConfigPath = realpath($userConfigFile);
+            self::$userConfig = [];
+            $reformat = true;
+        }
+
+        // merge config
         self::$mergedConfig = ArrayHelper::merge(self::$defaultConfig, self::$userConfig);
+
+        // reformat config
+        if ($reformat) {
+            self::save();
+        }
 
         return self::$mergedConfig;
     }
 
+    /**
+     * Save config
+     * @return bool
+     */
     public static function save(): bool
     {
         return self::writeFile(self::getMergedConfig(), self::$userConfigPath);
     }
 
+    /**
+     * Write data to config file
+     * @param array $data
+     * @param string $path
+     * @return bool
+     */
     private static function writeFile(array $data, string $path): bool
     {
         // dump array to its YAML representation

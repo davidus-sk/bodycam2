@@ -18,6 +18,12 @@ $items = [
         'tab' => 'mqtt',
         'visible' => isAdmin(),
     ],
+    [
+        'label' => 'Camera',
+        'url' => url('settings', ['tab' => 'camera']),
+        'tab' => 'camera',
+        'visible' => isAdmin(),
+    ],
 ];
 ?>
 <div id="forms" class="container mb-5">
