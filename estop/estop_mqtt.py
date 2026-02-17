@@ -11,7 +11,7 @@ Hardware:
 Either button fires an emergency MQTT event (QoS 1 for reliable delivery).
 
 Output:
-    MQTT publish to  device/{base_id}/button
+    MQTT publish to  device/{device_id}/button
     Payload: {"device_id": "...", "device_type": "camera", "ts": ..., "status": "emergency"}
     Log file: /tmp/estop.log
 
@@ -23,17 +23,20 @@ Usage:
 import argparse
 import json
 import logging
-import os
-import random
 import signal
-import subprocess
 import sys
 import threading
 import time
 import traceback
 
 import gpiod
-import paho.mqtt.client as mqtt
+
+# ---------------------------------------------------------------------------
+#  Path setup -- allow import of shared mqtt_lib module from /app/bodycam2/
+# ---------------------------------------------------------------------------
+sys.path.insert(0, "/app/bodycam2")
+
+from mqtt_lib import MQTTClient, load_config
 
 # ---------------------------------------------------------------------------
 #  Configuration
@@ -46,7 +49,6 @@ DEBOUNCE_CONFIRM_SEC = 0.100
 MIN_EVENT_INTERVAL_SEC = 3.0
 HEARTBEAT_INTERVAL_SEC = 60.0
 
-CONFIG_PATH = "/app/bodycam2/camera/conf/config.json"
 LOG_FILE = "/tmp/estop.log"
 
 MQTT_QOS = 1
@@ -68,172 +70,6 @@ log = logging.getLogger("estop")
 #  Globals
 # ---------------------------------------------------------------------------
 exit_event = threading.Event()
-
-
-# ---------------------------------------------------------------------------
-#  Utility / Config
-# ---------------------------------------------------------------------------
-def get_shell_output(command):
-    try:
-        output = subprocess.check_output(
-            command, shell=True, stderr=subprocess.STDOUT, universal_newlines=True
-        )
-        return output.strip()
-    except Exception as e:
-        log.error("Shell command failed: '%s' -> %s", command, e)
-        return None
-
-
-def load_config(path=CONFIG_PATH):
-    try:
-        with open(path, "r") as f:
-            cfg = json.load(f)
-    except FileNotFoundError:
-        log.error("Config file not found at %s. Exiting.", path)
-        sys.exit(100)
-    except json.JSONDecodeError as e:
-        log.error("Invalid JSON in %s: %s", path, e)
-        sys.exit(101)
-    except Exception as e:
-        log.error("Failed to read config: %s", e)
-        sys.exit(102)
-    return cfg
-
-
-def build_mqtt_settings(cfg):
-    for k in ("server", "port_s", "username", "client_id"):
-        if k not in cfg:
-            log.error("Missing key '%s' in config file.", k)
-            sys.exit(103)
-
-    mqtt_broker = cfg.get("server")
-    try:
-        mqtt_port = int(cfg.get("port_s"))
-    except Exception:
-        log.error("Invalid port_s value in config, must be int.")
-        sys.exit(104)
-
-    mqtt_username = cfg.get("username")
-    mqtt_password = cfg.get("password", "")
-    mqtt_keepalive = int(cfg.get("keepalive", 20))
-    mqtt_ws_path = cfg.get("path", "/mqtt")
-    mqtt_use_ws = True
-    mqtt_protocol = mqtt.MQTTv5
-
-    base_id = get_shell_output(cfg.get("client_id"))
-    if not base_id:
-        log.error("Could not determine base client_id, exiting.")
-        sys.exit(105)
-
-    rand_num = random.randint(10, 99)
-    mqtt_client_id = f"{base_id}-{rand_num}"
-    mqtt_topic = f"device/{base_id}/button"
-
-    log.info("MQTT TOPIC: %s", mqtt_topic)
-    log.info("MQTT CLIENT_ID: %s", mqtt_client_id)
-
-    return dict(
-        broker=mqtt_broker,
-        port=mqtt_port,
-        username=mqtt_username,
-        password=mqtt_password,
-        keepalive=mqtt_keepalive,
-        ws_path=mqtt_ws_path,
-        use_ws=mqtt_use_ws,
-        protocol=mqtt_protocol,
-        topic=mqtt_topic,
-        client_id=mqtt_client_id,
-        base_id=base_id,
-    )
-
-
-# ---------------------------------------------------------------------------
-#  MQTT Publisher
-# ---------------------------------------------------------------------------
-class MQTTPublisher:
-    def __init__(self, mqtt_settings):
-        self.connected = False
-        self._closed = False
-        self.settings = mqtt_settings
-        self.client = mqtt.Client(
-            mqtt.CallbackAPIVersion.VERSION2,
-            client_id=self.settings["client_id"],
-            protocol=self.settings["protocol"],
-            transport="websockets" if self.settings["use_ws"] else "tcp",
-        )
-        if self.settings["username"]:
-            self.client.username_pw_set(
-                self.settings["username"], self.settings["password"]
-            )
-        self._setup_callbacks()
-
-    def _setup_callbacks(self):
-        def on_connect(client, userdata, flags, reason_code, properties):
-            rc = reason_code.value if hasattr(reason_code, "value") else reason_code
-            if rc == 0:
-                log.info("MQTT connected successfully.")
-                self.connected = True
-            else:
-                log.error("MQTT connect failed, reason: %s", reason_code)
-                self.connected = False
-
-        def on_disconnect(client, userdata, flags, reason_code, properties):
-            log.warning("MQTT disconnected, reason: %s", reason_code)
-            self.connected = False
-
-        self.client.on_connect = on_connect
-        self.client.on_disconnect = on_disconnect
-
-    def connect(self):
-        while not self.connected and not exit_event.is_set():
-            try:
-                if self.settings["use_ws"]:
-                    self.client.tls_set()
-                    self.client.ws_set_options(path=self.settings["ws_path"])
-                self.client.connect(
-                    self.settings["broker"],
-                    self.settings["port"],
-                    keepalive=self.settings["keepalive"],
-                )
-                self.client.loop_start()
-                for _ in range(100):
-                    if self.connected or exit_event.is_set():
-                        break
-                    time.sleep(0.1)
-                if not self.connected and not exit_event.is_set():
-                    log.warning("MQTT waiting for broker connection...")
-            except Exception as e:
-                log.error("MQTT connect error: %s. Retrying in 5 sec.", e)
-                if exit_event.wait(5.0):
-                    return
-
-    def publish(self, payload):
-        if not self.connected and not exit_event.is_set():
-            self.connect()
-        try:
-            if isinstance(payload, dict):
-                payload = json.dumps(payload)
-            result = self.client.publish(
-                self.settings["topic"], payload, qos=MQTT_QOS
-            )
-            if result.rc != mqtt.MQTT_ERR_SUCCESS:
-                log.error("MQTT publish failed, rc: %s", result.rc)
-            else:
-                log.info("MQTT published (QoS %d): %s", MQTT_QOS, payload)
-        except Exception as e:
-            log.error("MQTT publish exception: %s", e)
-
-    def close(self):
-        if not self._closed:
-            try:
-                self.client.loop_stop()
-            except Exception:
-                pass
-            try:
-                self.client.disconnect()
-            except Exception:
-                pass
-            self._closed = True
 
 
 # ---------------------------------------------------------------------------
@@ -284,30 +120,25 @@ def run(skip_mqtt=False, led_feedback=False, debug=False):
     if hasattr(signal, "SIGHUP"):
         signal.signal(signal.SIGHUP, handle_exit_signal)
 
+    # --- Config (always load -- needed for device_id) ---
+    config = load_config()
+    device_id = config["device_id"]
+    topic = f"device/{device_id}/button"
+
     # --- MQTT setup ---
-    mqtt_pub = None
-    mqtt_settings = None
+    mqtt_client = None
     if skip_mqtt:
         log.info("MQTT skipped (--skip-mqtt)")
-        try:
-            cfg = load_config()
-            base_id_cmd = cfg.get("client_id", "")
-            base_id = get_shell_output(base_id_cmd) if base_id_cmd else "unknown"
-        except SystemExit:
-            base_id = "unknown"
-        mqtt_settings = {"base_id": base_id or "unknown"}
     else:
-        cfg = load_config()
-        mqtt_settings = build_mqtt_settings(cfg)
-        mqtt_pub = MQTTPublisher(mqtt_settings)
-        mqtt_pub.connect()
+        mqtt_client = MQTTClient(config, exit_event)
+        mqtt_client.connect()
 
     # --- GPIO setup (gpiod v2) ---
     log.info("Opening %s, pins %s", GPIO_CHIP, ESTOP_GPIO_PINS)
 
     led_request = None
     try:
-        config = {
+        gpio_config = {
             pin: gpiod.LineSettings(
                 direction=gpiod.line.Direction.INPUT,
                 bias=gpiod.line.Bias.PULL_UP,
@@ -318,13 +149,13 @@ def run(skip_mqtt=False, led_feedback=False, debug=False):
         request = gpiod.request_lines(
             GPIO_CHIP,
             consumer="estop-monitor",
-            config=config,
+            config=gpio_config,
         )
     except Exception as e:
         log.error("Failed to request GPIO lines: %s", e)
         traceback.print_exc()
-        if mqtt_pub:
-            mqtt_pub.close()
+        if mqtt_client:
+            mqtt_client.close()
         sys.exit(1)
 
     # Optional LED feedback line
@@ -379,7 +210,7 @@ def run(skip_mqtt=False, led_feedback=False, debug=False):
                     for pin in ESTOP_GPIO_PINS:
                         pressed = read_pin_pressed(request, pin)
                         pin_states.append(f"GPIO{pin}={'PRESSED' if pressed else 'idle'}")
-                    mqtt_status = "connected" if (mqtt_pub and mqtt_pub.connected) else ("skipped" if skip_mqtt else "disconnected")
+                    mqtt_status = "connected" if (mqtt_client and mqtt_client.connected) else ("skipped" if skip_mqtt else "disconnected")
                     log.info("Heartbeat | events_fired=%d | %s | mqtt=%s",
                              event_count, " ".join(pin_states), mqtt_status)
                     last_heartbeat = now
@@ -393,7 +224,7 @@ def run(skip_mqtt=False, led_feedback=False, debug=False):
                 for pin in ESTOP_GPIO_PINS:
                     pressed = read_pin_pressed(request, pin)
                     pin_states.append(f"GPIO{pin}={'PRESSED' if pressed else 'idle'}")
-                mqtt_status = "connected" if (mqtt_pub and mqtt_pub.connected) else ("skipped" if skip_mqtt else "disconnected")
+                mqtt_status = "connected" if (mqtt_client and mqtt_client.connected) else ("skipped" if skip_mqtt else "disconnected")
                 log.info("Heartbeat | events_fired=%d | %s | mqtt=%s",
                          event_count, " ".join(pin_states), mqtt_status)
                 last_heartbeat = now
@@ -421,7 +252,7 @@ def run(skip_mqtt=False, led_feedback=False, debug=False):
                 # --- Fire e-stop ---
                 event_count += 1
                 payload = {
-                    "device_id": mqtt_settings["base_id"],
+                    "device_id": device_id,
                     "device_type": "camera",
                     "ts": int(now),
                     "status": "emergency",
@@ -442,9 +273,9 @@ def run(skip_mqtt=False, led_feedback=False, debug=False):
                             pass
                     threading.Thread(target=_led_flash, daemon=True).start()
 
-                if mqtt_pub and not skip_mqtt:
+                if mqtt_client and not skip_mqtt:
                     try:
-                        mqtt_pub.publish(payload)
+                        mqtt_client.publish(topic, payload, qos=MQTT_QOS)
                     except Exception as e:
                         log.error("MQTT publish error: %s", e)
                         traceback.print_exc()
@@ -468,8 +299,8 @@ def run(skip_mqtt=False, led_feedback=False, debug=False):
                 led_request.release()
             except Exception:
                 pass
-        if mqtt_pub:
-            mqtt_pub.close()
+        if mqtt_client:
+            mqtt_client.close()
         log.info("Exiting cleanly. Total events fired: %d", event_count)
 
 

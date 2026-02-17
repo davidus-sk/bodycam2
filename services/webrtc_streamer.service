@@ -1,0 +1,15 @@
+[Unit]
+Description=WebRTC Streaming Service
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/app/bodycam2/camera/scripts/webrtc_streamer.py
+Restart=always
+RestartSec=1
+User=root
+WorkingDirectory=/app/bodycam2/camera/scripts/
+
+[Install]
+WantedBy=multi-user.target

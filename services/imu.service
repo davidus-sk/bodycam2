@@ -6,7 +6,7 @@ StartLimitIntervalSec=0
 [Service]
 Type=notify
 WorkingDirectory=/app/bodycam2/imu/
-ExecStart=/app/bodycam2/venv/bin/python3 /app/bodycam2/imu/imu_fall_detect.py --skip-mqtt
+ExecStart=/app/bodycam2/venv/bin/python3 /app/bodycam2/imu/imu_fall_detect.py
 Restart=always
 RestartSec=3
 WatchdogSec=15

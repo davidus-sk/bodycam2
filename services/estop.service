@@ -6,7 +6,7 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStart=/app/bodycam2/venv/bin/python3 /app/bodycam2/estop/estop_mqtt.py --skip-mqtt --led-feedback
+ExecStart=/app/bodycam2/venv/bin/python3 /app/bodycam2/estop/estop_mqtt.py --led-feedback
 Restart=always
 RestartSec=3
 User=root

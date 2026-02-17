@@ -21,27 +21,26 @@ References:
 """
 
 import argparse
-import json
 import logging
 import math
 import os
-import random
 import signal
 import socket
 import struct
-import subprocess
 import sys
 import threading
 import time
 import traceback
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import smbus2
 
-try:
-    import paho.mqtt.client as mqtt
-except ImportError:
-    mqtt = None
+# ---------------------------------------------------------------------------
+#  Path setup -- allow import of shared mqtt_lib module from /app/bodycam2/
+# ---------------------------------------------------------------------------
+sys.path.insert(0, "/app/bodycam2")
+
+from mqtt_lib import MQTTClient, load_config
 
 # ---------------------------------------------------------------------------
 #  Logging
@@ -126,8 +125,6 @@ WATCHDOG_INTERVAL_SEC = 5.0
 INTERRUPT_TIMEOUT_SEC = 0.5
 SENSOR_HEALTH_CHECK_SEC = 10.0
 
-CONFIG_PATH = "/app/bodycam2/camera/conf/config.json"
-
 exit_event = threading.Event()
 
 
@@ -153,16 +150,6 @@ def sd_notify(state):
 # =========================================================================
 def magnitude(x, y, z):
     return math.sqrt(x * x + y * y + z * z)
-
-
-def shell_output(command):
-    try:
-        return subprocess.check_output(
-            command, shell=True, stderr=subprocess.STDOUT, universal_newlines=True
-        ).strip()
-    except Exception as e:
-        log.error("Shell command failed: '%s' -> %s", command, e)
-        return None
 
 
 # =========================================================================
@@ -271,140 +258,6 @@ def setup_gpio_interrupt(gpio_pin):
 
 
 # =========================================================================
-#  MQTT
-# =========================================================================
-def load_config(path=CONFIG_PATH):
-    try:
-        with open(path, "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        log.error("Config file not found at %s. Exiting.", path)
-        sys.exit(100)
-    except Exception as e:
-        log.error("Failed to read config: %s", e)
-        sys.exit(101)
-
-
-def build_mqtt_settings(cfg):
-    for k in ("server", "port_s", "username", "client_id"):
-        if k not in cfg:
-            log.error("Missing key '%s' in config.", k)
-            sys.exit(102)
-    try:
-        port = int(cfg["port_s"])
-    except (ValueError, TypeError):
-        log.error("port_s must be an integer.")
-        sys.exit(103)
-
-    base_id = shell_output(cfg["client_id"])
-    if not base_id:
-        log.error("Could not determine base client_id.")
-        sys.exit(104)
-
-    client_id = f"{base_id}-{random.randint(10, 99)}"
-    topic = f"device/{base_id}/fall"
-
-    log.info("MQTT TOPIC: %s", topic)
-    log.info("MQTT CLIENT: %s", client_id)
-
-    return dict(
-        broker=cfg["server"],
-        port=port,
-        username=cfg["username"],
-        password=cfg.get("password", ""),
-        keepalive=int(cfg.get("keepalive", 20)),
-        ws_path=cfg.get("path", "/mqtt"),
-        use_ws=True,
-        protocol=mqtt.MQTTv5,
-        topic=topic,
-        client_id=client_id,
-        device_id=base_id,
-    )
-
-
-class MQTTPublisher:
-    def __init__(self, settings):
-        self.connected = False
-        self._closed = False
-        self._tls_configured = False
-        self.settings = settings
-        self.client = mqtt.Client(
-            mqtt.CallbackAPIVersion.VERSION2,
-            client_id=settings["client_id"],
-            protocol=settings["protocol"],
-            transport="websockets" if settings["use_ws"] else "tcp",
-        )
-        if settings["username"]:
-            self.client.username_pw_set(settings["username"], settings["password"])
-        self._setup_callbacks()
-
-    def _setup_callbacks(self):
-        def on_connect(_c, _u, _f, rc, _p):
-            ok = (hasattr(rc, "value") and rc.value == 0) or rc == 0
-            if ok:
-                log.info("MQTT connected.")
-                self.connected = True
-            else:
-                log.error("MQTT connect failed: %s", rc)
-                self.connected = False
-
-        def on_disconnect(_c, _u, _f, rc, _p):
-            log.warning("MQTT disconnected: %s", rc)
-            self.connected = False
-
-        self.client.on_connect = on_connect
-        self.client.on_disconnect = on_disconnect
-
-    def connect(self):
-        while not self.connected and not exit_event.is_set():
-            try:
-                if self.settings["use_ws"] and not self._tls_configured:
-                    self.client.tls_set()
-                    self.client.ws_set_options(path=self.settings["ws_path"])
-                    self._tls_configured = True
-                self.client.connect(
-                    self.settings["broker"],
-                    self.settings["port"],
-                    keepalive=self.settings["keepalive"],
-                )
-                self.client.loop_start()
-                for _ in range(100):
-                    if self.connected or exit_event.is_set():
-                        break
-                    time.sleep(0.1)
-                if not self.connected:
-                    log.warning("MQTT waiting for broker...")
-            except Exception as e:
-                log.error("MQTT connect error: %s. Retrying in 5s.", e)
-                time.sleep(5)
-
-    def publish(self, payload):
-        if not self.connected and not exit_event.is_set():
-            self.connect()
-        try:
-            data = json.dumps(payload) if isinstance(payload, dict) else payload
-            result = self.client.publish(self.settings["topic"], data, qos=1)
-            if result.rc != mqtt.MQTT_ERR_SUCCESS:
-                log.error("MQTT publish failed: rc=%s", result.rc)
-            else:
-                log.info("MQTT published: %s", data)
-        except Exception as e:
-            log.error("MQTT publish error: %s", e)
-
-    def close(self):
-        if not self._closed:
-            try:
-                self.client.loop_stop()
-            except Exception:
-                pass
-            try:
-                self.client.disconnect()
-            except Exception:
-                pass
-            self._closed = True
-
-
-# =========================================================================
 #  Signal Handling
 # =========================================================================
 def handle_exit_signal(signum, _frame):
@@ -416,11 +269,12 @@ def handle_exit_signal(signum, _frame):
 #  Fall Detector
 # =========================================================================
 class FallDetector:
-    def __init__(self, imu, gpio_request, mqtt_pub, mqtt_settings, verbose=False):
+    def __init__(self, imu, gpio_request, mqtt_client, device_id, topic, verbose=False):
         self.imu = imu
         self.gpio = gpio_request
-        self.mqtt_pub = mqtt_pub
-        self.mqtt_settings = mqtt_settings
+        self.mqtt_client = mqtt_client
+        self.device_id = device_id
+        self.topic = topic
         self.verbose = verbose
         self.use_interrupts = gpio_request is not None
 
@@ -571,18 +425,18 @@ class FallDetector:
 
     def _publish_fall_event(self, severe=False):
         payload = {
-            "device_id": self.mqtt_settings.get("device_id", "unknown"),
+            "device_id": self.device_id,
             "device_type": "camera",
             "ts": int(time.time()),
             "fall": True,
         }
         if severe:
             log.info("NOTE: fall appears severe (motionless)")
-        if self.mqtt_pub is None:
+        if self.mqtt_client is None:
             log.info("FALL EVENT (MQTT skipped): %s", payload)
             return
         try:
-            self.mqtt_pub.publish(payload)
+            self.mqtt_client.publish(self.topic, payload, qos=1)
         except Exception as e:
             log.error("MQTT publish error: %s", e)
 
@@ -658,16 +512,15 @@ def main():
     if hasattr(signal, "SIGHUP"):
         signal.signal(signal.SIGHUP, handle_exit_signal)
 
+    # Config (always load -- needed for device_id)
+    config = load_config()
+    device_id = config["device_id"]
+    topic = f"device/{device_id}/fall"
+
     # MQTT
-    mqtt_pub = None
-    mqtt_settings = {}
+    mqtt_client = None
     if not args.skip_mqtt:
-        if mqtt is None:
-            log.error("paho-mqtt not installed. Use --skip-mqtt or install it.")
-            sys.exit(105)
-        cfg = load_config()
-        mqtt_settings = build_mqtt_settings(cfg)
-        mqtt_pub = MQTTPublisher(mqtt_settings)
+        mqtt_client = MQTTClient(config, exit_event)
     else:
         log.info("MQTT skipped (--skip-mqtt)")
 
@@ -681,13 +534,13 @@ def main():
             if not args.no_interrupt:
                 gpio_request = setup_gpio_interrupt(IMU_INT_GPIO)
 
-            if mqtt_pub:
-                mqtt_pub.connect()
+            if mqtt_client:
+                mqtt_client.connect()
 
             sd_notify("READY=1")
 
             detector = FallDetector(
-                imu, gpio_request, mqtt_pub, mqtt_settings, args.verbose
+                imu, gpio_request, mqtt_client, device_id, topic, args.verbose
             )
             detector.run()
 
@@ -703,8 +556,8 @@ def main():
                 gpio_request.release()
             except Exception:
                 pass
-        if mqtt_pub:
-            mqtt_pub.close()
+        if mqtt_client:
+            mqtt_client.close()
         log.info("Shutdown complete.")
 
 

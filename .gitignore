@@ -33,6 +33,7 @@ vendor/
 camera/camera_status.pid
 camera/conf/config.json
 camera/stream/pi_webrtc
+conf/config.json
 locomotive/.client_id
 locomotive/.device_id
 locomotive/conf/config.json
