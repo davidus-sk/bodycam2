@@ -1,0 +1,14 @@
+[Unit]
+Description=Camera Restart Stream Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/app/bodycam2/camera/scripts/restart.py
+Restart=always
+RestartSec=1
+User=root
+WorkingDirectory=/app/bodycam2/camera/scripts/
+
+[Install]
+WantedBy=multi-user.target

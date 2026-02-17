@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """
-Camera Restart Listener for Bodycam
+Restart Listener for Bodycam
 ====================================
-Subscribes to an MQTT topic and kills the camera streamer process
-when a restart command is received.  An external watchdog (systemd)
-restarts the streamer automatically after it is killed.
+Subscribes to an MQTT topic and restarts the camera streamer service
+when a restart command is received.
 
 MQTT topic : device/{device_id}/restart
 Log file   : /tmp/camera_restart.log
 
 Usage:
-    python3 camera_restart.py
+    python3 restart.py
 """
 
 import logging
@@ -29,7 +28,7 @@ from mqtt_lib import MQTTClient, load_config
 # ---------------------------------------------------------------------------
 #  Configuration
 # ---------------------------------------------------------------------------
-STREAMER_PROCESS_NAME = "pi_webrtc"
+STREAMER_SERVICE = "webrtc_streamer"
 LOG_FILE = "/tmp/camera_restart.log"
 
 # ---------------------------------------------------------------------------
@@ -59,47 +58,40 @@ def _handle_signal(signum, _frame):
 # ---------------------------------------------------------------------------
 #  Restart logic
 # ---------------------------------------------------------------------------
-def kill_streamer():
-    """Kill the camera streamer process.
+def restart_streamer():
+    """Restart the camera streamer via systemctl.
 
-    Uses pkill -9 to force-kill any process matching STREAMER_PROCESS_NAME.
-    The streamer's systemd service (or watchdog) is expected to restart it
-    automatically -- this function only handles the kill.
-
-    Returns True if pkill ran successfully (exit 0 = killed, exit 1 = no
-    matching process, both are acceptable).
+    Returns True if the command executed, False on timeout or error.
     """
     try:
         result = subprocess.run(
-            ["/usr/bin/pkill", "-9", "-f", STREAMER_PROCESS_NAME],
+            ["/usr/bin/systemctl", "restart", STREAMER_SERVICE],
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=10,
         )
         if result.returncode == 0:
-            log.info("Killed %s process", STREAMER_PROCESS_NAME)
-        elif result.returncode == 1:
-            log.warning("No %s process found to kill", STREAMER_PROCESS_NAME)
+            log.info("Restarted %s service", STREAMER_SERVICE)
         else:
             log.error(
-                "pkill exited with code %d: %s",
-                result.returncode, result.stderr.strip(),
+                "systemctl restart %s exited with code %d: %s",
+                STREAMER_SERVICE, result.returncode, result.stderr.strip(),
             )
         return True
 
     except subprocess.TimeoutExpired:
-        log.error("pkill timed out after 5s")
+        log.error("systemctl restart %s timed out after 10s", STREAMER_SERVICE)
         return False
 
     except Exception as exc:
-        log.error("Failed to kill %s: %s", STREAMER_PROCESS_NAME, exc)
+        log.error("Failed to restart %s: %s", STREAMER_SERVICE, exc)
         return False
 
 
 def on_restart_message(topic, payload):
     """Callback invoked when a message arrives on the restart topic."""
     log.info("Restart command received on %s", topic)
-    kill_streamer()
+    restart_streamer()
 
 
 # ---------------------------------------------------------------------------
