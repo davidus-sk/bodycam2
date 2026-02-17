@@ -1,0 +1,14 @@
+[Unit]
+Description=Camera OSD Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/app/bodycam2/camera/scripts/osd.py
+Restart=always
+RestartSec=1
+User=root
+WorkingDirectory=/app/bodycam2/camera/scripts/
+
+[Install]
+WantedBy=multi-user.target

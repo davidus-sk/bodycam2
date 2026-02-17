@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 """
-Restart Listener for Bodycam
+OSD Telemetry Publisher for Bodycam
 ====================================
-Subscribes to an MQTT topic and restarts the camera streamer service
-when a restart command is received.
+Periodically reads signal and battery levels from /dev/shm/status.json
+and publishes them to MQTT for OSD overlay or dashboard display.
 
-MQTT topic : device/{device_id}/restart
-Log file   : /tmp/camera_restart.log
+MQTT topic : device/{device_id}/osd
+Log file   : /tmp/osd.log
 
 Usage:
-    python3 restart.py
+    python3 osd.py
 """
 
+import json
 import logging
 import signal
-import subprocess
 import sys
 import threading
+import time
 
 # ---------------------------------------------------------------------------
 #  Path setup -- allow import of shared mqtt_lib module from /app/bodycam2/
@@ -28,8 +29,9 @@ from mqtt_lib import MQTTClient, load_config
 # ---------------------------------------------------------------------------
 #  Configuration
 # ---------------------------------------------------------------------------
-STREAMER_SERVICE = "webrtc_streamer"
-LOG_FILE = "/tmp/camera_restart.log"
+STATUS_FILE = "/dev/shm/status.json"
+PUBLISH_INTERVAL_SEC = 10
+LOG_FILE = "/tmp/osd.log"
 
 # ---------------------------------------------------------------------------
 #  Logging
@@ -42,7 +44,7 @@ logging.basicConfig(
         logging.StreamHandler(),
     ],
 )
-log = logging.getLogger("camera_restart")
+log = logging.getLogger("osd")
 
 # ---------------------------------------------------------------------------
 #  Shutdown signal
@@ -56,42 +58,35 @@ def _handle_signal(signum, _frame):
 
 
 # ---------------------------------------------------------------------------
-#  Restart logic
+#  Status reading
 # ---------------------------------------------------------------------------
-def restart_streamer():
-    """Restart the camera streamer via systemctl.
+def read_status():
+    """Read signal_level and battery_level from the shared status file.
 
-    Returns True if the command executed, False on timeout or error.
+    Returns a dict with both values, or None if the file is missing,
+    unreadable, or contains bad JSON.
     """
     try:
-        result = subprocess.run(
-            ["/usr/bin/systemctl", "restart", STREAMER_SERVICE],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if result.returncode == 0:
-            log.info("Restarted %s service", STREAMER_SERVICE)
-        else:
-            log.error(
-                "systemctl restart %s exited with code %d: %s",
-                STREAMER_SERVICE, result.returncode, result.stderr.strip(),
-            )
-        return True
-
-    except subprocess.TimeoutExpired:
-        log.error("systemctl restart %s timed out after 10s", STREAMER_SERVICE)
-        return False
-
+        with open(STATUS_FILE, "r") as fh:
+            data = json.load(fh)
+    except FileNotFoundError:
+        log.warning("Status file not found: %s (skipping)", STATUS_FILE)
+        return None
+    except json.JSONDecodeError as exc:
+        log.warning("Bad JSON in %s: %s (skipping)", STATUS_FILE, exc)
+        return None
     except Exception as exc:
-        log.error("Failed to restart %s: %s", STREAMER_SERVICE, exc)
-        return False
+        log.warning("Cannot read %s: %s (skipping)", STATUS_FILE, exc)
+        return None
 
+    signal_level = data.get("signal_level")
+    battery_level = data.get("battery_level")
 
-def on_restart_message(topic, payload):
-    """Callback invoked when a message arrives on the restart topic."""
-    log.info("Restart command received on %s", topic)
-    restart_streamer()
+    if signal_level is None or battery_level is None:
+        log.warning("Missing signal_level or battery_level in %s (skipping)", STATUS_FILE)
+        return None
+
+    return {"signal": signal_level, "battery": battery_level}
 
 
 # ---------------------------------------------------------------------------
@@ -106,17 +101,9 @@ def main():
 
     config = load_config()
     device_id = config["device_id"]
-    topic = f"device/{device_id}/restart"
+    topic = f"device/{device_id}/osd"
 
-    # LWT so the backend knows if this listener goes down
-    lwt_topic = f"device/{device_id}/last-will"
-    lwt_payload = {"device_id": device_id, "status": "restart-listener-offline"}
-
-    client = MQTTClient(config, exit_event, lwt_topic=lwt_topic, lwt_payload=lwt_payload)
-
-    # Register subscription before connecting -- will be established
-    # as soon as the connection comes up, and re-established on reconnect
-    client.subscribe(topic, on_restart_message, qos=1)
+    client = MQTTClient(config, exit_event)
 
     try:
         client.connect()
@@ -125,16 +112,28 @@ def main():
             log.error("Could not establish initial MQTT connection")
             sys.exit(1)
 
-        log.info("Listening for restart commands on %s", topic)
+        log.info("OSD publisher started: interval=%ds, topic=%s", PUBLISH_INTERVAL_SEC, topic)
 
-        # Block until shutdown signal
-        client.loop_forever()
+        while not exit_event.is_set():
+            status = read_status()
+
+            if status is not None:
+                payload = {
+                    "device_id": device_id,
+                    "device_type": "camera",
+                    "ts": int(time.time()),
+                    "status": status,
+                }
+                client.publish(topic, payload, qos=0)
+
+            if exit_event.wait(timeout=PUBLISH_INTERVAL_SEC):
+                break
 
     except KeyboardInterrupt:
         log.info("Interrupted.")
     finally:
         client.close()
-        log.info("Camera restart listener shutdown complete.")
+        log.info("OSD publisher shutdown complete.")
 
 
 if __name__ == "__main__":
