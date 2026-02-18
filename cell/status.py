@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/app/bodycam2/venv/bin/python3
 
 import subprocess
 import json
@@ -116,11 +116,11 @@ def main():
                     cell_led.off()
                     status = payload['status']
 
-                try:
-                    response = requests.post(DESTINATION_URL, json=payload, timeout=10)
-                    print(f"Sent data for Modem {index}: Status {response.status_code}")
-                except requests.exceptions.RequestException as e:
-                    print(f"Failed to post data: {e}")
+#                try:
+#                    response = requests.post(DESTINATION_URL, json=payload, timeout=10)
+#                    print(f"Sent data for Modem {index}: Status {response.status_code}")
+#                except requests.exceptions.RequestException as e:
+#                    print(f"Failed to post data: {e}")
 
         time.sleep(INTERVAL)
 

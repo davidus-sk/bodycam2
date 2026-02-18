@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+#!/app/bodycam2/venv/bin/python3
+
 """
 OSD Telemetry Publisher for Bodycam
 ====================================

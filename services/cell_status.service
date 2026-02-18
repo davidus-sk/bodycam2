@@ -5,7 +5,7 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStart=/app/bodycam2/cell/status.py camera
+ExecStart=/app/bodycam2/cell/status.py
 Restart=always
 RestartSec=1
 User=root
