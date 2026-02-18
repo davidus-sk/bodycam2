@@ -1,9 +1,11 @@
-#!/app/bodycam2/venv/bin/python3
+#!/usr/bin/python3
 
 import subprocess
 import json
 import time
 import requests
+import sys
+import signal
 from gpiozero import LED
 
 # --- Configuration ---
@@ -11,6 +13,12 @@ DESTINATION_URL = "https://your-api-endpoint.com/report"
 BATTERY_FILE = "/dev/shm/battery.dat"
 JSON_FILE = "/dev/shm/status.json"
 INTERVAL = 30  # Seconds
+
+cell_led = LED(23)
+
+def signal_handler(sig, frame):
+    cell_led.off()
+    sys.exit(0)
 
 def get_modem_list():
     """Returns a list of modem indices found on the system."""
@@ -85,8 +93,10 @@ def write_to_file(data):
         print(f"Error: Unable to write JSON data to file {JSON_FILE}")
 
 def main():
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
     status = "new"
-    cell_led = LED(23)
 
     print(f"Starting modem monitor. Posting to {DESTINATION_URL} every {INTERVAL}s...")
 
@@ -108,13 +118,16 @@ def main():
 
             if payload:
                 # blink led
-                if payload['status'] != status and payload['status'] == "registered":
-                    cell_led.blink(on_time=1, off_time=2)
-                    status = payload['status']
+                if payload['status'] != status and payload['status'] == "connected":
+                    cell_led.blink(on_time=1, off_time=2, background=True)
 
-                if payload['status'] != status and payload['status'] != "registered":
+                if payload['status'] != status and payload['status'] == "registered":
+                    cell_led.blink(on_time=1, off_time=4, background=True)
+
+                if payload['status'] != status and payload['status'] != "registered" and payload['status'] != "connected":
                     cell_led.off()
-                    status = payload['status']
+
+                status = payload['status']
 
 #                try:
 #                    response = requests.post(DESTINATION_URL, json=payload, timeout=10)
