@@ -36,9 +36,22 @@ export class MapView {
         this._locationId = 0;
         this._site = {};
 
-        // dom  elements
+        // dom elements
         this.$element = $('#map');
         this.$btnReset = $('#btn-reset');
+
+        // icon
+        this._sharedIcon = L.DivIcon.extend({
+            options: {
+                className: 'map-icon def-equipment',
+                html: '<div class="inner"></div>',
+                iconSize: [38, 38],
+                // shadowSize:   [50, 64],
+                // iconAnchor:   [22, 94],
+                // shadowAnchor: [4, 62],
+                // popupAnchor:  [-3, -76]
+            },
+        });
 
         // debug
         if (
@@ -125,7 +138,7 @@ export class MapView {
                     if (topic) {
                         // received GPS data
                         if (topic.match(gpsRegex)) {
-                            this.devicGpsHandler(payload);
+                            this.deviceGpsHandler(payload);
                         }
 
                         // received panic button event
@@ -136,7 +149,7 @@ export class MapView {
                 } catch (e) {
                     this.debug(
                         '[video] %s | topic: %s - %cmessage parsing error: %s',
-                        this.mqttId,
+                        this.mqtt.clientId,
                         topic,
                         ConsoleColors.error,
                         e
@@ -152,7 +165,7 @@ export class MapView {
 
         // markers super group - all marker groups are in this group
         this._markers = {};
-        //
+        // marker groups
         this._markersGroup = {};
         // markers references
         this._markersRef = {};
@@ -179,7 +192,7 @@ export class MapView {
         // -----------------------------------------------------------
         this._layersControls = {
             Street: this._layers.street,
-            Satelite: this._layers.satelite,
+            Satellite: this._layers.satellite,
         };
 
         // Overlays
@@ -187,10 +200,13 @@ export class MapView {
         this._markers = new L.FeatureGroup();
         this._markers.addTo(this.map);
 
+        // layers - each group is a layer (user can show or hide the group)
+        this._markersGroup['default'] = new L.FeatureGroup().addTo(this._markers);
         this._markersGroup['locomotive'] = new L.FeatureGroup().addTo(this._markers);
         this._markersGroup['camera'] = new L.FeatureGroup().addTo(this._markers);
         this._markersGroup['equipment'] = new L.FeatureGroup().addTo(this._markers);
 
+        // overlay picker
         this.mapOverlays = {
             Locomotive: this._markersGroup['locomotive'],
             Persons: this._markersGroup['camera'],
@@ -201,7 +217,9 @@ export class MapView {
         this._layers['street'].addTo(this.map);
 
         // layer controls
-        var layerControl = L.control.layers(this._layersControls, this.mapOverlays).addTo(this.map);
+        const layerControl = L.control
+            .layers(this._layersControls, this.mapOverlays)
+            .addTo(this.map);
     }
 
     initWorkers() {
@@ -232,7 +250,7 @@ export class MapView {
         // map events
         if (this.map) {
             this.map.on('dragstart', e => {
-                console.log('e: map - dragstart', e);
+                this.debug('[map] event - dragstart', e);
 
                 this.mapFitBounds = false;
                 this.filterBadge(this.$btnReset, true);
@@ -253,7 +271,7 @@ export class MapView {
         // map marker click
         // https://stackoverflow.com/questions/49277253/leaflet-contextmenu-how-to-pass-a-marker-reference-when-executing-a-callback-f
         this.on('map_marker_click', (marker, data) => {
-            console.log('e: map_marker_click', marker, data);
+            this.debug('[map] event - map_marker_click', marker, data);
 
             let deviceId = data.device_id;
 
@@ -281,7 +299,7 @@ export class MapView {
                     body: modalBody,
                     active: true,
                     onInit: m => {
-                        for (var key in this._modalRefs) {
+                        for (const key in this._modalRefs) {
                             if (this._modalRefs.hasOwnProperty(key)) {
                                 this._modalRefs[key].setActiveStatus(false);
                             }
@@ -306,7 +324,7 @@ export class MapView {
                 interact('#' + this._modalRefs[deviceId].getId())
                     .on('tap', event => {
                         event.stopPropagation();
-                        for (var key in this._modalRefs) {
+                        for (const key in this._modalRefs) {
                             if (this._modalRefs.hasOwnProperty(key)) {
                                 this._modalRefs[key].setActiveStatus(false);
                             }
@@ -323,15 +341,14 @@ export class MapView {
                         ],
                         listeners: {
                             move(event) {
-                                var target = event.target,
-                                    // keep the dragged position in the data-x/data-y attributes
-                                    x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx,
-                                    y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+                                const target = event.target;
+                                const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+                                const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
 
                                 // translate the element
                                 target.style.transform = 'translate(' + x + 'px, ' + y + 'px)';
 
-                                // update the posiion attributes
+                                // update the position attributes
                                 target.setAttribute('data-x', x);
                                 target.setAttribute('data-y', y);
                             },
@@ -350,9 +367,9 @@ export class MapView {
                         ],
                         listeners: {
                             move(event) {
-                                var target = event.target,
-                                    x = parseFloat(target.getAttribute('data-x')) || 0,
-                                    y = parseFloat(target.getAttribute('data-y')) || 0;
+                                const target = event.target;
+                                let x = parseFloat(target.getAttribute('data-x')) || 0;
+                                let y = parseFloat(target.getAttribute('data-y')) || 0;
 
                                 // update the element's style
                                 target.style.width = event.rect.width + 'px';
@@ -378,29 +395,16 @@ export class MapView {
     getMapIcon(objectType) {
         switch (objectType) {
             case 'locomotive':
-                return L.divIcon({
-                    className: 'map-icon map-icon-locomotive',
-                    html: '<div class="inner"></div>',
-                    iconSize: [38, 38],
-                });
+                return new this._sharedIcon({ className: 'map-icon locomotive' });
             case 'camera_fall':
-                return L.divIcon({
-                    className: 'map-icon map-icon-pulse fall',
-                    html: '<div class="inner"></div>',
-                    iconSize: [38, 38],
-                });
+                return new this._sharedIcon({ className: 'map-icon map-icon-pulse fall' });
             case 'camera_emergency':
-                return L.divIcon({
-                    className: 'map-icon map-icon-pulse emergency',
-                    html: '<div class="inner"></div>',
-                    iconSize: [38, 38],
-                });
+                return new this._sharedIcon({ className: 'map-icon map-icon-pulse emergency' });
+            case 'camera':
+                return new this._sharedIcon({ className: 'map-icon camera' });
             case 'equipment':
-                return L.divIcon({
-                    className: 'map-icon emergency',
-                    html: '<div class="inner"></div>',
-                    iconSize: [38, 38],
-                });
+            default:
+                return new this._sharedIcon({ className: 'map-icon equipment' });
         }
 
         //     color: 'red',
@@ -418,7 +422,7 @@ export class MapView {
                 maxZoom: 20,
                 subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
             }),
-            satelite: L.tileLayer('http://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            satellite: L.tileLayer('http://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
                 maxZoom: 20,
                 subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
             }),
@@ -453,13 +457,16 @@ export class MapView {
     }
 
     // refresh map objects
-    devicGpsHandler(data) {
+    deviceGpsHandler(data) {
         if (data && typeof data === 'object') {
             const deviceId = data.device_id;
-            const objectType = data.type ?? 'camera';
+            const objectType = data.type ?? 'equipment';
+            const now = getTimestamp();
 
-            addMapObject(deviceId, {
+            this.addMapObject(deviceId, {
+                layer: 'camera',
                 type: objectType,
+                ts: now,
                 gps: data.gps,
             });
         }
@@ -494,16 +501,20 @@ export class MapView {
     addMapObject(deviceId, obj) {
         this.debug('[map] new object added - deviceId: %s', deviceId, obj);
 
+        // new map object (add it to the map)
         if (this._mapObjects[deviceId] === undefined) {
-            // new map object
+            // object layer
+            const layer = obj.layer ?? 'equipment';
 
-            const type = obj.type;
+            // object type
+            const type = obj.type ?? 'equipment';
 
-            var marker = new L.Marker(obj.gps, {
+            // initialize new marker
+            const marker = new L.Marker(obj.gps, {
                 camera: obj,
                 icon: this.getMapIcon(type),
             }).on('click', () => {
-                this.emit('map_marker_click', this, obj);
+                this.emit('map_marker_click', marker, obj);
             });
 
             marker.on('contextmenu', e => {
@@ -512,9 +523,14 @@ export class MapView {
 
             // markers - feature group (markers are added to separate groups)
             // add marker to the desired group
-            marker.addTo(this._markersGroup[type]);
+            // default group - default_equipment
+            if (this._markersGroup.hasOwnProperty(layer)) {
+                marker.addTo(this._markersGroup[layer]);
+            } else {
+                marker.addTo(this._markersGroup['equipment']);
+            }
 
-            // marker reference
+            // store the marker reference
             this._markersRef[deviceId] = marker;
 
             marker.getElement().classList.add('css-icon');
@@ -529,11 +545,13 @@ export class MapView {
             if (
                 typeof this._markersRef[deviceId] === 'object' &&
                 this._markersRef[deviceId]['_leaflet_id'] !== undefined
-            )
+            ) {
+                // update the gps coordinates
                 this._markersRef[deviceId].setLatLng(obj.gps);
+            }
         }
 
-        // store object reference
+        // store the object reference
         this._mapObjects[deviceId] = obj;
     }
 
@@ -549,17 +567,19 @@ export class MapView {
 
             // modal win
             if (this._modalRefs[deviceId] !== undefined) {
+                interact('#' + this._modalRefs[deviceId].getId()).unset();
                 this._modalRefs[deviceId].destroy();
                 delete this._modalRefs[deviceId];
             }
 
             // marker
             if (this._markersRef[deviceId] !== undefined) {
-                for (const group in this._markersGroup) {
-                    this._markersRef[deviceId].removeFrom(this._markersGroup[group]);
+                const layer = this._mapObjects[deviceId]?.layer;
+                if (layer && this._markersGroup[layer]) {
+                    this._markersRef[deviceId].removeFrom(this._markersGroup[layer]);
+                } else {
+                    this._markersRef[deviceId].removeFrom(this.map);
                 }
-
-                this._markersRef[deviceId].removeFrom(this.map);
                 delete this._markersRef[deviceId];
             }
 
@@ -575,27 +595,16 @@ export class MapView {
         if (data && data.device_id && data.device_id.length) {
             const deviceId = data.device_id;
             const status = data.status || '';
-            let icon;
 
             if (this._markersRef[deviceId] !== undefined) {
-                switch (status) {
-                    case 'fall':
-                        icon = this._icons['camera_fall'];
-                        break;
-                    case 'emergency':
-                        icon = this._icons['camera_emergency'];
-                        break;
-                    default:
-                        icon = this._icons['camera'];
-                        break;
-                }
+                const icon = this.getMapIcon(status);
 
                 this._markersRef[deviceId].setIcon(icon);
             }
         }
     }
 
-    async getCurrentPosition() {
+    getCurrentPosition() {
         if (!('geolocation' in navigator)) return;
         this.debug('[map][gps] getting the current position...');
 
@@ -606,7 +615,7 @@ export class MapView {
                     lng: position.coords.longitude,
                 };
 
-                this.debug('[map][gps] successfuly retrieved', this.gps);
+                this.debug('[map][gps] successfully retrieved', this.gps);
             },
             () => {
                 this.debug('[map][gps] Unable to retrieve current location');
@@ -619,7 +628,7 @@ export class MapView {
         );
     }
 
-    async fetchSites() {
+    fetchSites() {
         // we need to hide api token - call local php script
         $.get('ajax/site_list.php').done(data => {
             // find the closest site
@@ -629,24 +638,38 @@ export class MapView {
         });
     }
 
-    async getSiteEquipment() {
+    getSiteEquipment() {
         if (!this._locationId) return;
 
         $.get('ajax/site_equipment.php', { location_id: this._locationId }).done(data => {
             if (data && typeof data === 'object') {
-                for (var code in data) {
+                const now = getTimestamp();
+
+                for (const code in data) {
                     if (data.hasOwnProperty(code)) {
-                        var loc = data[code];
+                        const loc = data[code];
+
+                        // test data
+                        // if (i === 0) {
+                        //     const randomItem = arr => arr[Math.floor(Math.random() * arr.length)];
+                        //     const types = ['camera', 'equipment', 'locomotive'];
+                        //     loc.lat = 30.672026;
+                        //     loc.lon = -92.260702;
+                        //     loc.type = randomItem(types);
+                        // }
 
                         if (loc && loc.hasOwnProperty('lat')) {
                             if (loc['lat'] && loc['lon']) {
                                 // we have GPS
                                 this.addMapObject(code, {
-                                    type: 'equipment',
+                                    layer: 'equipment',
+                                    type: loc.type ?? 'equipment',
+                                    ts: now,
                                     gps: { lat: loc.lat, lng: loc.lon },
                                 });
                             }
                         }
+
                     }
                 }
             }
