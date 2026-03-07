@@ -3,7 +3,7 @@
 include '../bootstrap.php';
 
 use App\YardtrackerClient;
-use App\Cache;
+use App\Base\Cache;
 
 try {
 
